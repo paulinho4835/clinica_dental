@@ -2,12 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
+import { CashSessionPanel } from "@/components/caja/CashSessionPanel";
 
 export default async function CashPage() {
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const [{ data: payments }, { data: commissions }, { data: expenses }, { data: patients }] = await Promise.all([
+  const [{ data: payments }, { data: commissions }, { data: expenses }, { data: patients }, { data: openSession }] = await Promise.all([
     supabase.from("payments")
       .select("amount, method, kind, received_at, patients(full_name)")
       .order("received_at", { ascending: false }).limit(20),
@@ -18,6 +19,12 @@ export default async function CashPage() {
       .select("category, amount, spent_at, vendor")
       .order("spent_at", { ascending: false }).limit(20),
     supabase.from("patients").select("id, full_name").order("full_name"),
+    supabase.from("cash_sessions")
+      .select("id, opened_at, opening_float")
+      .is("closed_at", null)
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const totalPay = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
@@ -27,7 +34,12 @@ export default async function CashPage() {
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Caja y finanzas</h1>
 
-      {can(profile?.role, "billing:write") && <PaymentForm patients={patients ?? []} />}
+      {can(profile?.role, "billing:write") && (
+        <>
+          <CashSessionPanel session={openSession ?? null} />
+          <PaymentForm patients={patients ?? []} />
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Ingresos (últimos)" value={`$${totalPay.toFixed(2)}`} />

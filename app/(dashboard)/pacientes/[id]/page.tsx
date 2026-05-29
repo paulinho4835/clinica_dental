@@ -113,11 +113,7 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Odontograma</h2>
-        <OdontogramEditor
-          clinicId={patient.clinic_id}
-          patientId={patient.id}
-          initialTeeth={teeth}
-        />
+        <OdontogramEditor patientId={patient.id} initialTeeth={teeth} />
       </section>
 
       <section>

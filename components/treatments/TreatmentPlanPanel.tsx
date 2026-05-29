@@ -81,9 +81,19 @@ export function TreatmentPlanPanel({
               <span className="text-sm font-semibold">
                 Plan · {STATUS_LABEL[plan.status] ?? plan.status}
               </span>
-              <span className="text-sm tabular-nums text-slate-600">
-                Total: ${total.toFixed(2)}
-              </span>
+              <div className="flex items-center gap-4">
+                <a
+                  href={`/api/budgets/${plan.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-clinic hover:underline"
+                >
+                  Descargar PDF
+                </a>
+                <span className="text-sm tabular-nums text-slate-600">
+                  Total: ${total.toFixed(2)}
+                </span>
+              </div>
             </div>
 
             {plan.phases.map((ph) => (

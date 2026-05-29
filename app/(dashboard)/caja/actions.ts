@@ -103,3 +103,69 @@ export async function payCommission(id: string): Promise<ActionState> {
   revalidatePath("/caja");
   return { ok: true };
 }
+
+// Apertura de caja con fondo inicial. Solo una sesión abierta a la vez por clínica.
+export async function openCashSession(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "billing:write")) return { error: "Sin permiso." };
+
+  const float = Number(formData.get("opening_float") ?? 0);
+  if (Number.isNaN(float) || float < 0) return { error: "Fondo inicial inválido." };
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("cash_sessions")
+    .select("id")
+    .is("closed_at", null)
+    .limit(1);
+  if (existing && existing.length > 0)
+    return { error: "Ya hay una caja abierta. Ciérrala antes de abrir otra." };
+
+  const { error } = await supabase.from("cash_sessions").insert({
+    clinic_id: profile.clinicId,
+    opened_by: profile.userId,
+    opening_float: float,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/caja");
+  return { ok: true };
+}
+
+// Cierre de caja: closing_total = fondo inicial + pagos en efectivo desde la apertura.
+export async function closeCashSession(id: string): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "billing:write")) return { error: "Sin permiso." };
+
+  const supabase = await createClient();
+  const { data: session } = await supabase
+    .from("cash_sessions")
+    .select("opened_at, opening_float")
+    .eq("id", id)
+    .single();
+  if (!session) return { error: "Sesión de caja no encontrada." };
+
+  const { data: cashPays } = await supabase
+    .from("payments")
+    .select("amount")
+    .eq("method", "cash")
+    .gte("received_at", session.opened_at);
+  const cashTotal = (cashPays ?? []).reduce((s, p) => s + Number(p.amount), 0);
+
+  const { error } = await supabase
+    .from("cash_sessions")
+    .update({
+      closed_at: new Date().toISOString(),
+      closing_total: Number(session.opening_float) + cashTotal,
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/caja");
+  return { ok: true };
+}

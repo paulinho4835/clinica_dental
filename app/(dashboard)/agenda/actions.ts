@@ -58,17 +58,32 @@ export async function createAppointment(
       return { error: "El odontólogo ya tiene una cita en ese horario. Marca sobre-cupo para forzar." };
   }
 
-  const { error } = await supabase.from("appointments").insert({
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .insert({
+      clinic_id: profile.clinicId,
+      patient_id: parsed.data.patient_id,
+      dentist_id: parsed.data.dentist_id,
+      operatory_id: parsed.data.operatory_id,
+      starts_at: starts.toISOString(),
+      ends_at: ends.toISOString(),
+      reason: parsed.data.reason,
+      overbooked: parsed.data.overbooked,
+    })
+    .select("id")
+    .single();
+  if (error || !appt) return { error: error?.message ?? "No se pudo agendar." };
+
+  // Recordatorio automático 24h antes (lo despacha la Edge Function vía pg_cron).
+  // Si la cita es en menos de 24h, se programa de inmediato.
+  const remindAt = new Date(starts.getTime() - 24 * 60 * 60 * 1000);
+  const scheduledFor = remindAt > new Date() ? remindAt : new Date();
+  await supabase.from("appointment_reminders").insert({
     clinic_id: profile.clinicId,
-    patient_id: parsed.data.patient_id,
-    dentist_id: parsed.data.dentist_id,
-    operatory_id: parsed.data.operatory_id,
-    starts_at: starts.toISOString(),
-    ends_at: ends.toISOString(),
-    reason: parsed.data.reason,
-    overbooked: parsed.data.overbooked,
+    appointment_id: appt.id,
+    channel: "whatsapp",
+    scheduled_for: scheduledFor.toISOString(),
   });
-  if (error) return { error: error.message };
 
   revalidatePath("/agenda");
   return { ok: true };

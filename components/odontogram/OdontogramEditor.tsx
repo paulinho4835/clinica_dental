@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { saveOdontogram } from "@/app/(dashboard)/pacientes/odontogram-actions";
 import { Odontogram } from "./Odontogram";
 import type { Surface, TeethMap, ToothState } from "@/lib/odontogram/types";
 
@@ -16,17 +17,19 @@ function next<T>(cycle: T[], current: T): T {
 }
 
 export function OdontogramEditor({
-  clinicId,
   patientId,
   initialTeeth,
 }: {
-  clinicId: string;
   patientId: string;
   initialTeeth: TeethMap;
 }) {
+  const router = useRouter();
   const [teeth, setTeeth] = useState<TeethMap>(initialTeeth);
+  // Baseline = último estado guardado; sirve para calcular el diff en cada save.
+  const [baseline, setBaseline] = useState<TeethMap>(initialTeeth);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function onSurfaceClick(fdi: string, surface: Surface) {
     setTeeth((prev) => {
@@ -55,15 +58,16 @@ export function OdontogramEditor({
 
   async function save() {
     setSaving(true);
-    const supabase = createClient();
-    await supabase
-      .from("odontograms")
-      .upsert(
-        { clinic_id: clinicId, patient_id: patientId, teeth },
-        { onConflict: "patient_id" },
-      );
+    setError(null);
+    const res = await saveOdontogram(patientId, baseline, teeth);
     setSaving(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setBaseline(teeth); // nuevo baseline para el próximo diff
     setDirty(false);
+    router.refresh();
   }
 
   return (
@@ -73,6 +77,7 @@ export function OdontogramEditor({
         Todo se guarda como datos (JSONB) — sin imágenes.
       </p>
       <Odontogram teeth={teeth} onSurfaceClick={onSurfaceClick} onWholeClick={onWholeClick} />
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         onClick={save}
         disabled={!dirty || saving}
