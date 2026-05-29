@@ -40,5 +40,8 @@ enable_confirmations = false
 enabled = true
 uri = "pg-functions://postgres/public/custom_access_token_hook"
 
+[realtime]
+enabled = true
+
 [edge_runtime]
 enabled = true
