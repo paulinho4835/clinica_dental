@@ -18,10 +18,10 @@ declare
   v_clinic uuid;
   v_role   text;
 begin
-  select clinic_id, role::text
+  select p.clinic_id, p.role::text
     into v_clinic, v_role
-  from public.profiles
-  where id = (event->>'user_id')::uuid;
+  from public.profiles p
+  where p.id = (event->>'user_id')::uuid;
 
   claims := coalesce(event->'claims', '{}'::jsonb);
   claims := jsonb_set(claims, '{app_metadata}', coalesce(claims->'app_metadata', '{}'::jsonb));
