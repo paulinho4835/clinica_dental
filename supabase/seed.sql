@@ -51,6 +51,36 @@ begin
 end $$;
 
 -- ----------------------------------------------------------------------------
+-- Operador de la plataforma (dueño del SaaS). NO pertenece a clínica:
+-- no va en profiles, sí en platform_admins. Accede al panel /superadmin.
+-- Login demo: super@plataforma.com / password123
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := 'ffffffff-0000-0000-0000-000000000001';
+  v_pwd text := crypt('password123', gen_salt('bf'));
+begin
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, created_at, updated_at,
+    raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token, email_change_token_new, email_change
+  ) values (
+    '00000000-0000-0000-0000-000000000000', v_uid, 'authenticated', 'authenticated', 'super@plataforma.com', v_pwd,
+    now(), now(), now(),
+    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, '', '', '', ''
+  );
+  insert into auth.identities (
+    id, user_id, provider_id, identity_data, provider, created_at, updated_at, last_sign_in_at
+  ) values (
+    gen_random_uuid(), v_uid, v_uid::text,
+    jsonb_build_object('sub', v_uid::text, 'email', 'super@plataforma.com'),
+    'email', now(), now(), now()
+  );
+  insert into public.platform_admins (user_id, full_name)
+  values (v_uid, 'Operador Plataforma');
+end $$;
+
+-- ----------------------------------------------------------------------------
 -- Datos clínicos demo — Clínica A
 -- ----------------------------------------------------------------------------
 insert into operatories (id, clinic_id, name) values

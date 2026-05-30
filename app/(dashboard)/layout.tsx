@@ -2,15 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/SignOutButton";
-
-const NAV = [
-  { href: "/agenda", label: "Agenda" },
-  { href: "/pacientes", label: "Pacientes" },
-  { href: "/tratamientos", label: "Tratamientos" },
-  { href: "/caja", label: "Caja y finanzas" },
-  { href: "/inventario", label: "Inventario" },
-  { href: "/ajustes", label: "Ajustes" },
-] as const;
+import { FEATURES, normalizeFeatures } from "@/lib/features";
+import { isPlatformAdmin } from "@/lib/superadmin";
 
 export default async function DashboardLayout({
   children,
@@ -23,12 +16,21 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, clinics(name)")
+    .select("full_name, role, clinics(name, features)")
     .eq("id", user.id)
     .single();
 
-  const clinicName =
-    (profile?.clinics as { name?: string } | null)?.name ?? "Clínica";
+  const superadmin = await isPlatformAdmin();
+
+  const clinic = profile?.clinics as
+    | { name?: string; features?: unknown }
+    | null;
+  const clinicName = superadmin ? "Plataforma" : clinic?.name ?? "Clínica";
+
+  // Menú = solo módulos encendidos de la clínica. El superadmin no opera una
+  // clínica, así que no ve módulos clínicos (solo su panel).
+  const features = normalizeFeatures(clinic?.features);
+  const nav = superadmin ? [] : FEATURES.filter((f) => features[f.key]);
 
   return (
     <div className="flex min-h-screen">
@@ -36,11 +38,13 @@ export default async function DashboardLayout({
         <div className="mb-6">
           <div className="text-lg font-bold text-clinic-fg">{clinicName}</div>
           <div className="text-xs text-slate-500">
-            {profile?.full_name} · {profile?.role}
+            {superadmin
+              ? "Operador de plataforma"
+              : `${profile?.full_name} · ${profile?.role}`}
           </div>
         </div>
         <nav className="space-y-1">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -50,6 +54,16 @@ export default async function DashboardLayout({
             </Link>
           ))}
         </nav>
+        {superadmin && (
+          <div className="mt-6 border-t border-slate-200 pt-4">
+            <Link
+              href="/superadmin"
+              className="block rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              ⚙ Superadmin
+            </Link>
+          </div>
+        )}
         <div className="mt-6 border-t border-slate-200 pt-4">
           <SignOutButton />
         </div>

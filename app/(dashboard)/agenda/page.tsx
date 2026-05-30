@@ -5,6 +5,7 @@ import { NewAppointmentForm } from "@/components/agenda/NewAppointmentForm";
 import { StatusSelect } from "@/components/agenda/StatusSelect";
 import { DayNav } from "@/components/agenda/DayNav";
 import { RealtimeAppointments } from "@/components/agenda/RealtimeAppointments";
+import { requireFeature } from "@/lib/guard";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -15,6 +16,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<{ date?: string; dentist?: string }>;
 }) {
+  await requireFeature("agenda");
   const sp = await searchParams;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : todayISO();
   const dentistId = sp.dentist ?? "";

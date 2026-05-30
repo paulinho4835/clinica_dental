@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireFeature } from "@/lib/guard";
 
 export default async function TreatmentsPage() {
+  await requireFeature("tratamientos");
   const supabase = await createClient();
   const { data: procs } = await supabase
     .from("procedure_catalog")

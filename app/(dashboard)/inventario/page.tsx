@@ -2,8 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { MovementForm } from "@/components/inventory/MovementForm";
+import { requireFeature } from "@/lib/guard";
 
 export default async function InventoryPage() {
+  await requireFeature("inventario");
   const supabase = await createClient();
   const profile = await getProfile();
   const [{ data: items }, { data: batches }] = await Promise.all([

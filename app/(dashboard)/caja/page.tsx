@@ -3,8 +3,10 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
 import { CashSessionPanel } from "@/components/caja/CashSessionPanel";
+import { requireFeature } from "@/lib/guard";
 
 export default async function CashPage() {
+  await requireFeature("caja");
   const supabase = await createClient();
   const profile = await getProfile();
 

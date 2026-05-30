@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { NewPatientForm } from "@/components/patients/NewPatientForm";
+import { requireFeature } from "@/lib/guard";
 
 export default async function PatientsPage() {
+  await requireFeature("pacientes");
   const supabase = await createClient();
   const profile = await getProfile();
   const { data: patients } = await supabase
