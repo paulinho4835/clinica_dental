@@ -77,6 +77,12 @@ create policy profiles_admin_write on profiles for all
   using (clinic_id = (select auth_clinic_id()) and (select auth_role()) = 'admin')
   with check (clinic_id = (select auth_clinic_id()) and (select auth_role()) = 'admin');
 
+-- El custom_access_token_hook corre como supabase_auth_admin y necesita leer
+-- profiles ANTES de que existan los claims (clinic_id/role aún no están en el
+-- JWT). Sin esta policy, RLS devuelve 0 filas y el hook no inyecta nada.
+create policy profiles_auth_admin_read on profiles for select
+  to supabase_auth_admin using (true);
+
 -- ----------------------------------------------------------------------------
 -- Política de aislamiento por tenant aplicada en bloque a TODA tabla con clinic_id.
 -- ----------------------------------------------------------------------------
