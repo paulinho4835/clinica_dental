@@ -14,6 +14,16 @@ export default {
           fg: "#0f766e",
         },
       },
+      // Resaltado "flash": pulsa un anillo teal 3 veces para ubicar una cita.
+      keyframes: {
+        flash: {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(14,165,164,0)" },
+          "50%": { boxShadow: "0 0 0 4px rgba(14,165,164,0.75)" },
+        },
+      },
+      animation: {
+        flash: "flash 0.9s ease-in-out 3",
+      },
     },
   },
   plugins: [],

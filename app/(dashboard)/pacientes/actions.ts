@@ -19,6 +19,7 @@ function csvToArray(v: FormDataEntryValue | null): string[] {
 
 const PatientSchema = z.object({
   full_name: z.string().min(1, "Nombre requerido"),
+  national_id: z.string().optional().nullable(),
   dob: z.string().optional().nullable(),
   sex: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -37,6 +38,7 @@ export async function createPatient(
 
   const parsed = PatientSchema.safeParse({
     full_name: formData.get("full_name"),
+    national_id: formData.get("national_id") || null,
     dob: formData.get("dob") || null,
     sex: formData.get("sex") || null,
     phone: formData.get("phone") || null,
@@ -50,6 +52,7 @@ export async function createPatient(
   const { error } = await supabase.from("patients").insert({
     clinic_id: profile.clinicId, // RLS verifica que coincida con el JWT
     full_name: parsed.data.full_name,
+    national_id: parsed.data.national_id || null,
     dob: parsed.data.dob,
     sex: parsed.data.sex,
     phone: parsed.data.phone,
@@ -62,4 +65,43 @@ export async function createPatient(
 
   revalidatePath("/pacientes");
   return { ok: true };
+}
+
+// Registro rápido desde la agenda: crea un paciente con lo mínimo (nombre + CI
+// + teléfono) y DEVUELVE su id para vincularlo a la cita en el acto.
+const QuickPatientSchema = z.object({
+  full_name: z.string().trim().min(1, "Nombre requerido"),
+  national_id: z.string().trim().optional().nullable(),
+  phone: z.string().trim().optional().nullable(),
+});
+
+export async function createPatientQuick(input: {
+  full_name: string;
+  national_id?: string | null;
+  phone?: string | null;
+}): Promise<{ patientId?: string; error?: string }> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "patients:write"))
+    return { error: "Sin permiso para crear pacientes." };
+
+  const parsed = QuickPatientSchema.safeParse(input);
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("patients")
+    .insert({
+      clinic_id: profile.clinicId,
+      full_name: parsed.data.full_name,
+      national_id: parsed.data.national_id || null,
+      phone: parsed.data.phone || null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) return { error: error?.message ?? "No se pudo registrar." };
+
+  revalidatePath("/pacientes");
+  return { patientId: data.id };
 }

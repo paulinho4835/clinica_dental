@@ -8,15 +8,27 @@ import { can } from "@/lib/rbac";
 
 export type ActionState = { error?: string; ok?: boolean };
 
-const ApptSchema = z.object({
-  patient_id: z.string().uuid("Paciente requerido"),
-  dentist_id: z.string().uuid("Odontólogo requerido"),
-  operatory_id: z.string().uuid().optional().nullable(),
-  starts_at: z.string().min(1, "Hora requerida"),
-  duration_min: z.coerce.number().int().min(5).max(480).default(30),
-  reason: z.string().optional().nullable(),
-  overbooked: z.boolean().default(false),
-});
+const DEFAULT_DURATION_MIN = 30;
+
+const ApptSchema = z
+  .object({
+    patient_id: z.string().uuid("Paciente inválido").optional().nullable(),
+    patient_name: z.string().trim().min(1).optional().nullable(),
+    dentist_name: z.string().trim().min(1, "Odontólogo requerido"),
+    starts_at: z.string().min(1, "Fecha requerida"),
+    ends_at: z.string().optional().nullable(),
+    reason: z.string().optional().nullable(),
+    overbooked: z.boolean().default(false),
+    // Capa financiera (opcional). Saldo = consult_price - deposit (calculado).
+    consult_price: z.coerce.number().min(0, "Precio inválido").default(0),
+    deposit: z.coerce.number().min(0, "Adelanto inválido").default(0),
+    deposit_method: z.enum(["cash", "qr"]).optional().nullable(),
+  })
+  // Paciente registrado O nombre suelto (consulta rápida).
+  .refine((d) => !!d.patient_id || !!d.patient_name, {
+    message: "Indica un paciente: elige uno registrado o escribe el nombre.",
+    path: ["patient_id"],
+  });
 
 export async function createAppointment(
   _prev: ActionState,
@@ -28,47 +40,63 @@ export async function createAppointment(
     return { error: "Sin permiso para agendar." };
 
   const parsed = ApptSchema.safeParse({
-    patient_id: formData.get("patient_id"),
-    dentist_id: formData.get("dentist_id"),
-    operatory_id: formData.get("operatory_id") || null,
+    patient_id: formData.get("patient_id") || null,
+    patient_name: formData.get("patient_name") || null,
+    dentist_name: formData.get("dentist_name"),
     starts_at: formData.get("starts_at"),
-    duration_min: formData.get("duration_min") || 30,
+    ends_at: formData.get("ends_at") || null,
     reason: formData.get("reason") || null,
     overbooked: formData.get("overbooked") === "on",
+    consult_price: formData.get("consult_price") || 0,
+    deposit: formData.get("deposit") || 0,
+    deposit_method: formData.get("deposit_method") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   const starts = new Date(parsed.data.starts_at);
-  const ends = new Date(starts.getTime() + parsed.data.duration_min * 60_000);
+  // Fin personalizado; si no llega, se usa la duración por defecto.
+  const ends = parsed.data.ends_at
+    ? new Date(parsed.data.ends_at)
+    : new Date(starts.getTime() + DEFAULT_DURATION_MIN * 60_000);
+  if (ends <= starts) return { error: "La hora de fin debe ser posterior al inicio." };
 
   const supabase = await createClient();
 
-  // Detección de solapamiento para el mismo odontólogo (a menos que sea sobre-cupo explícito).
+  // Choque con otra cita del mismo día (salvo sobre-cupo explícito).
   if (!parsed.data.overbooked) {
+    const dayStart = new Date(starts);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const { data: clash } = await supabase
       .from("appointments")
-      .select("id")
-      .eq("dentist_id", parsed.data.dentist_id)
-      .neq("status", "cancelled")
-      .lt("starts_at", ends.toISOString())
-      .gt("ends_at", starts.toISOString())
-      .limit(1);
-    if (clash && clash.length > 0)
-      return { error: "El odontólogo ya tiene una cita en ese horario. Marca sobre-cupo para forzar." };
+      .select("id, starts_at, ends_at")
+      .gte("starts_at", dayStart.toISOString())
+      .lt("starts_at", dayEnd.toISOString())
+      .neq("status", "cancelled");
+    const overlaps = (clash ?? []).some((c) => {
+      const cs = new Date(c.starts_at).getTime();
+      const ce = c.ends_at ? new Date(c.ends_at).getTime() : cs + DEFAULT_DURATION_MIN * 60_000;
+      return starts.getTime() < ce && ends.getTime() > cs;
+    });
+    if (overlaps)
+      return { error: "Ese horario choca con otra cita. Marca sobre-cupo si es a propósito." };
   }
 
   const { data: appt, error } = await supabase
     .from("appointments")
     .insert({
       clinic_id: profile.clinicId,
-      patient_id: parsed.data.patient_id,
-      dentist_id: parsed.data.dentist_id,
-      operatory_id: parsed.data.operatory_id,
+      patient_id: parsed.data.patient_id ?? null,
+      patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
+      dentist_name: parsed.data.dentist_name,
       starts_at: starts.toISOString(),
       ends_at: ends.toISOString(),
       reason: parsed.data.reason,
       overbooked: parsed.data.overbooked,
+      consult_price: parsed.data.consult_price,
+      deposit: parsed.data.deposit,
+      deposit_method: parsed.data.deposit > 0 ? parsed.data.deposit_method ?? "cash" : null,
     })
     .select("id")
     .single();
@@ -84,6 +112,104 @@ export async function createAppointment(
     channel: "whatsapp",
     scheduled_for: scheduledFor.toISOString(),
   });
+
+  revalidatePath("/agenda");
+  return { ok: true };
+}
+
+// Edita una cita existente. Reusa el mismo esquema/validación que la creación.
+// Conserva el estado actual (no lo toca) y vuelve a chequear choques de horario,
+// excluyendo la propia cita.
+export async function updateAppointment(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "appointments:write"))
+    return { error: "Sin permiso para editar." };
+
+  const appointmentId = String(formData.get("appointment_id") ?? "");
+  if (!appointmentId) return { error: "Cita inválida." };
+
+  const parsed = ApptSchema.safeParse({
+    patient_id: formData.get("patient_id") || null,
+    patient_name: formData.get("patient_name") || null,
+    dentist_name: formData.get("dentist_name"),
+    starts_at: formData.get("starts_at"),
+    ends_at: formData.get("ends_at") || null,
+    reason: formData.get("reason") || null,
+    overbooked: formData.get("overbooked") === "on",
+    consult_price: formData.get("consult_price") || 0,
+    deposit: formData.get("deposit") || 0,
+    deposit_method: formData.get("deposit_method") || null,
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const starts = new Date(parsed.data.starts_at);
+  const ends = parsed.data.ends_at
+    ? new Date(parsed.data.ends_at)
+    : new Date(starts.getTime() + DEFAULT_DURATION_MIN * 60_000);
+  if (ends <= starts) return { error: "La hora de fin debe ser posterior al inicio." };
+
+  const supabase = await createClient();
+
+  // Choque con otra cita del mismo día (excluye la propia y los cancelados).
+  if (!parsed.data.overbooked) {
+    const dayStart = new Date(starts);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const { data: clash } = await supabase
+      .from("appointments")
+      .select("id, starts_at, ends_at")
+      .gte("starts_at", dayStart.toISOString())
+      .lt("starts_at", dayEnd.toISOString())
+      .neq("status", "cancelled")
+      .neq("id", appointmentId);
+    const overlaps = (clash ?? []).some((c) => {
+      const cs = new Date(c.starts_at).getTime();
+      const ce = c.ends_at ? new Date(c.ends_at).getTime() : cs + DEFAULT_DURATION_MIN * 60_000;
+      return starts.getTime() < ce && ends.getTime() > cs;
+    });
+    if (overlaps)
+      return { error: "Ese horario choca con otra cita. Marca sobre-cupo si es a propósito." };
+  }
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      patient_id: parsed.data.patient_id ?? null,
+      patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
+      dentist_name: parsed.data.dentist_name,
+      starts_at: starts.toISOString(),
+      ends_at: ends.toISOString(),
+      reason: parsed.data.reason,
+      overbooked: parsed.data.overbooked,
+      consult_price: parsed.data.consult_price,
+      deposit: parsed.data.deposit,
+      deposit_method: parsed.data.deposit > 0 ? parsed.data.deposit_method ?? "cash" : null,
+    })
+    .eq("id", appointmentId); // RLS limita a la clínica del usuario
+  if (error) return { error: error.message };
+
+  revalidatePath("/agenda");
+  return { ok: true };
+}
+
+// Cancela una cita (status -> 'cancelled'). Conserva el registro para historial;
+// la agenda ya filtra los cancelados, así que desaparece de la vista.
+export async function cancelAppointment(id: string): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status: "cancelled" })
+    .eq("id", id);
+  if (error) return { error: error.message };
 
   revalidatePath("/agenda");
   return { ok: true };
@@ -108,6 +234,149 @@ export async function setAppointmentStatus(id: string, status: string): Promise<
     .eq("id", id); // RLS limita a la clínica del usuario
   if (error) return { error: error.message };
 
+  // Al marcar la cita como atendida, los datos financieros migran al historial.
+  if (status === "finished") {
+    await migrateAppointmentFinance(id, profile);
+  }
+
   revalidatePath("/agenda");
   return { ok: true };
+}
+
+// Elimina una cita. Los recordatorios asociados caen por FK on delete cascade.
+export async function deleteAppointment(id: string): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("appointments").delete().eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/agenda");
+  return { ok: true };
+}
+
+// Vincula una cita de consulta rápida a un paciente ya registrado.
+// El dinero (cotización + adelanto) deja de estar suelto y, si la cita ya fue
+// atendida, migra al expediente clínico de inmediato.
+export async function linkAppointmentPatient(
+  appointmentId: string,
+  patientId: string,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
+
+  const supabase = await createClient();
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .update({ patient_id: patientId, patient_name: null })
+    .eq("id", appointmentId)
+    .select("status")
+    .single();
+  if (error || !appt) return { error: error?.message ?? "No se pudo vincular." };
+
+  if (appt.status === "finished") {
+    await migrateAppointmentFinance(appointmentId, profile);
+  }
+
+  revalidatePath("/agenda");
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
+}
+
+type Profile = NonNullable<Awaited<ReturnType<typeof getProfile>>>;
+
+// Migra la cotización y el adelanto de una cita al historial del paciente:
+//   • cotización  -> treatment_item (trabajo del plan)  -> suma a "Total tratamiento"
+//   • adelanto    -> payments (kind 'payment')           -> suma a "Total pagado"
+// El trigger payment_to_ledger recalcula el saldo de cuenta. Idempotente vía
+// la bandera finance_migrated.
+async function migrateAppointmentFinance(appointmentId: string, profile: Profile): Promise<void> {
+  const supabase = await createClient();
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("patient_id, reason, consult_price, deposit, deposit_method, finance_migrated")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appt || !appt.patient_id || appt.finance_migrated) return;
+  const price = Number(appt.consult_price ?? 0);
+  const deposit = Number(appt.deposit ?? 0);
+  if (price <= 0 && deposit <= 0) return;
+
+  // 1) Cotización -> trabajo en el plan (crea plan + fase si no existen).
+  if (price > 0) {
+    let planId: string | undefined;
+    const { data: plan } = await supabase
+      .from("treatment_plans")
+      .select("id")
+      .eq("patient_id", appt.patient_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    planId = plan?.id;
+    if (!planId) {
+      const { data: newPlan } = await supabase
+        .from("treatment_plans")
+        .insert({
+          clinic_id: profile.clinicId,
+          patient_id: appt.patient_id,
+          status: "active",
+          created_by: profile.userId,
+        })
+        .select("id")
+        .single();
+      planId = newPlan?.id;
+    }
+
+    let phaseId: string | undefined;
+    if (planId) {
+      const { data: phase } = await supabase
+        .from("treatment_phases")
+        .select("id")
+        .eq("plan_id", planId)
+        .order("phase_no", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      phaseId = phase?.id;
+      if (!phaseId) {
+        const { data: newPhase } = await supabase
+          .from("treatment_phases")
+          .insert({ clinic_id: profile.clinicId, plan_id: planId, phase_no: 1, title: "General" })
+          .select("id")
+          .single();
+        phaseId = newPhase?.id;
+      }
+    }
+
+    if (phaseId) {
+      await supabase.from("treatment_items").insert({
+        clinic_id: profile.clinicId,
+        phase_id: phaseId,
+        custom_name: appt.reason?.trim() || "Consulta / cotización inicial",
+        price,
+        status: "done",
+        done_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // 2) Adelanto -> pago real del paciente.
+  if (deposit > 0) {
+    await supabase.from("payments").insert({
+      clinic_id: profile.clinicId,
+      patient_id: appt.patient_id,
+      amount: deposit,
+      method: appt.deposit_method ?? "cash",
+      kind: "payment",
+    });
+  }
+
+  // 3) Marca como migrado para no duplicar.
+  await supabase.from("appointments").update({ finance_migrated: true }).eq("id", appointmentId);
+
+  revalidatePath(`/pacientes/${appt.patient_id}`);
 }

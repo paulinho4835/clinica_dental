@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
 import { CashSessionPanel } from "@/components/caja/CashSessionPanel";
 import { requireFeature } from "@/lib/guard";
+import { bs } from "@/lib/format";
 
 export default async function CashPage() {
   await requireFeature("caja");
@@ -34,7 +36,15 @@ export default async function CashPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Caja y finanzas</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Caja y finanzas</h1>
+        <Link
+          href="/caja/dashboard"
+          className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg"
+        >
+          📊 Ver dashboard
+        </Link>
+      </div>
 
       {can(profile?.role, "billing:write") && (
         <>
@@ -44,8 +54,8 @@ export default async function CashPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat label="Ingresos (últimos)" value={`$${totalPay.toFixed(2)}`} />
-        <Stat label="Comisiones por pagar" value={`$${totalComm.toFixed(2)}`} />
+        <Stat label="Ingresos (últimos)" value={bs(totalPay)} />
+        <Stat label="Comisiones por pagar" value={bs(totalComm)} />
       </div>
 
       <Section title="Pagos recientes">
@@ -53,7 +63,7 @@ export default async function CashPage() {
           <Row key={i}
             left={(p.patients as { full_name?: string } | null)?.full_name ?? "—"}
             mid={`${p.method} · ${p.kind}`}
-            right={`$${Number(p.amount).toFixed(2)}`} />
+            right={bs(Number(p.amount))} />
         ))}
       </Section>
 
@@ -62,13 +72,13 @@ export default async function CashPage() {
           <Row key={i}
             left={(c.profiles as { full_name?: string } | null)?.full_name ?? "—"}
             mid={c.status}
-            right={`$${Number(c.amount).toFixed(2)}`} />
+            right={bs(Number(c.amount))} />
         ))}
       </Section>
 
       <Section title="Gastos (solo admin)">
         {expenses?.map((e, i) => (
-          <Row key={i} left={e.category} mid={e.vendor ?? "—"} right={`$${Number(e.amount).toFixed(2)}`} />
+          <Row key={i} left={e.category} mid={e.vendor ?? "—"} right={bs(Number(e.amount))} />
         ))}
         {!expenses?.length && <p className="px-1 py-2 text-sm text-slate-500">Sin gastos visibles (RLS: requiere rol admin).</p>}
       </Section>
