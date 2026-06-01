@@ -22,9 +22,9 @@ export interface FeatureMeta {
 export const FEATURES: FeatureMeta[] = [
   { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "pacientes", label: "Pacientes", href: "/pacientes" },
+  { key: "inventario", label: "Inventario", href: "/inventario" },
   { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
-  { key: "inventario", label: "Inventario", href: "/inventario" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 

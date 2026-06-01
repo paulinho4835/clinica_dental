@@ -3,12 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
-import { ConsentPanel } from "@/components/consents/ConsentPanel";
+import {
+  PatientHistoryPanel,
+  type PaymentRow,
+} from "@/components/history/PatientHistoryPanel";
 import {
   TreatmentPlanPanel,
-  type Plan,
+  type Work,
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
+import { bs } from "@/lib/format";
 
 export default async function PatientPage({
   params,
@@ -32,63 +36,48 @@ export default async function PatientPage({
     .eq("patient_id", id)
     .maybeSingle();
 
-  const { data: balanceRow } = await supabase
-    .from("account_movements")
-    .select("balance_after")
-    .eq("patient_id", id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
   const profile = await getProfile();
   const canClinical = can(profile?.role, "clinical:write");
+  const canBilling = can(profile?.role, "billing:write");
 
-  const [{ data: rawPlans }, { data: procedures }, { data: dentists }, { data: consents }] =
-    await Promise.all([
-      supabase
-        .from("treatment_plans")
-        .select(
-          "id, status, treatment_phases(id, title, phase_no, treatment_items(id, tooth_fdi, price, status, procedure:procedure_catalog(name), dentist:profiles(full_name)))",
-        )
-        .eq("patient_id", id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("procedure_catalog")
-        .select("id, name, base_price")
-        .eq("active", true)
-        .order("name"),
-      supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("role", ["odontologo_general", "especialista"])
-        .order("full_name"),
-      supabase
-        .from("informed_consents")
-        .select("id, template_code, signed_by_name, signed_at, content_hash")
-        .eq("patient_id", id)
-        .order("signed_at", { ascending: false }),
-    ]);
+  const [{ data: rawPlans }, { data: payments }] = await Promise.all([
+    supabase
+      .from("treatment_plans")
+      .select(
+        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, procedure:procedure_catalog(name)))",
+      )
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("payments")
+      .select("id, amount, method, received_at")
+      .eq("patient_id", id)
+      .order("received_at", { ascending: false }),
+  ]);
 
-  // Mapea los nombres anidados de Supabase al shape que espera el panel.
-  const plans: Plan[] = (rawPlans ?? []).map((p) => ({
-    id: p.id,
-    status: p.status,
-    phases: ((p.treatment_phases as Record<string, unknown>[]) ?? [])
-      .map((ph) => ({
-        id: ph.id as string,
-        title: ph.title as string,
-        phase_no: ph.phase_no as number,
-        items: ((ph.treatment_items as Record<string, unknown>[]) ?? []).map((it) => ({
-          id: it.id as string,
-          tooth_fdi: (it.tooth_fdi as string) ?? null,
-          price: Number(it.price),
-          status: it.status as string,
-          procedure: (it.procedure as { name?: string } | null) ?? null,
-          dentist: (it.dentist as { full_name?: string } | null) ?? null,
-        })),
-      }))
-      .sort((a, b) => a.phase_no - b.phase_no),
+  // Aplana todos los items del plan en una lista de "trabajos".
+  const works: Work[] = (rawPlans ?? [])
+    .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
+    .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
+    .map((it) => ({
+      id: it.id as string,
+      name:
+        ((it.procedure as { name?: string } | null)?.name ?? (it.custom_name as string)) || "—",
+      price: Number(it.price),
+      done: it.status === "done",
+      createdAt: it.created_at as string,
+    }))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  const paymentRows: PaymentRow[] = (payments ?? []).map((p) => ({
+    id: p.id as string,
+    amount: Number(p.amount),
+    method: p.method as string,
+    receivedAt: p.received_at as string,
   }));
+
+  const totalQuoted = works.reduce((s, w) => s + w.price, 0);
+  const totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
 
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
@@ -99,7 +88,7 @@ export default async function PatientPage({
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && <span>Tel.: {patient.phone}</span>}
-          <span>Saldo: ${Number(balanceRow?.balance_after ?? 0).toFixed(2)}</span>
+          <span>Saldo: {bs(totalQuoted - totalPaid)}</span>
         </div>
         {patient.medical_alerts?.length > 0 && (
           <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -118,21 +107,19 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel
-          patientId={patient.id}
-          canWrite={canClinical}
-          plans={plans}
-          procedures={procedures ?? []}
-          dentists={dentists ?? []}
-        />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} />
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Consentimientos informados</h2>
-        <ConsentPanel
+        <h2 className="mb-3 text-lg font-semibold">Historial del paciente</h2>
+        <PatientHistoryPanel
           patientId={patient.id}
-          canWrite={canClinical}
-          consents={consents ?? []}
+          canClinical={canClinical}
+          canBilling={canBilling}
+          works={works}
+          payments={paymentRows}
+          totalQuoted={totalQuoted}
+          totalPaid={totalPaid}
         />
       </section>
     </div>

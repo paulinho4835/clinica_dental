@@ -87,9 +87,9 @@ insert into operatories (id, clinic_id, name) values
   ('cccccccc-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Sillón 1'),
   ('cccccccc-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Sillón 2');
 
-insert into patients (id, clinic_id, full_name, dob, phone, allergies, medical_alerts) values
-  ('dddddddd-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'María López',   '1990-04-12', '5551234567', '{"penicilina"}', '{"Anticoagulado"}'),
-  ('dddddddd-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Juan Pérez',    '1985-11-03', '5559876543', '{}', '{}');
+insert into patients (id, clinic_id, full_name, national_id, dob, phone, allergies, medical_alerts) values
+  ('dddddddd-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'María López', '12345678', '1990-04-12', '5551234567', '{"penicilina"}', '{"Anticoagulado"}'),
+  ('dddddddd-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Juan Pérez',  '87654321', '1985-11-03', '5559876543', '{}', '{}');
 
 -- Odontograma demo (JSONB) — sin una sola imagen.
 insert into odontograms (clinic_id, patient_id, teeth) values

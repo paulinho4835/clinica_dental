@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/guard";
+import { bs } from "@/lib/format";
 
 export default async function TreatmentsPage() {
   await requireFeature("tratamientos");
@@ -29,7 +30,7 @@ export default async function TreatmentsPage() {
               <td className="py-2 font-mono text-xs">{p.code}</td>
               <td>{p.name}</td>
               <td className="text-slate-500">{p.specialty ?? "—"}</td>
-              <td className="text-right tabular-nums">${Number(p.base_price).toFixed(2)}</td>
+              <td className="text-right tabular-nums">{bs(Number(p.base_price))}</td>
               <td className="text-right tabular-nums">{p.default_commission_pct}%</td>
             </tr>
           ))}

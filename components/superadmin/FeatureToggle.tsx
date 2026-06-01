@@ -35,14 +35,14 @@ export function FeatureToggle({
       type="button"
       onClick={flip}
       disabled={pending}
-      className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition disabled:opacity-50 ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition disabled:opacity-50 ${
         enabled
           ? "bg-clinic text-white ring-clinic"
           : "bg-slate-100 text-slate-500 ring-slate-300"
       }`}
       title={enabled ? "Encendido — clic para apagar" : "Apagado — clic para encender"}
     >
-      {enabled ? "● " : "○ "}
+      <span aria-hidden>{enabled ? "●" : "○"}</span>
       {label}
     </button>
   );

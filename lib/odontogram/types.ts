@@ -13,6 +13,34 @@ export interface ToothState {
 // teeth: mapa numeración FDI -> estado del diente
 export type TeethMap = Record<string, ToothState>;
 
+// Marca X de diente completo, según convención odontológica:
+//   rojo = tratamiento requerido / patología
+//   azul = existente / ya realizado
+// El número FDI marca/desmarca esta X con el color activo de la barra.
+export type MarkColor = "rojo" | "azul";
+
+export const MARK_COLORS: Record<MarkColor, string> = {
+  rojo: "#dc2626",
+  azul: "#2563eb",
+};
+
+export const MARK_LABELS: Record<MarkColor, string> = {
+  rojo: "Requerido",
+  azul: "Existente",
+};
+
+// Código de estado whole para cada marca: "x_rojo" | "x_azul".
+export function markWhole(color: MarkColor): string {
+  return `x_${color}`;
+}
+
+// Si un estado whole es una marca X, devuelve su color de render; si no, null.
+export function markColorOf(whole: string | null | undefined): string | null {
+  if (whole === "x_rojo") return MARK_COLORS.rojo;
+  if (whole === "x_azul") return MARK_COLORS.azul;
+  return null;
+}
+
 // Colores por defecto (espejo de dental_condition_catalog del seed).
 export const CONDITION_COLORS: Record<string, string> = {
   sano: "#ffffff",

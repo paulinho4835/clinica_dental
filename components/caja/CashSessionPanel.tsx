@@ -7,6 +7,7 @@ import {
   openCashSession,
   type ActionState,
 } from "@/app/(dashboard)/caja/actions";
+import { bs } from "@/lib/format";
 
 const initial: ActionState = {};
 
@@ -37,7 +38,7 @@ export function CashSessionPanel({ session }: { session: OpenSession }) {
           <span className="font-semibold text-green-700">Caja abierta</span>
           <span className="ml-3 text-slate-500">
             Desde {new Date(session.opened_at).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
-            {" · "}Fondo ${Number(session.opening_float).toFixed(2)}
+            {" · "}Fondo {bs(Number(session.opening_float))}
           </span>
         </div>
         <button

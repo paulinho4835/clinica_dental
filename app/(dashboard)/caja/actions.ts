@@ -11,7 +11,7 @@ export type ActionState = { error?: string; ok?: boolean };
 const PaymentSchema = z.object({
   patient_id: z.string().uuid("Paciente requerido"),
   amount: z.coerce.number().positive("Monto debe ser > 0"),
-  method: z.enum(["cash", "card", "transfer"]),
+  method: z.enum(["cash", "qr"]),
   kind: z.enum(["payment", "credit"]).default("payment"),
 });
 

@@ -3,6 +3,8 @@
 import { Tooth } from "./Tooth";
 import {
   CONDITION_COLORS,
+  MARK_COLORS,
+  MARK_LABELS,
   QUADRANTS,
   type Surface,
   type TeethMap,
@@ -51,6 +53,16 @@ export function Odontogram({ teeth, onSurfaceClick, onWholeClick }: Props) {
 function Legend() {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+      {/* Marcas X de diente completo (las que pone el número FDI). */}
+      <span className="flex items-center gap-1 font-medium">
+        <span style={{ color: MARK_COLORS.rojo }}>✕</span>
+        {MARK_LABELS.rojo}
+      </span>
+      <span className="flex items-center gap-1 font-medium">
+        <span style={{ color: MARK_COLORS.azul }}>✕</span>
+        {MARK_LABELS.azul}
+      </span>
+      <span className="mx-1 text-slate-300">|</span>
       {Object.entries(CONDITION_COLORS)
         .filter(([k]) => k !== "sano")
         .map(([code, color]) => (

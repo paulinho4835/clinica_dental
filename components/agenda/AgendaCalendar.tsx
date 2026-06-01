@@ -655,12 +655,13 @@ function ApptModal({
   }, [state.ok, router, onClose]);
 
   const dateKey = dayKey(start); // mismo día de la cita / hueco elegido
-  const startsAt = `${dateKey}T${startTime}`;
-  const endsAt = `${dateKey}T${endTime}`;
+  // Offset Bolivia (-04:00, sin horario de verano) explícito: así el instante es
+  // inequívoco sin importar la TZ del server (Vercel corre en UTC). Sin esto el
+  // server interpretaba "14:30" como UTC y la hora aparecía 4h corrida.
+  const startsAt = `${dateKey}T${startTime}:00-04:00`;
+  const endsAt = `${dateKey}T${endTime}:00-04:00`;
   const validRange = endTime > startTime;
-  const duration = validRange
-    ? mins(new Date(`${startsAt}:00`), new Date(`${endsAt}:00`))
-    : 0;
+  const duration = validRange ? mins(new Date(startsAt), new Date(endsAt)) : 0;
 
   const header = start.toLocaleDateString("es-BO", {
     weekday: "long",

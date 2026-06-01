@@ -1,6 +1,6 @@
 "use client";
 
-import { colorFor, type Surface, type ToothState } from "@/lib/odontogram/types";
+import { colorFor, markColorOf, type Surface, type ToothState } from "@/lib/odontogram/types";
 
 interface Props {
   fdi: string;
@@ -16,6 +16,7 @@ const EMPTY: ToothState = { present: true, whole: null, surfaces: {} };
 export function Tooth({ fdi, state = EMPTY, size = 44, onSurfaceClick, onWholeClick }: Props) {
   const s = state.surfaces ?? {};
   const absent = !state.present || state.whole === "ausente";
+  const markColor = markColorOf(state.whole); // X completa (rojo/azul) o null
   const c = size; // lado del cuadro
   const t = size / 3; // grosor de banda externa
 
@@ -65,11 +66,22 @@ export function Tooth({ fdi, state = EMPTY, size = 44, onSurfaceClick, onWholeCl
         {state.whole === "implante" && (
           <text x={c / 2} y={c / 2 + 4} textAnchor="middle" fontSize={12} fill="#06b6d4">⊕</text>
         )}
+
+        {/* Marca X completa: tratamiento requerido (rojo) / existente (azul).
+            Se dibuja sobre todo el diente, color tomado de la barra activa. */}
+        {markColor && (
+          <g stroke={markColor} strokeWidth={3} strokeLinecap="round">
+            <line x1={3} y1={3} x2={c - 3} y2={c - 3} />
+            <line x1={c - 3} y1={3} x2={3} y2={c - 3} />
+          </g>
+        )}
       </svg>
       <button
         type="button"
         onClick={() => onWholeClick?.(fdi)}
-        className="text-[10px] tabular-nums text-slate-500 hover:text-clinic-fg"
+        title={`Diente ${fdi} — marcar X con el color activo`}
+        className="rounded px-1 text-[10px] font-semibold tabular-nums text-slate-600 hover:bg-slate-100 hover:text-clinic-fg"
+        style={{ cursor: onWholeClick ? "pointer" : "default" }}
       >
         {fdi}
       </button>

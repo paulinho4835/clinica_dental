@@ -20,6 +20,7 @@ export default function LoginPage() {
     setLoading(false);
     if (error) {
       setError(error.message);
+      setPassword(""); // limpia solo la contraseña; el correo se conserva
       return;
     }
     router.push("/agenda");

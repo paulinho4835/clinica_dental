@@ -1,208 +1,148 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  addPlanItem,
-  createPlan,
-  setItemStatus,
+  addPlanWork,
+  deleteWork,
   type ActionState,
 } from "@/app/(dashboard)/pacientes/treatment-actions";
+import { bs } from "@/lib/format";
 
-export type Procedure = { id: string; name: string; base_price: number };
-export type Dentist = { id: string; full_name: string };
-export type Item = {
+export type Work = {
   id: string;
-  tooth_fdi: string | null;
+  name: string;
   price: number;
-  status: string;
-  procedure: { name?: string } | null;
-  dentist: { full_name?: string } | null;
-};
-export type Phase = { id: string; title: string; phase_no: number; items: Item[] };
-export type Plan = { id: string; status: string; phases: Phase[] };
-
-const STATUS_LABEL: Record<string, string> = {
-  proposed: "Propuesto",
-  approved: "Aprobado",
-  in_progress: "En curso",
-  done: "Realizado",
-  cancelled: "Cancelado",
+  done: boolean;
+  createdAt: string; // ISO
 };
 
 const initial: ActionState = {};
 
+const fmtDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("es-BO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 export function TreatmentPlanPanel({
   patientId,
   canWrite,
-  plans,
-  procedures,
-  dentists,
+  works,
 }: {
   patientId: string;
   canWrite: boolean;
-  plans: Plan[];
-  procedures: Procedure[];
-  dentists: Dentist[];
+  works: Work[];
 }) {
-  const router = useRouter();
-  const [creating, startCreate] = useTransition();
+  const total = works.reduce((s, w) => s + w.price, 0);
 
   return (
     <div className="space-y-4">
-      {canWrite && (
-        <button
-          disabled={creating}
-          onClick={() =>
-            startCreate(async () => {
-              const res = await createPlan(patientId);
-              if (res.error) alert(res.error);
-              else router.refresh();
-            })
-          }
-          className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
-        >
-          + Nuevo plan de tratamiento
-        </button>
-      )}
+      {canWrite && <AddWorkForm patientId={patientId} />}
 
-      {plans.length === 0 && (
-        <p className="text-sm text-slate-500">Sin planes de tratamiento.</p>
-      )}
-
-      {plans.map((plan) => {
-        const total = plan.phases
-          .flatMap((ph) => ph.items)
-          .reduce((s, it) => s + Number(it.price), 0);
-        const firstPhase = plan.phases[0];
-        return (
-          <div key={plan.id} className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold">
-                Plan · {STATUS_LABEL[plan.status] ?? plan.status}
-              </span>
-              <div className="flex items-center gap-4">
-                <a
-                  href={`/api/budgets/${plan.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-clinic hover:underline"
-                >
-                  Descargar PDF
-                </a>
-                <span className="text-sm tabular-nums text-slate-600">
-                  Total: ${total.toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            {plan.phases.map((ph) => (
-              <div key={ph.id} className="mb-3">
-                <div className="mb-1 text-xs font-medium uppercase text-slate-400">
-                  {ph.title}
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {ph.items.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between py-2 text-sm">
-                      <div>
-                        <span className="font-medium">{it.procedure?.name ?? "—"}</span>
-                        {it.tooth_fdi && (
-                          <span className="ml-2 text-xs text-slate-500">diente {it.tooth_fdi}</span>
-                        )}
-                        {it.dentist?.full_name && (
-                          <span className="ml-2 text-xs text-slate-400">· {it.dentist.full_name}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="tabular-nums text-slate-600">${Number(it.price).toFixed(2)}</span>
-                        <ItemStatus
-                          id={it.id}
-                          status={it.status}
-                          patientId={patientId}
-                          disabled={!canWrite}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {ph.items.length === 0 && (
-                    <p className="py-2 text-xs text-slate-400">Sin procedimientos.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {canWrite && firstPhase && (
-              <AddItemForm
-                patientId={patientId}
-                phaseId={firstPhase.id}
-                procedures={procedures}
-                dentists={dentists}
-              />
-            )}
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+        <div className="hidden grid-cols-[10rem_1fr_7rem_2rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-medium uppercase text-slate-400 sm:grid">
+          <span>Fecha</span>
+          <span>Trabajo</span>
+          <span className="text-right">Precio</span>
+          <span />
+        </div>
+        <div className="divide-y divide-slate-100">
+          {works.map((w) => (
+            <WorkRow key={w.id} work={w} patientId={patientId} canWrite={canWrite} />
+          ))}
+          {works.length === 0 && (
+            <p className="px-4 py-3 text-sm text-slate-500">Sin trabajos en el plan.</p>
+          )}
+        </div>
+        {works.length > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold">
+            <span>Total</span>
+            <span className="tabular-nums">{bs(total)}</span>
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 }
 
-function ItemStatus({
-  id,
-  status,
+function WorkRow({
+  work,
   patientId,
-  disabled,
+  canWrite,
 }: {
-  id: string;
-  status: string;
+  work: Work;
   patientId: string;
-  disabled: boolean;
+  canWrite: boolean;
 }) {
-  const [value, setValue] = useState(status);
   const [pending, start] = useTransition();
   const router = useRouter();
 
-  if (disabled) {
-    return <span className="text-xs text-slate-500">{STATUS_LABEL[value] ?? value}</span>;
-  }
-
   return (
-    <select
-      value={value}
-      disabled={pending}
-      onChange={(e) => {
-        const next = e.target.value;
-        setValue(next);
-        start(async () => {
-          const res = await setItemStatus(id, next, patientId);
-          if (res.error) {
-            setValue(status);
-            alert(res.error);
-          } else {
-            router.refresh();
-          }
-        });
-      }}
-      className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-clinic focus:outline-none disabled:opacity-50"
-    >
-      {Object.entries(STATUS_LABEL).map(([v, l]) => (
-        <option key={v} value={v}>{l}</option>
-      ))}
-    </select>
+    <div className="grid grid-cols-2 items-center gap-3 px-4 py-2.5 text-sm sm:grid-cols-[10rem_1fr_7rem_2rem]">
+      <span className="order-2 text-xs tabular-nums text-slate-400 sm:order-none sm:text-sm sm:text-slate-600">
+        {fmtDateTime(work.createdAt)}
+      </span>
+      <span className="order-1 font-medium sm:order-none">{work.name}</span>
+      <span className="order-3 text-right tabular-nums text-slate-600 sm:order-none">
+        {bs(work.price)}
+      </span>
+      <div className="order-4 text-right sm:order-none">
+        {canWrite && (
+          <button
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                if (!confirm("¿Eliminar este trabajo?")) return;
+                const res = await deleteWork(work.id, patientId);
+                if (res.error) alert(res.error);
+                else router.refresh();
+              })
+            }
+            className="text-slate-300 hover:text-red-500"
+            title="Eliminar"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
-function AddItemForm({
-  patientId,
-  phaseId,
-  procedures,
-  dentists,
+// Checkbox de estado — verde con ✓ si realizado, rojo con ✗ si pendiente.
+// Clic alterna el estado. Diseñado para leerse claramente como control interactivo.
+export function DoneToggle({
+  done,
+  disabled,
+  onToggle,
 }: {
-  patientId: string;
-  phaseId: string;
-  procedures: Procedure[];
-  dentists: Dentist[];
+  done: boolean;
+  disabled?: boolean;
+  onToggle?: () => void;
 }) {
-  const [state, formAction, pending] = useActionState(addPlanItem, initial);
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onToggle}
+      title={done ? "Realizado — clic para marcar pendiente" : "Pendiente — clic para marcar realizado"}
+      className={`flex h-8 w-8 items-center justify-center rounded-md text-base font-bold shadow-sm transition enabled:cursor-pointer enabled:hover:scale-105 disabled:opacity-60 ${
+        done
+          ? "bg-green-500 text-white ring-1 ring-green-600"
+          : "border-2 border-red-300 bg-white text-red-500 hover:border-red-400"
+      }`}
+    >
+      {done ? "✓" : "✗"}
+    </button>
+  );
+}
+
+function AddWorkForm({ patientId }: { patientId: string }) {
+  const [state, formAction, pending] = useActionState(addPlanWork, initial);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
@@ -214,47 +154,39 @@ function AddItemForm({
   }, [state.ok, router]);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-2 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
+    >
       <input type="hidden" name="patient_id" value={patientId} />
-      <input type="hidden" name="phase_id" value={phaseId} />
-      <label className="text-xs">
-        <span className="mb-1 block text-slate-500">Procedimiento</span>
-        <select name="procedure_id" required defaultValue=""
-          data-procedures={JSON.stringify(procedures)}
-          onChange={(e) => {
-            const proc = procedures.find((p) => p.id === e.target.value);
-            const priceInput = e.currentTarget.form?.elements.namedItem("price") as HTMLInputElement | null;
-            if (proc && priceInput && !priceInput.value) priceInput.value = String(proc.base_price);
-          }}
-          className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-clinic focus:outline-none">
-          <option value="" disabled>Seleccionar…</option>
-          {procedures.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+      <label className="flex-1 text-xs">
+        <span className="mb-1 block text-slate-500">Trabajo a realizar</span>
+        <input
+          name="description"
+          type="text"
+          required
+          placeholder="ej. Resina diente 16, limpieza, endodoncia…"
+          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+        />
       </label>
       <label className="text-xs">
-        <span className="mb-1 block text-slate-500">Diente (FDI)</span>
-        <input name="tooth_fdi" type="text" placeholder="ej. 16"
-          className="w-20 rounded border border-slate-300 px-2 py-1 text-sm focus:border-clinic focus:outline-none" />
+        <span className="mb-1 block text-slate-500">Precio (Bs)</span>
+        <input
+          name="price"
+          type="number"
+          step="0.01"
+          min="0"
+          required
+          placeholder="0.00"
+          className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+        />
       </label>
-      <label className="text-xs">
-        <span className="mb-1 block text-slate-500">Precio</span>
-        <input name="price" type="number" step="0.01" min="0" required
-          className="w-24 rounded border border-slate-300 px-2 py-1 text-sm focus:border-clinic focus:outline-none" />
-      </label>
-      <label className="text-xs">
-        <span className="mb-1 block text-slate-500">Odontólogo</span>
-        <select name="dentist_id" defaultValue=""
-          className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-clinic focus:outline-none">
-          <option value="">— Ninguno —</option>
-          {dentists.map((d) => (
-            <option key={d.id} value={d.id}>{d.full_name}</option>
-          ))}
-        </select>
-      </label>
-      <button type="submit" disabled={pending}
-        className="rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
+      >
         {pending ? "…" : "Agregar"}
       </button>
       {state.error && <p className="w-full text-sm text-red-600">{state.error}</p>}

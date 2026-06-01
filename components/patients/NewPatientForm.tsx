@@ -39,6 +39,7 @@ export function NewPatientForm() {
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field name="full_name" label="Nombre completo *" required />
+        <Field name="national_id" label="Cédula de identidad (CI)" />
         <Field name="phone" label="Teléfono" />
         <Field name="dob" label="Fecha de nacimiento" type="date" />
         <Field name="email" label="Email" type="email" />

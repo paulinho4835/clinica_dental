@@ -10,10 +10,14 @@ export default async function SuperadminPage() {
   if (!(await isPlatformAdmin())) redirect("/agenda");
 
   const admin = createAdminClient();
+  // Orden estable y predecible: por nombre, con id como desempate. Evita que
+  // la lista "salte" al refrescar (created_at empata entre clínicas sembradas
+  // a la vez y Postgres no garantiza orden ante empate).
   const { data: clinics } = await admin
     .from("clinics")
     .select("id, name, plan, features, created_at")
-    .order("created_at", { ascending: true });
+    .order("name", { ascending: true })
+    .order("id", { ascending: true });
 
   // Conteo de usuarios por clínica (para mostrar tamaño).
   const { data: profiles } = await admin.from("profiles").select("clinic_id");
