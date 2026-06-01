@@ -23,7 +23,10 @@ export const FEATURES: FeatureMeta[] = [
   { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "pacientes", label: "Pacientes", href: "/pacientes" },
   { key: "inventario", label: "Inventario", href: "/inventario" },
-  { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
+  // Catálogo de procedimientos: oculto (no se usa). El código, la ruta
+  // /tratamientos y la tabla procedure_catalog siguen intactos.
+  // Para reactivar: descomentar esta línea.
+  // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
