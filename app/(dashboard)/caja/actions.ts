@@ -11,8 +11,10 @@ export type ActionState = { error?: string; ok?: boolean };
 const PaymentSchema = z.object({
   patient_id: z.string().uuid("Paciente requerido"),
   amount: z.coerce.number().positive("Monto debe ser > 0"),
-  method: z.enum(["cash", "qr"]),
+  method: z.enum(["cash", "qr", "card"]),
   kind: z.enum(["payment", "credit"]).default("payment"),
+  note: z.string().max(120).optional().nullable(),
+  doctor_id: z.string().uuid().optional().nullable(),
 });
 
 export async function registerPayment(
@@ -29,6 +31,8 @@ export async function registerPayment(
     amount: formData.get("amount"),
     method: formData.get("method"),
     kind: formData.get("kind") || "payment",
+    note: formData.get("note") || null,
+    doctor_id: formData.get("doctor_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -41,6 +45,8 @@ export async function registerPayment(
     amount: parsed.data.amount,
     method: parsed.data.method,
     kind: parsed.data.kind,
+    note: parsed.data.note ?? null,
+    doctor_id: parsed.data.doctor_id ?? null,
   });
   if (error) return { error: error.message };
 

@@ -9,12 +9,16 @@ import {
 } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { bs } from "@/lib/format";
 
+export type Dentist = { id: string; full_name: string };
+
 export type Work = {
   id: string;
   name: string;
   price: number;
   done: boolean;
   createdAt: string; // ISO
+  dentistId?: string | null;
+  dentistName?: string | null;
 };
 
 const initial: ActionState = {};
@@ -32,21 +36,24 @@ export function TreatmentPlanPanel({
   patientId,
   canWrite,
   works,
+  dentists,
 }: {
   patientId: string;
   canWrite: boolean;
   works: Work[];
+  dentists: Dentist[];
 }) {
   const total = works.reduce((s, w) => s + w.price, 0);
 
   return (
     <div className="space-y-4">
-      {canWrite && <AddWorkForm patientId={patientId} />}
+      {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} />}
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="hidden grid-cols-[10rem_1fr_7rem_2rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-medium uppercase text-slate-400 sm:grid">
+        <div className="hidden grid-cols-[10rem_1fr_9rem_7rem_2rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-medium uppercase text-slate-400 sm:grid">
           <span>Fecha</span>
           <span>Trabajo</span>
+          <span>Doctor</span>
           <span className="text-right">Precio</span>
           <span />
         </div>
@@ -82,15 +89,18 @@ function WorkRow({
   const router = useRouter();
 
   return (
-    <div className="grid grid-cols-2 items-center gap-3 px-4 py-2.5 text-sm sm:grid-cols-[10rem_1fr_7rem_2rem]">
+    <div className="grid grid-cols-2 items-center gap-3 px-4 py-2.5 text-sm sm:grid-cols-[10rem_1fr_9rem_7rem_2rem]">
       <span className="order-2 text-xs tabular-nums text-slate-400 sm:order-none sm:text-sm sm:text-slate-600">
         {fmtDateTime(work.createdAt)}
       </span>
       <span className="order-1 font-medium sm:order-none">{work.name}</span>
-      <span className="order-3 text-right tabular-nums text-slate-600 sm:order-none">
+      <span className="order-3 truncate text-slate-500 sm:order-none">
+        {work.dentistName ?? <span className="text-slate-300">—</span>}
+      </span>
+      <span className="order-4 text-right tabular-nums text-slate-600 sm:order-none">
         {bs(work.price)}
       </span>
-      <div className="order-4 text-right sm:order-none">
+      <div className="order-5 text-right sm:order-none">
         {canWrite && (
           <button
             disabled={pending}
@@ -141,7 +151,7 @@ export function DoneToggle({
   );
 }
 
-function AddWorkForm({ patientId }: { patientId: string }) {
+function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Dentist[] }) {
   const [state, formAction, pending] = useActionState(addPlanWork, initial);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -160,7 +170,7 @@ function AddWorkForm({ patientId }: { patientId: string }) {
       className="flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
       <input type="hidden" name="patient_id" value={patientId} />
-      <label className="flex-1 text-xs">
+      <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
         <span className="mb-1 block text-slate-500">Trabajo a realizar</span>
         <input
           name="description"
@@ -169,6 +179,18 @@ function AddWorkForm({ patientId }: { patientId: string }) {
           placeholder="ej. Resina diente 16, limpieza, endodoncia…"
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
+      </label>
+      <label className="text-xs">
+        <span className="mb-1 block text-slate-500">Doctor</span>
+        <select
+          name="doctor_id"
+          className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+        >
+          <option value="">— Sin asignar —</option>
+          {dentists.map((d) => (
+            <option key={d.id} value={d.id}>{d.full_name}</option>
+          ))}
+        </select>
       </label>
       <label className="text-xs">
         <span className="mb-1 block text-slate-500">Precio (Bs)</span>

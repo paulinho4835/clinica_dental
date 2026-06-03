@@ -67,6 +67,50 @@ export async function createPatient(
   return { ok: true };
 }
 
+export async function updatePatient(
+  id: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "patients:write"))
+    return { error: "Sin permiso para editar pacientes." };
+
+  const parsed = PatientSchema.safeParse({
+    full_name: formData.get("full_name"),
+    national_id: formData.get("national_id") || null,
+    dob: formData.get("dob") || null,
+    sex: formData.get("sex") || null,
+    phone: formData.get("phone") || null,
+    email: formData.get("email") || "",
+    address: formData.get("address") || null,
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("patients")
+    .update({
+      full_name: parsed.data.full_name,
+      national_id: parsed.data.national_id || null,
+      dob: parsed.data.dob,
+      sex: parsed.data.sex,
+      phone: parsed.data.phone,
+      email: parsed.data.email || null,
+      address: parsed.data.address,
+      allergies: csvToArray(formData.get("allergies")),
+      medical_alerts: csvToArray(formData.get("medical_alerts")),
+    })
+    .eq("id", id)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${id}`);
+  return { ok: true };
+}
+
 // Registro rápido desde la agenda: crea un paciente con lo mínimo (nombre + CI
 // + teléfono) y DEVUELVE su id para vincularlo a la cita en el acto.
 const QuickPatientSchema = z.object({

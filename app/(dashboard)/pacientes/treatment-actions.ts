@@ -91,6 +91,7 @@ const WorkSchema = z.object({
   patient_id: z.string().uuid(),
   description: z.string().trim().min(1, "Escribe el trabajo a realizar"),
   price: z.coerce.number().min(0, "Precio inválido"),
+  doctor_id: z.string().uuid().optional().nullable(),
 });
 
 // Agrega un trabajo al plan. Crea plan + fase automáticamente si no existen.
@@ -107,6 +108,7 @@ export async function addPlanWork(
     patient_id: formData.get("patient_id"),
     description: formData.get("description"),
     price: formData.get("price"),
+    doctor_id: formData.get("doctor_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -166,6 +168,7 @@ export async function addPlanWork(
     custom_name: parsed.data.description,
     price: parsed.data.price,
     status: "proposed",
+    doctor_id: parsed.data.doctor_id ?? null,
   });
   if (error) return { error: error.message };
 

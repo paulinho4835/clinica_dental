@@ -12,6 +12,7 @@ const PaymentSchema = z.object({
   patient_id: z.string().uuid(),
   amount: z.coerce.number().positive("Monto debe ser > 0"),
   method: z.enum(["cash", "qr"]),
+  note: z.string().max(120).optional().nullable(),
 });
 
 // Registra un pago/adelanto del paciente desde la ficha.
@@ -29,6 +30,7 @@ export async function addPatientPayment(
     patient_id: formData.get("patient_id"),
     amount: formData.get("amount"),
     method: formData.get("method"),
+    note: formData.get("note") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -40,6 +42,7 @@ export async function addPatientPayment(
     amount: parsed.data.amount,
     method: parsed.data.method,
     kind: "payment",
+    note: parsed.data.note ?? null,
   });
   if (error) return { error: error.message };
 

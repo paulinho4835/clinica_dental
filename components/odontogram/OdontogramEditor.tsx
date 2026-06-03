@@ -14,7 +14,10 @@ import {
   type ToothState,
 } from "@/lib/odontogram/types";
 
-const SURFACE_CYCLE = ["sano", "caries", "resina", "amalgama", "sellante", "fractura"];
+const SURFACE_CYCLE = [
+  "sano", "caries", "resina", "amalgama", "sellante", "fractura",
+  "corona", "endodoncia", "implante", "ausente", "extraccion_indicada", "protesis",
+];
 
 const DEFAULT_TOOTH: ToothState = { present: true, whole: null, surfaces: {} };
 
@@ -85,8 +88,7 @@ export function OdontogramEditor({
     <div className="space-y-3">
       <p className="text-sm text-slate-500">
         Click en una cara cicla su estado. Click en el <strong>número FDI</strong> marca
-        una <strong>X</strong> sobre todo el diente con el color activo. Todo se guarda
-        como datos (JSONB) — sin imágenes.
+        una <strong>X</strong> sobre todo el diente con el color activo.
       </p>
 
       {/* Barra de color activo (convención odontológica). */}

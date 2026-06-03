@@ -27,7 +27,7 @@ export default async function AgendaPage({
   const profile = await getProfile();
   const writable = can(profile?.role, "appointments:write");
 
-  const [{ data: appts }, { data: patients }] = await Promise.all([
+  const [{ data: appts }, { data: patients }, { data: doctors }] = await Promise.all([
     supabase
       .from("appointments")
       .select(
@@ -38,6 +38,7 @@ export default async function AgendaPage({
       .neq("status", "cancelled")
       .order("starts_at", { ascending: true }),
     supabase.from("patients").select("id, full_name, national_id").order("full_name"),
+    supabase.from("doctors").select("id, full_name").eq("active", true).order("full_name"),
   ]);
 
   return (
@@ -52,6 +53,7 @@ export default async function AgendaPage({
         appts={(appts as never) ?? []}
         month={date}
         canWrite={writable}
+        doctors={doctors ?? []}
       />
     </div>
   );

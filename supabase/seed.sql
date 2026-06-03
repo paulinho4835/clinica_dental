@@ -8,7 +8,7 @@
 -- ============================================================================
 
 insert into clinics (id, name, timezone) values
-  ('11111111-1111-1111-1111-111111111111', 'Clínica Dental Sonrisa', 'America/Mexico_City'),
+  ('11111111-1111-1111-1111-111111111111', 'Clinica Dental', 'America/La_Paz'),
   ('22222222-2222-2222-2222-222222222222', 'Dental Norte', 'America/Mexico_City');
 
 -- ----------------------------------------------------------------------------
@@ -21,7 +21,7 @@ declare
 begin
   for r in
     select * from (values
-      ('aaaaaaa1-0000-0000-0000-000000000001'::uuid, 'admin@sonrisa.com',     '11111111-1111-1111-1111-111111111111'::uuid, 'admin',              'Ana Admin'),
+      ('aaaaaaa1-0000-0000-0000-000000000001'::uuid, 'admin@sonrisa.com',     '11111111-1111-1111-1111-111111111111'::uuid, 'admin',              'Paulo Leon'),
       ('aaaaaaa1-0000-0000-0000-000000000002'::uuid, 'recepcion@sonrisa.com', '11111111-1111-1111-1111-111111111111'::uuid, 'recepcionista',      'Rita Recepción'),
       ('aaaaaaa1-0000-0000-0000-000000000003'::uuid, 'doctor@sonrisa.com',    '11111111-1111-1111-1111-111111111111'::uuid, 'odontologo_general', 'Dr. Gómez'),
       ('bbbbbbb2-0000-0000-0000-000000000001'::uuid, 'admin@dentalnorte.com', '22222222-2222-2222-2222-222222222222'::uuid, 'admin',              'Beto Admin')

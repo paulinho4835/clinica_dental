@@ -69,7 +69,7 @@ export function StockTable({ items, canWrite }: { items: InvItem[]; canWrite: bo
                 <td className="text-slate-500">{it.category ?? "—"}</td>
                 <td className="text-right tabular-nums">{it.min_stock}</td>
                 <td className="text-right tabular-nums">
-                  {it.current_stock} {it.unit}
+                  {it.current_stock}
                 </td>
                 <td className="text-right">
                   <div className="flex items-center justify-end gap-2">

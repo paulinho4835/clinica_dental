@@ -92,21 +92,42 @@ export function ItemForm({ item, onClose }: { item?: InvItem; onClose: () => voi
           </div>
         )}
 
-        {/* Cantidad inicial: solo en el alta. Entra como movimiento de Entrada. */}
+        {/* Cantidad inicial + lote/caducidad opcionales: solo en el alta. */}
         {!isEditing && (
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-600">Cantidad inicial *</span>
-            <input
-              name="initial_qty"
-              type="number"
-              step="1"
-              min="0"
-              required
-              defaultValue=""
-              placeholder="0"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-            />
-          </label>
+          <>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Cantidad inicial *</span>
+              <input
+                name="initial_qty"
+                type="number"
+                step="1"
+                min="0"
+                required
+                defaultValue=""
+                placeholder="0"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Nº de lote <span className="text-slate-400">(opcional)</span></span>
+                <input
+                  name="lot"
+                  type="text"
+                  placeholder="ej. L2024-01"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Fecha de caducidad <span className="text-slate-400">(opcional)</span></span>
+                <input
+                  name="expiry_date"
+                  type="date"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                />
+              </label>
+            </div>
+          </>
         )}
 
         <label className="block text-sm">

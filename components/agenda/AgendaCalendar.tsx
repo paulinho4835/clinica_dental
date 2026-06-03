@@ -61,16 +61,20 @@ const initial: ActionState = {};
 // Estado del modal: nueva cita (slot libre) o edición (cita existente).
 type ModalState = { start: Date; end: Date; appt?: MonthAppt };
 
+export type DoctorOption = { id: string; full_name: string };
+
 export function AgendaCalendar({
   patients,
   appts,
   month, // YYYY-MM-DD (cualquier día del mes visible)
   canWrite,
+  doctors,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
   month: string;
   canWrite: boolean;
+  doctors: DoctorOption[];
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -245,6 +249,7 @@ export function AgendaCalendar({
       {modal && (
         <ApptModal
           patients={patients}
+          doctors={doctors}
           start={modal.start}
           end={modal.end}
           appt={modal.appt}
@@ -601,12 +606,14 @@ const hhmmInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 function ApptModal({
   patients,
+  doctors,
   start,
   end,
   appt, // si viene → modo edición
   onClose,
 }: {
   patients: PatientOption[];
+  doctors: DoctorOption[];
   start: Date;
   end: Date;
   appt?: MonthAppt;
@@ -797,10 +804,18 @@ function ApptModal({
             name="dentist_name"
             type="text"
             required
+            list="agenda-doctors-list"
             defaultValue={appt?.dentist_name ?? ""}
-            placeholder="Nombre del odontólogo"
+            placeholder={doctors.length > 0 ? "Elige o escribe un nombre…" : "Nombre del odontólogo"}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
+          {doctors.length > 0 && (
+            <datalist id="agenda-doctors-list">
+              {doctors.map((d) => (
+                <option key={d.id} value={d.full_name} />
+              ))}
+            </datalist>
+          )}
         </label>
 
         <label className="block text-sm">

@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
-import { CashSessionPanel } from "@/components/caja/CashSessionPanel";
 import { requireFeature } from "@/lib/guard";
 import { bs } from "@/lib/format";
 
@@ -12,27 +11,26 @@ export default async function CashPage() {
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const [{ data: payments }, { data: commissions }, { data: expenses }, { data: patients }, { data: openSession }] = await Promise.all([
+  // Inicio de hoy en Bolivia (UTC-4) expresado en UTC para filtrar la DB.
+  const boliviaDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+  const todayStartUTC = new Date(`${boliviaDate}T04:00:00.000Z`);
+  const tomorrowStartUTC = new Date(todayStartUTC.getTime() + 24 * 60 * 60 * 1000);
+
+  const [{ data: payments }, { data: paymentsToday }, { data: patients }, { data: doctors }] = await Promise.all([
     supabase.from("payments")
-      .select("amount, method, kind, received_at, patients(full_name)")
+      .select("amount, method, kind, note, received_at, patients(full_name), doctor:doctors(full_name)")
       .order("received_at", { ascending: false }).limit(20),
-    supabase.from("commissions")
-      .select("amount, status, profiles(full_name)")
-      .order("created_at", { ascending: false }).limit(20),
-    supabase.from("expenses")
-      .select("category, amount, spent_at, vendor")
-      .order("spent_at", { ascending: false }).limit(20),
-    supabase.from("patients").select("id, full_name").order("full_name"),
-    supabase.from("cash_sessions")
-      .select("id, opened_at, opening_float")
-      .is("closed_at", null)
-      .order("opened_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    supabase.from("payments")
+      .select("amount, patient_id")
+      .gte("received_at", todayStartUTC.toISOString())
+      .lt("received_at", tomorrowStartUTC.toISOString()),
+    supabase.from("patients").select("id, full_name, national_id").order("full_name"),
+    supabase.from("doctors").select("id, full_name").eq("active", true).order("full_name"),
   ]);
 
   const totalPay = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
-  const totalComm = (commissions ?? []).filter((c) => c.status === "pending").reduce((s, c) => s + Number(c.amount), 0);
+  const todayTotal = (paymentsToday ?? []).reduce((s, p) => s + Number(p.amount), 0);
+  const todayPatients = new Set((paymentsToday ?? []).map((p) => p.patient_id)).size;
 
   return (
     <div className="space-y-8">
@@ -47,40 +45,37 @@ export default async function CashPage() {
       </div>
 
       {can(profile?.role, "billing:write") && (
-        <>
-          <CashSessionPanel session={openSession ?? null} />
-          <PaymentForm patients={patients ?? []} />
-        </>
+        <PaymentForm patients={patients ?? []} doctors={doctors ?? []} />
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat label="Ingresos (últimos)" value={bs(totalPay)} />
-        <Stat label="Comisiones por pagar" value={bs(totalComm)} />
+      <div className="grid grid-cols-3 gap-4">
+        <Stat label="Pacientes hoy" value={String(todayPatients)} />
+        <Stat label="Recaudado hoy" value={bs(todayTotal)} />
+        <Stat label="Ingresos (últimos 20)" value={bs(totalPay)} />
       </div>
 
       <Section title="Pagos recientes">
-        {payments?.map((p, i) => (
-          <Row key={i}
-            left={(p.patients as { full_name?: string } | null)?.full_name ?? "—"}
-            mid={`${p.method} · ${p.kind}`}
-            right={bs(Number(p.amount))} />
+        <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-400`}>
+          <span>Fecha</span>
+          <span>Paciente</span>
+          <span>Motivo de pago</span>
+          <span>Doctor</span>
+          <span className="text-right">Monto</span>
+        </div>
+        {[...(payments ?? [])].reverse().map((p, i) => (
+          <PaymentRow
+            key={i}
+            receivedAt={p.received_at}
+            patient={(p.patients as { full_name?: string } | null)?.full_name ?? "—"}
+            note={(p as { note?: string | null }).note}
+            doctorName={(p.doctor as { full_name?: string } | null)?.full_name ?? null}
+            method={p.method}
+            amount={Number(p.amount)}
+          />
         ))}
-      </Section>
-
-      <Section title="Comisiones de odontólogos">
-        {commissions?.map((c, i) => (
-          <Row key={i}
-            left={(c.profiles as { full_name?: string } | null)?.full_name ?? "—"}
-            mid={c.status}
-            right={bs(Number(c.amount))} />
-        ))}
-      </Section>
-
-      <Section title="Gastos (solo admin)">
-        {expenses?.map((e, i) => (
-          <Row key={i} left={e.category} mid={e.vendor ?? "—"} right={bs(Number(e.amount))} />
-        ))}
-        {!expenses?.length && <p className="px-1 py-2 text-sm text-slate-500">Sin gastos visibles (RLS: requiere rol admin).</p>}
+        {!payments?.length && (
+          <p className="px-4 py-3 text-sm text-slate-500">Sin pagos registrados.</p>
+        )}
       </Section>
     </div>
   );
@@ -104,12 +99,38 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ left, mid, right }: { left: string; mid: string; right: string }) {
+
+// Plantilla de columnas compartida: encabezado y filas usan los mismos anchos fijos
+// para que todo quede alineado (Fecha · Paciente · Motivo · Monto).
+const PAY_GRID = "grid grid-cols-[11rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_8rem] items-center gap-x-4";
+
+const METHOD_LABEL: Record<string, string> = { cash: "Efectivo", qr: "QR", card: "Tarjeta", transfer: "Transf." };
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString("es-BO", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function PaymentRow({ receivedAt, patient, note, doctorName, method, amount }: {
+  receivedAt: string;
+  patient: string;
+  note?: string | null;
+  doctorName?: string | null;
+  method: string;
+  amount: number;
+}) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 text-sm">
-      <span className="font-medium">{left}</span>
-      <span className="text-slate-500">{mid}</span>
-      <span className="tabular-nums">{right}</span>
+    <div className={`${PAY_GRID} border-t border-slate-100 px-4 py-2.5 text-sm`}>
+      <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">{fmtDate(receivedAt)}</span>
+      <span className="truncate font-medium">{patient}</span>
+      <span className="truncate text-slate-600">{note ?? <span className="text-slate-400">—</span>}</span>
+      <span className="truncate text-slate-600">{doctorName ?? <span className="text-slate-400">—</span>}</span>
+      <div className="flex flex-col items-end leading-tight">
+        <span className="tabular-nums font-medium">{bs(amount)}</span>
+        <span className="text-xs text-slate-400">{METHOD_LABEL[method] ?? method}</span>
+      </div>
     </div>
   );
 }

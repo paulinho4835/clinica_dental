@@ -3,13 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
+import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import {
   PatientHistoryPanel,
   type PaymentRow,
+  type ApptRow,
 } from "@/components/history/PatientHistoryPanel";
 import {
   TreatmentPlanPanel,
   type Work,
+  type Dentist,
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
@@ -24,7 +27,7 @@ export default async function PatientPage({
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, clinic_id, full_name, dob, phone, email, allergies, medical_alerts, anamnesis")
+    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis")
     .eq("id", id)
     .single();
 
@@ -40,19 +43,31 @@ export default async function PatientPage({
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
 
-  const [{ data: rawPlans }, { data: payments }] = await Promise.all([
+  const [{ data: rawPlans }, { data: payments }, { data: appointments }, { data: dentists }] = await Promise.all([
     supabase
       .from("treatment_plans")
       .select(
-        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, procedure:procedure_catalog(name)))",
+        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, doctor_id, doctor:doctors(full_name), procedure:procedure_catalog(name)))",
       )
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, method, received_at")
+      .select("id, amount, method, note, received_at")
       .eq("patient_id", id)
       .order("received_at", { ascending: false }),
+    supabase
+      .from("appointments")
+      .select("id, starts_at, dentist_name, reason, status")
+      .eq("patient_id", id)
+      .neq("status", "cancelled")
+      .order("starts_at", { ascending: false }),
+    supabase
+      .from("doctors")
+      .select("id, full_name")
+      .eq("clinic_id", patient.clinic_id)
+      .eq("active", true)
+      .order("full_name"),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -66,13 +81,24 @@ export default async function PatientPage({
       price: Number(it.price),
       done: it.status === "done",
       createdAt: it.created_at as string,
+      dentistId: (it.doctor_id as string | null) ?? null,
+      dentistName: ((it.doctor as { full_name?: string } | null)?.full_name) ?? null,
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  const apptRows: ApptRow[] = (appointments ?? []).map((a) => ({
+    id: a.id as string,
+    startsAt: a.starts_at as string,
+    dentistName: a.dentist_name as string | null,
+    reason: a.reason as string | null,
+    status: a.status as string,
+  }));
 
   const paymentRows: PaymentRow[] = (payments ?? []).map((p) => ({
     id: p.id as string,
     amount: Number(p.amount),
     method: p.method as string,
+    note: p.note as string | null,
     receivedAt: p.received_at as string,
   }));
 
@@ -84,7 +110,10 @@ export default async function PatientPage({
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+          <EditPatientForm patient={patient} />
+        </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && <span>Tel.: {patient.phone}</span>}
@@ -107,7 +136,7 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} dentists={dentists ?? []} />
       </section>
 
       <section>
@@ -118,6 +147,7 @@ export default async function PatientPage({
           canBilling={canBilling}
           works={works}
           payments={paymentRows}
+          appointments={apptRows}
           totalQuoted={totalQuoted}
           totalPaid={totalPaid}
         />

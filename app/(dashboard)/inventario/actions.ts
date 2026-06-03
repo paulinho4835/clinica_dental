@@ -57,11 +57,13 @@ const ItemSchema = z.object({
   min_stock: z.coerce.number().min(0, "Mínimo inválido"),
 });
 
-// Alta de insumo: nombre + cantidad inicial + stock mínimo (default 5).
+// Alta de insumo: nombre + cantidad inicial + stock mínimo (default 5) + lote/caducidad opcionales.
 const CreateItemSchema = z.object({
   name: z.string().trim().min(1, "Nombre requerido"),
   initial_qty: z.coerce.number().min(0, "Cantidad inválida").default(0),
   min_stock: z.coerce.number().min(0, "Mínimo inválido").default(5),
+  lot: z.string().trim().optional().nullable(),
+  expiry_date: z.string().optional().nullable(),
 });
 
 // Crea el insumo y carga su stock inicial como un movimiento de "Entrada"
@@ -79,6 +81,8 @@ export async function createItem(
     name: formData.get("name"),
     initial_qty: formData.get("initial_qty") || 0,
     min_stock: formData.get("min_stock") ?? 5,
+    lot: formData.get("lot") || null,
+    expiry_date: formData.get("expiry_date") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -105,6 +109,17 @@ export async function createItem(
       quantity: parsed.data.initial_qty,
       reason: "Stock inicial",
       created_by: profile.userId,
+    });
+  }
+
+  // Lote/caducidad opcionales: se registran si se proporcionó alguno de los dos.
+  if (parsed.data.lot || parsed.data.expiry_date) {
+    await supabase.from("inventory_batches").insert({
+      clinic_id: profile.clinicId,
+      item_id: item.id,
+      lot: parsed.data.lot ?? null,
+      expiry_date: parsed.data.expiry_date ?? null,
+      quantity: parsed.data.initial_qty,
     });
   }
 
