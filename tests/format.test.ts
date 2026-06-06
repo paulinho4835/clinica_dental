@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bs, getInitials, normalizeSearch } from "@/lib/format";
+import { bs, getInitials, normalizeSearch, boliviaTodayISO } from "@/lib/format";
 
 describe("bs (formato Boliviano)", () => {
   it("formatea con dos decimales", () => {
@@ -45,5 +45,21 @@ describe("normalizeSearch", () => {
 
   it("'maria' encuentra a 'María' (mismo término normalizado)", () => {
     expect(normalizeSearch("maria")).toBe(normalizeSearch("María"));
+  });
+});
+
+describe("boliviaTodayISO", () => {
+  it("devuelve formato YYYY-MM-DD", () => {
+    expect(boliviaTodayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("coincide con la fecha calendario en zona Bolivia", () => {
+    const expected = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/La_Paz",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    expect(boliviaTodayISO()).toBe(expected);
   });
 });

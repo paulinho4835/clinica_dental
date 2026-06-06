@@ -4,7 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
 import { requireFeature } from "@/lib/guard";
-import { bs } from "@/lib/format";
+import { bs, boliviaTodayISO } from "@/lib/format";
 import { Stat } from "@/components/ui/Stat";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -15,7 +15,7 @@ export default async function CashPage() {
   const profile = await getProfile();
 
   // Inicio de hoy en Bolivia (UTC-4) expresado en UTC para filtrar la DB.
-  const boliviaDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
+  const boliviaDate = boliviaTodayISO();
   const todayStartUTC = new Date(`${boliviaDate}T04:00:00.000Z`);
   const tomorrowStartUTC = new Date(todayStartUTC.getTime() + 24 * 60 * 60 * 1000);
 

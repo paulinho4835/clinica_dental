@@ -22,3 +22,13 @@ export function normalizeSearch(s: string): string {
     .toLowerCase()
     .trim();
 }
+
+// Bolivia no tiene horario de verano (UTC-4 fijo). El server corre en UTC
+// (Vercel), así que "hoy" debe calcularse explícitamente en zona Bolivia para
+// no correrse un día por la noche.
+export const BOLIVIA_TZ = "America/La_Paz";
+
+// Fecha de hoy en Bolivia como "YYYY-MM-DD" (en-CA produce ese formato ISO).
+export function boliviaTodayISO(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
+}

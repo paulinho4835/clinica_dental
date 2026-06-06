@@ -4,10 +4,7 @@ import { can } from "@/lib/rbac";
 import { AgendaCalendar } from "@/components/agenda/AgendaCalendar";
 import { RealtimeAppointments } from "@/components/agenda/RealtimeAppointments";
 import { requireFeature } from "@/lib/guard";
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { boliviaTodayISO } from "@/lib/format";
 
 export default async function AgendaPage({
   searchParams,
@@ -16,7 +13,8 @@ export default async function AgendaPage({
 }) {
   await requireFeature("agenda");
   const sp = await searchParams;
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : todayISO();
+  // "Hoy" en zona Bolivia: en UTC, de noche se corría al día/mes siguiente.
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : boliviaTodayISO();
 
   // Rango del mes visible [primer día, primer día del mes siguiente).
   const base = new Date(date + "T00:00:00");

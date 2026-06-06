@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/guard";
-import { bs } from "@/lib/format";
+import { bs, boliviaTodayISO } from "@/lib/format";
 import {
   RevenueChart,
   type DailyPoint,
@@ -17,7 +17,10 @@ export default async function FinanceDashboardPage() {
   await requireFeature("caja");
   const supabase = await createClient();
 
-  const now = new Date();
+  // "Hoy" en Bolivia: las RPC agregan por día en zona Bolivia, así que todos los
+  // rangos (hoy/semana/mes) deben anclarse al día-calendario boliviano, no a UTC.
+  const [by, bm, bd] = boliviaTodayISO().split("-").map(Number);
+  const now = new Date(by, bm - 1, bd);
   const year = now.getFullYear();
   const month = now.getMonth();
   const firstPrevMonth = new Date(year, month - 1, 1); // inicio rango diario
