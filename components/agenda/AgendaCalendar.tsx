@@ -13,11 +13,19 @@ import {
 import { createPatientQuick } from "@/app/(dashboard)/pacientes/actions";
 import { PatientPicker, type PatientOption } from "./PatientPicker";
 import { bs } from "@/lib/format";
-
-// ─── Config de la clínica ───────────────────────────────────────────────────
-const OPEN_HOUR = 8; // apertura
-const CLOSE_HOUR = 20; // cierre
-const STEP_MIN = 30; // duración de cada bloque
+import { Modal } from "@/components/ui/Modal";
+import { toast } from "@/lib/toast";
+import { confirm } from "@/lib/confirm";
+import { STEP_MIN, mins, buildTimeline } from "@/lib/agenda";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Pencil,
+  RotateCcw,
+  Check,
+  X,
+} from "lucide-react";
 
 export type MonthAppt = {
   id: string;
@@ -161,9 +169,10 @@ export function AgendaCalendar({
       <div className="flex items-center gap-2">
         <button
           onClick={() => shiftMonth(-1)}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          aria-label="Mes anterior"
+          className="rounded-md border border-slate-300 p-1.5 hover:bg-slate-50"
         >
-          ←
+          <ChevronLeft className="h-4 w-4" />
         </button>
         <button
           onClick={() => { setSelectedDay(todayKey); shiftMonth(0); }}
@@ -173,9 +182,10 @@ export function AgendaCalendar({
         </button>
         <button
           onClick={() => shiftMonth(1)}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          aria-label="Mes siguiente"
+          className="rounded-md border border-slate-300 p-1.5 hover:bg-slate-50"
         >
-          →
+          <ChevronRight className="h-4 w-4" />
         </button>
         <span className="ml-2 text-lg font-semibold capitalize text-slate-700">
           {monthLabel}
@@ -216,9 +226,22 @@ export function AgendaCalendar({
                   {d.getDate()}
                 </span>
                 {inMonth && dayAppts.length > 0 && (
-                  <span className="rounded bg-clinic/10 px-1.5 py-0.5 text-[11px] font-medium text-clinic">
-                    {dayAppts.length} cita{dayAppts.length > 1 ? "s" : ""}
-                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="rounded bg-clinic/10 px-1.5 py-0.5 text-[11px] font-medium text-clinic">
+                      {dayAppts.length} cita{dayAppts.length > 1 ? "s" : ""}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {dayAppts.some(a => a.status === "finished") && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Atendidos" />
+                      )}
+                      {dayAppts.some(a => a.status === "scheduled") && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-clinic" title="Pendientes" />
+                      )}
+                      {dayAppts.some(a => a.status === "no_show") && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" title="No vino" />
+                      )}
+                    </div>
+                  </div>
                 )}
               </button>
             );
@@ -289,9 +312,7 @@ function SearchBar({
         className="flex items-center gap-2"
       >
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            🔍
-          </span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
             value={value}
@@ -334,7 +355,7 @@ function MiniStatus({
   function set(next: string) {
     start(async () => {
       const res = await setAppointmentStatus(id, next);
-      if (res.error) alert(res.error);
+      if (res.error) toast(res.error, "error");
       else router.refresh();
     });
   }
@@ -358,22 +379,24 @@ function MiniStatus({
     return (
       <span className="flex items-center gap-1">
         <span
-          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
             done
               ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
               : "bg-red-100 text-red-700 ring-red-200"
           }`}
         >
-          {done ? "✓ Atendido" : "✗ No vino"}
+          {done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+          {done ? "Atendido" : "No vino"}
         </span>
         <button
           type="button"
           disabled={pending}
           onClick={() => set("scheduled")}
+          aria-label="Deshacer"
           title="Deshacer"
-          className="rounded p-0.5 text-[11px] text-slate-400 hover:text-slate-600 disabled:opacity-50"
+          className="rounded p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
         >
-          ↺
+          <RotateCcw className="h-3.5 w-3.5" />
         </button>
       </span>
     );
@@ -386,71 +409,34 @@ function MiniStatus({
         type="button"
         disabled={pending}
         onClick={() => set("finished")}
-        className="rounded border border-emerald-300 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500 hover:text-white disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded border border-emerald-300 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500 hover:text-white disabled:opacity-50"
       >
-        ✓ Atendido
+        <Check className="h-3 w-3" /> Atendido
       </button>
       <button
         type="button"
         disabled={pending}
         onClick={() => set("no_show")}
-        className="rounded border border-red-300 px-2 py-0.5 text-[11px] font-medium text-red-600 hover:bg-red-500 hover:text-white disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-0.5 text-[11px] font-medium text-red-600 hover:bg-red-500 hover:text-white disabled:opacity-50"
       >
-        ✗ No vino
+        <X className="h-3 w-3" /> No vino
       </button>
     </span>
   );
 }
 
-// ─── Segmento de la línea de tiempo ──────────────────────────────────────────
-type Segment =
-  | { type: "free"; start: Date; end: Date }
-  | { type: "busy"; start: Date; end: Date; appts: MonthAppt[] };
-
-const mins = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 60_000);
-
-// Construye la línea de tiempo dinámica de un día:
-// fusiona citas solapadas en bloques ocupados y fragmenta los huecos libres
-// entre el horario de apertura/cierre y cada cita.
-function buildTimeline(day: string, appts: MonthAppt[]): Segment[] {
-  const [y, m, d] = day.split("-").map(Number);
-  const open = new Date(y, m - 1, d, OPEN_HOUR, 0);
-  const close = new Date(y, m - 1, d, CLOSE_HOUR, 0);
-  const defMs = STEP_MIN * 60_000;
-
-  // Normaliza y ordena las citas por inicio.
-  const sorted = appts
-    .map((a) => {
-      const s = new Date(a.starts_at);
-      const e = a.ends_at ? new Date(a.ends_at) : new Date(s.getTime() + defMs);
-      return { a, s, e };
-    })
-    .sort((x, y2) => x.s.getTime() - y2.s.getTime());
-
-  // Fusiona citas que se solapan o tocan en bloques ocupados.
-  const busy: { start: Date; end: Date; appts: MonthAppt[] }[] = [];
-  for (const { a, s, e } of sorted) {
-    const last = busy[busy.length - 1];
-    if (last && s.getTime() <= last.end.getTime()) {
-      if (e > last.end) last.end = e;
-      last.appts.push(a);
-    } else {
-      busy.push({ start: new Date(s), end: new Date(e), appts: [a] });
-    }
-  }
-
-  // Recorre el día insertando huecos libres entre bloques ocupados.
-  const segs: Segment[] = [];
-  let cursor = open;
-  for (const b of busy) {
-    const visStart = b.start < open ? open : b.start; // recorta al horario
-    if (visStart > cursor) segs.push({ type: "free", start: cursor, end: visStart });
-    segs.push({ type: "busy", start: b.start, end: b.end, appts: b.appts });
-    if (b.end > cursor) cursor = b.end;
-  }
-  if (cursor < close) segs.push({ type: "free", start: cursor, end: close });
-  return segs;
+// ─── Helpers de color por estado de cita ────────────────────────────────────
+function apptRowStyle(status: string) {
+  if (status === "finished") return "border-l-2 border-emerald-400 bg-emerald-50/60";
+  if (status === "no_show") return "border-l-2 border-slate-300 bg-slate-50/60 opacity-60";
+  return "border-l-2 border-clinic/60 bg-clinic/5"; // scheduled
 }
+
+const apptNameColor = (status: string) =>
+  status === "finished" ? "text-emerald-700" :
+  status === "no_show" ? "text-slate-400 line-through" :
+  "text-slate-800";
+
 
 // ─── Línea de tiempo dinámica de un día ──────────────────────────────────────
 function DayTimeline({
@@ -500,7 +486,7 @@ function DayTimeline({
             return (
               <div
                 key={seg.start.toISOString()}
-                className="rounded-md border-l-4 border-red-500 bg-red-50 px-3 py-2 text-sm"
+                className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
               >
                 <div className="mb-1 flex items-center gap-2">
                   <span className="tabular-nums font-medium text-slate-600">
@@ -517,9 +503,7 @@ function DayTimeline({
                       <li
                         key={a.id}
                         ref={isHit ? highlightRef : null}
-                        className={`flex items-center gap-2 rounded-md px-1 py-0.5 transition ${
-                          isHit ? "animate-flash bg-clinic/10 ring-2 ring-clinic" : ""
-                        }`}
+                        className={`flex items-center gap-2 rounded-md px-2 py-1 transition ${isHit ? "animate-flash ring-2 ring-clinic" : ""} ${!isHit ? apptRowStyle(a.status) : "bg-clinic/10"}`}
                       >
                         <span className="tabular-nums text-xs text-slate-500">
                           {hhmm(s)}–{hhmm(e)}
@@ -529,7 +513,7 @@ function DayTimeline({
                           disabled={!canWrite}
                           onClick={() => onEdit(a)}
                           title={canWrite ? "Editar cita" : undefined}
-                          className="flex-1 truncate text-left font-medium text-red-700 enabled:hover:underline disabled:cursor-default"
+                          className={`flex-1 truncate text-left font-medium enabled:hover:underline disabled:cursor-default ${apptNameColor(a.status)}`}
                         >
                           {apptName(a)}
                           {apptCI(a) && (
@@ -547,10 +531,11 @@ function DayTimeline({
                           <button
                             type="button"
                             onClick={() => onEdit(a)}
+                            aria-label="Editar cita"
                             title="Editar cita"
                             className="rounded p-1 text-slate-400 transition hover:bg-white hover:text-clinic"
                           >
-                            ✏️
+                            <Pencil className="h-3.5 w-3.5" />
                           </button>
                         )}
                         {canWrite && isQuickConsult(a) && (
@@ -676,10 +661,16 @@ function ApptModal({
     month: "long",
   });
 
-  function handleCancel() {
+  async function handleCancel() {
     if (!appt) return;
-    if (!window.confirm(`¿Cancelar la cita de ${apptName(appt)}? Esta acción no se puede deshacer.`))
-      return;
+    const ok = await confirm({
+      title: "Cancelar cita",
+      message: `¿Cancelar la cita de ${apptName(appt)}? Esta acción no se puede deshacer.`,
+      confirmText: "Sí, cancelar",
+      cancelText: "Volver",
+      tone: "danger",
+    });
+    if (!ok) return;
     setCancelErr(null);
     startCancel(async () => {
       const res = await cancelAppointment(appt.id);
@@ -692,31 +683,14 @@ function ApptModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      title={isEditing ? "Editar cita" : "Nueva cita"}
+      subtitle={<span className="capitalize text-clinic">{header}</span>}
     >
-      <form
-        action={formAction}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-3 rounded-lg bg-white p-5 shadow-xl"
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800">
-              {isEditing ? "Editar cita" : "Nueva cita"}
-            </h3>
-            <p className="text-sm capitalize text-clinic">{header}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
-          >
-            ✕
-          </button>
-        </div>
-
+      <form action={formAction} className="space-y-3">
         {/* En edición viaja el id de la cita a actualizar. */}
         {isEditing && <input type="hidden" name="appointment_id" value={appt!.id} />}
 
@@ -933,7 +907,7 @@ function ApptModal({
           )}
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -991,26 +965,18 @@ function LinkPatientModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      title="Vincular a paciente"
+      subtitle={
+        <>
+          Consulta rápida de <span className="font-medium">{appt.patient_name}</span>
+        </>
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-3 rounded-lg bg-white p-5 shadow-xl"
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800">Vincular a paciente</h3>
-            <p className="text-sm text-slate-500">
-              Consulta rápida de <span className="font-medium">{appt.patient_name}</span>
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            ✕
-          </button>
-        </div>
-
+      <div className="space-y-3">
         <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 ring-1 ring-amber-200">
           El dinero registrado (cotización y adelanto) quedará ligado al expediente.
           Si la cita ya fue atendida, migra al historial de inmediato.
@@ -1112,6 +1078,6 @@ function LinkPatientModal({
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

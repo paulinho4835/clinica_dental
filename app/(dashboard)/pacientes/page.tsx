@@ -5,6 +5,22 @@ import { can } from "@/lib/rbac";
 import { NewPatientForm } from "@/components/patients/NewPatientForm";
 import { PatientSearch } from "@/components/patients/PatientSearch";
 import { requireFeature } from "@/lib/guard";
+import { getInitials, normalizeSearch } from "@/lib/format";
+import { PageHeader } from "@/components/ui/PageHeader";
+
+const AVATAR_COLORS = [
+  "bg-violet-100 text-violet-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-teal-100 text-teal-700",
+];
+
+function getAvatarColor(name: string) {
+  const code = name.charCodeAt(0) + (name.charCodeAt(1) || 0);
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+}
 
 export default async function PatientsPage({
   searchParams,
@@ -25,18 +41,21 @@ export default async function PatientsPage({
   // Filtro por nombre o CI. Usa search_text (normalizado sin acentos ni
   // mayúsculas) para que "maria" encuentre "María".
   if (q) {
-    const term = q
-      .normalize("NFD")
-      .replace(new RegExp("[\u0300-\u036f]", "g"), "")
-      .toLowerCase();
-    query = query.ilike("search_text", `%${term}%`);
+    query = query.ilike("search_text", `%${normalizeSearch(q)}%`);
   }
 
   const { data: patients } = await query;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Pacientes</h1>
+      <PageHeader
+        title="Pacientes"
+        subtitle={
+          patients && patients.length > 0
+            ? `${patients.length} paciente${patients.length !== 1 ? "s" : ""} registrado${patients.length !== 1 ? "s" : ""}`
+            : undefined
+        }
+      />
       {can(profile?.role, "patients:write") && <NewPatientForm />}
 
       <PatientSearch initial={q} />
@@ -48,12 +67,19 @@ export default async function PatientsPage({
             href={`/pacientes/${p.id}`}
             className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
           >
-            <div>
-              <div className="font-medium">{p.full_name}</div>
-              <div className="text-xs text-slate-500">
-                {p.national_id ? `CI: ${p.national_id}` : "Sin CI"}
-                {" · "}
-                {p.phone ?? "Sin teléfono"}
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${getAvatarColor(p.full_name)}`}
+              >
+                {getInitials(p.full_name)}
+              </span>
+              <div>
+                <div className="font-medium">{p.full_name}</div>
+                <div className="text-xs text-slate-500">
+                  {p.national_id ? `CI: ${p.national_id}` : "Sin CI"}
+                  {" · "}
+                  {p.phone ?? "Sin teléfono"}
+                </div>
               </div>
             </div>
             {p.medical_alerts?.length > 0 && (
@@ -64,9 +90,17 @@ export default async function PatientsPage({
           </Link>
         ))}
         {!patients?.length && (
-          <p className="px-4 py-3 text-slate-500">
-            {q ? `Sin resultados para "${q}".` : "Sin pacientes."}
-          </p>
+          <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+            <span className="text-4xl">🦷</span>
+            <p className="font-medium text-slate-600">
+              {q ? `Sin resultados para "${q}"` : "Aún no hay pacientes registrados"}
+            </p>
+            {!q && (
+              <p className="text-sm text-slate-400">
+                Crea el primer paciente con el botón de arriba.
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

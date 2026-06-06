@@ -1,10 +1,13 @@
-import Link from "next/link";
+import { Users, BarChart3, Banknote, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
 import { requireFeature } from "@/lib/guard";
 import { bs } from "@/lib/format";
+import { Stat } from "@/components/ui/Stat";
+import { ButtonLink } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function CashPage() {
   await requireFeature("caja");
@@ -34,58 +37,52 @@ export default async function CashPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Caja y finanzas</h1>
-        <Link
-          href="/caja/dashboard"
-          className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg"
-        >
-          📊 Ver dashboard
-        </Link>
-      </div>
+      <PageHeader
+        title="Caja y finanzas"
+        action={
+          <ButtonLink href="/caja/dashboard">
+            <BarChart3 className="h-4 w-4" /> Ver dashboard
+          </ButtonLink>
+        }
+      />
 
       {can(profile?.role, "billing:write") && (
         <PaymentForm patients={patients ?? []} doctors={doctors ?? []} />
       )}
 
-      <div className="grid grid-cols-3 gap-4">
-        <Stat label="Pacientes hoy" value={String(todayPatients)} />
-        <Stat label="Recaudado hoy" value={bs(todayTotal)} />
-        <Stat label="Ingresos (últimos 20)" value={bs(totalPay)} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Stat label="Pacientes hoy" value={String(todayPatients)} icon={<Users className="h-5 w-5" />} />
+        <Stat label="Recaudado hoy" value={bs(todayTotal)} icon={<Banknote className="h-5 w-5" />} valueClassName="text-emerald-600" />
+        <Stat label="Ingresos (últimos 20)" value={bs(totalPay)} icon={<TrendingUp className="h-5 w-5" />} valueClassName="text-clinic" />
       </div>
 
       <Section title="Pagos recientes">
-        <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-400`}>
-          <span>Fecha</span>
-          <span>Paciente</span>
-          <span>Motivo de pago</span>
-          <span>Doctor</span>
-          <span className="text-right">Monto</span>
+        <div className="overflow-x-auto">
+          <div className="min-w-[44rem]">
+            <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
+              <span>Fecha</span>
+              <span>Paciente</span>
+              <span>Motivo de pago</span>
+              <span>Doctor</span>
+              <span className="text-right">Monto</span>
+            </div>
+            {[...(payments ?? [])].reverse().map((p, i) => (
+              <PaymentRow
+                key={i}
+                receivedAt={p.received_at}
+                patient={(p.patients as { full_name?: string } | null)?.full_name ?? "—"}
+                note={(p as { note?: string | null }).note}
+                doctorName={(p.doctor as { full_name?: string } | null)?.full_name ?? null}
+                method={p.method}
+                amount={Number(p.amount)}
+              />
+            ))}
+            {!payments?.length && (
+              <p className="px-4 py-3 text-sm text-slate-500">Sin pagos registrados.</p>
+            )}
+          </div>
         </div>
-        {[...(payments ?? [])].reverse().map((p, i) => (
-          <PaymentRow
-            key={i}
-            receivedAt={p.received_at}
-            patient={(p.patients as { full_name?: string } | null)?.full_name ?? "—"}
-            note={(p as { note?: string | null }).note}
-            doctorName={(p.doctor as { full_name?: string } | null)?.full_name ?? null}
-            method={p.method}
-            amount={Number(p.amount)}
-          />
-        ))}
-        {!payments?.length && (
-          <p className="px-4 py-3 text-sm text-slate-500">Sin pagos registrados.</p>
-        )}
       </Section>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -122,7 +119,7 @@ function PaymentRow({ receivedAt, patient, note, doctorName, method, amount }: {
   amount: number;
 }) {
   return (
-    <div className={`${PAY_GRID} border-t border-slate-100 px-4 py-2.5 text-sm`}>
+    <div className={`${PAY_GRID} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}>
       <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">{fmtDate(receivedAt)}</span>
       <span className="truncate font-medium">{patient}</span>
       <span className="truncate text-slate-600">{note ?? <span className="text-slate-400">—</span>}</span>
