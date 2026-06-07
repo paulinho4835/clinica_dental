@@ -30,4 +30,25 @@ describe("normalizeFeatures", () => {
     expect(isEnabled(f, "inventario")).toBe(false);
     expect(isEnabled(f, "agenda")).toBe(true);
   });
+
+  it("todos los módulos non-core se pueden apagar individualmente", () => {
+    const all = normalizeFeatures({
+      agenda: false,
+      pacientes: false,
+      caja: false,
+      inventario: false,
+    });
+    expect(all.agenda).toBe(false);
+    expect(all.pacientes).toBe(false);
+    expect(all.caja).toBe(false);
+    expect(all.inventario).toBe(false);
+    // ajustes sigue encendido (core)
+    expect(all.ajustes).toBe(true);
+  });
+
+  it("true explícito mantiene el módulo encendido", () => {
+    const f = normalizeFeatures({ agenda: true, caja: true });
+    expect(f.agenda).toBe(true);
+    expect(f.caja).toBe(true);
+  });
 });

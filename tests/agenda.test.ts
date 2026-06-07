@@ -92,4 +92,32 @@ describe("buildTimeline", () => {
     const segs = buildTimeline(DAY, [appt("07:00", "09:00")]);
     expect(segs[0].type).toBe("busy");
   });
+
+  it("tres citas no solapadas generan el número correcto de segmentos", () => {
+    const segs = buildTimeline(DAY, [
+      appt("09:00", "10:00"),
+      appt("11:00", "12:00"),
+      appt("14:00", "15:00"),
+    ]);
+    const busySegs = segs.filter((s) => s.type === "busy");
+    const freeSegs = segs.filter((s) => s.type === "free");
+    expect(busySegs).toHaveLength(3);
+    expect(freeSegs).toHaveLength(4); // antes, entre 1y2, entre 2y3, después
+  });
+
+  it("mins con misma fecha devuelve 0", () => {
+    const d = new Date(at("10:00"));
+    expect(mins(d, d)).toBe(0);
+  });
+
+  it("mins negativo cuando b < a", () => {
+    expect(
+      mins(new Date(at("10:00")), new Date(at("09:00")))
+    ).toBe(-60);
+  });
+
+  it("cita que termina exactamente al cierre no deja hueco al final", () => {
+    const segs = buildTimeline(DAY, [appt("18:00", "20:00")]);
+    expect(segs[segs.length - 1].type).toBe("busy");
+  });
 });

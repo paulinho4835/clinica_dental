@@ -30,3 +30,49 @@ describe("can (permisos por rol)", () => {
     expect(can(undefined, "patients:read")).toBe(false);
   });
 });
+
+describe("especialista (igual que odontólogo pero verificado)", () => {
+  it("puede leer pacientes y escribir lo clínico", () => {
+    expect(can("especialista", "patients:read")).toBe(true);
+    expect(can("especialista", "appointments:write")).toBe(true);
+    expect(can("especialista", "clinical:write")).toBe(true);
+  });
+
+  it("NO puede facturar ni administrar", () => {
+    expect(can("especialista", "billing:write")).toBe(false);
+    expect(can("especialista", "settings:write")).toBe(false);
+    expect(can("especialista", "expenses:write")).toBe(false);
+    expect(can("especialista", "inventory:write")).toBe(false);
+  });
+});
+
+describe("permisos límite por rol", () => {
+  it("recepcionista NO puede registrar gastos", () => {
+    expect(can("recepcionista", "expenses:write")).toBe(false);
+  });
+
+  it("recepcionista SÍ puede gestionar citas", () => {
+    expect(can("recepcionista", "appointments:write")).toBe(true);
+  });
+
+  it("odontologo_general SÍ puede leer pacientes y gestionar citas", () => {
+    expect(can("odontologo_general", "patients:read")).toBe(true);
+    expect(can("odontologo_general", "appointments:write")).toBe(true);
+  });
+
+  it("odontologo_general NO puede eliminar pacientes", () => {
+    expect(can("odontologo_general", "patients:delete")).toBe(false);
+  });
+
+  it("asistente NO puede gestionar citas ni hacer clínica", () => {
+    expect(can("asistente", "appointments:write")).toBe(false);
+    expect(can("asistente", "clinical:write")).toBe(false);
+    expect(can("asistente", "billing:write")).toBe(false);
+  });
+
+  it("admin puede gestionar gastos e inventario", () => {
+    expect(can("admin", "expenses:write")).toBe(true);
+    expect(can("admin", "inventory:write")).toBe(true);
+    expect(can("admin", "appointments:write")).toBe(true);
+  });
+});

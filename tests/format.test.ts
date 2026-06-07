@@ -48,6 +48,30 @@ describe("normalizeSearch", () => {
   });
 });
 
+describe("bs – casos límite", () => {
+  it("cero explícito", () => {
+    expect(bs(0)).toBe("Bs 0.00");
+  });
+
+  it("número negativo (devolución / nota de crédito)", () => {
+    expect(bs(-50)).toBe("Bs -50.00");
+  });
+
+  it("número grande", () => {
+    expect(bs(10000)).toBe("Bs 10000.00");
+  });
+});
+
+describe("getInitials – casos límite", () => {
+  it("string vacío devuelve string vacío (sin crash)", () => {
+    expect(getInitials("")).toBe("");
+  });
+
+  it("más de dos palabras: solo toma las dos primeras", () => {
+    expect(getInitials("María del Carmen Quispe")).toBe("MD");
+  });
+});
+
 describe("boliviaTodayISO", () => {
   it("devuelve formato YYYY-MM-DD", () => {
     expect(boliviaTodayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
