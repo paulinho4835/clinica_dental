@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { updatePatient, type ActionState } from "@/app/(dashboard)/pacientes/actions";
+import { PatientSchema, type PatientInput } from "@/lib/schemas/patient";
 import { toast } from "@/lib/toast";
-import { Field } from "@/components/ui/Field";
+import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
@@ -23,13 +26,43 @@ export interface PatientData {
 
 const initial: ActionState = {};
 
+const FIELDS: { name: keyof PatientInput; label: string; type?: string }[] = [
+  { name: "full_name", label: "Nombre completo *" },
+  { name: "national_id", label: "Cédula de identidad (CI)" },
+  { name: "phone", label: "Teléfono" },
+  { name: "dob", label: "Fecha de nacimiento", type: "date" },
+  { name: "email", label: "Email", type: "email" },
+  { name: "sex", label: "Sexo" },
+  { name: "address", label: "Dirección" },
+  { name: "allergies", label: "Alergias (separadas por coma)" },
+  { name: "medical_alerts", label: "Alertas médicas (coma)" },
+];
+
 export function EditPatientForm({ patient }: { patient: PatientData }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
   const boundAction = updatePatient.bind(null, patient.id);
   const [state, formAction, pending] = useActionState(boundAction, initial);
-  const formRef = useRef<HTMLFormElement>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PatientInput>({
+    resolver: zodResolver(PatientSchema),
+    defaultValues: {
+      full_name: patient.full_name,
+      national_id: patient.national_id ?? "",
+      phone: patient.phone ?? "",
+      dob: patient.dob ?? "",
+      email: patient.email ?? "",
+      sex: patient.sex ?? "",
+      address: patient.address ?? "",
+      allergies: patient.allergies?.join(", ") ?? "",
+      medical_alerts: patient.medical_alerts?.join(", ") ?? "",
+    },
+  });
 
   useEffect(() => {
     if (state.ok) {
@@ -38,6 +71,14 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
       toast("Cambios guardados", "success");
     }
   }, [state.ok, router]);
+
+  const onSubmit = (data: PatientInput) => {
+    const fd = new FormData();
+    (Object.entries(data) as [string, string | null | undefined][]).forEach(
+      ([k, v]) => { if (v != null && v !== "") fd.append(k, v); },
+    );
+    startTransition(() => formAction(fd));
+  };
 
   if (!open) {
     return (
@@ -49,26 +90,22 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
 
   return (
     <Card className="mt-4 p-4">
-      <form ref={formRef} action={formAction} className="space-y-3">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <h3 className="font-medium text-slate-800">Editar paciente</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field name="full_name" label="Nombre completo *" required defaultValue={patient.full_name} />
-          <Field name="national_id" label="Cédula de identidad (CI)" defaultValue={patient.national_id ?? undefined} />
-          <Field name="phone" label="Teléfono" defaultValue={patient.phone ?? undefined} />
-          <Field name="dob" label="Fecha de nacimiento" type="date" defaultValue={patient.dob ?? undefined} />
-          <Field name="email" label="Email" type="email" defaultValue={patient.email ?? undefined} />
-          <Field name="sex" label="Sexo" defaultValue={patient.sex ?? undefined} />
-          <Field name="address" label="Dirección" defaultValue={patient.address ?? undefined} />
-          <Field
-            name="allergies"
-            label="Alergias (separadas por coma)"
-            defaultValue={patient.allergies?.join(", ")}
-          />
-          <Field
-            name="medical_alerts"
-            label="Alertas médicas (coma)"
-            defaultValue={patient.medical_alerts?.join(", ")}
-          />
+          {FIELDS.map(({ name, label, type }) => (
+            <label key={name} className="block text-sm">
+              <FieldLabel>{label}</FieldLabel>
+              <input
+                {...register(name)}
+                type={type ?? "text"}
+                className={fieldInputClass}
+              />
+              {errors[name] && (
+                <p className="mt-0.5 text-xs text-red-600">{errors[name]?.message}</p>
+              )}
+            </label>
+          ))}
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         <div className="flex gap-2">

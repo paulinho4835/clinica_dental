@@ -24,6 +24,7 @@ export function PaymentForm({ patients, doctors }: { patients: Patient[]; doctor
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [amountError, setAmountError] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.length >= 1
@@ -41,6 +42,7 @@ export function PaymentForm({ patients, doctors }: { patients: Patient[]; doctor
       formRef.current?.reset();
       setQuery("");
       setSelectedId("");
+      setAmountError("");
       setOpen(false);
       router.refresh();
       toast("Pago registrado", "success");
@@ -111,7 +113,21 @@ export function PaymentForm({ patients, doctors }: { patients: Patient[]; doctor
 
           <label className="block text-sm">
             <FieldLabel>Monto *</FieldLabel>
-            <input name="amount" type="number" step="0.01" min="0.01" required className={fieldInputClass} />
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              className={fieldInputClass}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setAmountError(isNaN(v) || v <= 0 ? "Monto debe ser mayor a 0" : "");
+              }}
+            />
+            {amountError && (
+              <p className="mt-0.5 text-xs text-red-600">{amountError}</p>
+            )}
           </label>
 
           <label className="block text-sm">
@@ -159,13 +175,13 @@ export function PaymentForm({ patients, doctors }: { patients: Patient[]; doctor
         )}
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={pending || !selectedId}>
+          <Button type="submit" disabled={pending || !selectedId || !!amountError}>
             {pending ? "Guardando…" : "Registrar"}
           </Button>
           <Button
             type="button"
             variant="ghost"
-            onClick={() => { setOpen(false); setQuery(""); setSelectedId(""); }}
+            onClick={() => { setOpen(false); setQuery(""); setSelectedId(""); setAmountError(""); }}
           >
             Cancelar
           </Button>

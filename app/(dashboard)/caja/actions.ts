@@ -5,17 +5,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { PaymentSchema } from "@/lib/schemas/payment";
 
 export type ActionState = { error?: string; ok?: boolean };
-
-const PaymentSchema = z.object({
-  patient_id: z.string().uuid("Paciente requerido"),
-  amount: z.coerce.number().positive("Monto debe ser > 0"),
-  method: z.enum(["cash", "qr", "card"]),
-  kind: z.enum(["payment", "credit"]).default("payment"),
-  note: z.string().max(120).optional().nullable(),
-  doctor_id: z.string().uuid().optional().nullable(),
-});
 
 export async function registerPayment(
   _prev: ActionState,

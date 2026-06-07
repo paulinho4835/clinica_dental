@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { PatientSchema } from "@/lib/schemas/patient";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -16,16 +17,6 @@ function csvToArray(v: FormDataEntryValue | null): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
-
-const PatientSchema = z.object({
-  full_name: z.string().min(1, "Nombre requerido"),
-  national_id: z.string().optional().nullable(),
-  dob: z.string().optional().nullable(),
-  sex: z.string().optional().nullable(),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
-  address: z.string().optional().nullable(),
-});
 
 export async function createPatient(
   _prev: ActionState,
