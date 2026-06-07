@@ -9,3 +9,4 @@ next-env.d.ts
 *.log
 supabase/.branches
 supabase/.temp
+e2e/.auth/
