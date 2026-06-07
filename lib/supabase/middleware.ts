@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Rutas del panel exigen sesión.
-  const PROTECTED = ["/agenda", "/pacientes", "/tratamientos", "/caja", "/inventario", "/ajustes"];
+  const PROTECTED = ["/agenda", "/pacientes", "/tratamientos", "/caja", "/inventario", "/ajustes", "/superadmin"];
   const needsAuth = PROTECTED.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (needsAuth && !user) {

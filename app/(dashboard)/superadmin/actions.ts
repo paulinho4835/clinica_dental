@@ -6,17 +6,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
-// Toda action del panel exige ser operador de la plataforma.
 async function assertSuperadmin() {
-  if (!(await isPlatformAdmin())) {
-    throw new Error("No autorizado");
-  }
+  if (!(await isPlatformAdmin())) throw new Error("No autorizado");
 }
 
-// ----------------------------------------------------------------------------
-// Crear clínica + su usuario admin en un paso.
-// service_role: crea el auth.user (email confirmado) y siembra clinic+profile.
-// ----------------------------------------------------------------------------
+// ── Crear clínica + admin ────────────────────────────────────────────────────
 const newClinicSchema = z.object({
   clinicName: z.string().min(2, "Nombre de clínica muy corto"),
   adminEmail: z.string().email("Email inválido"),
@@ -35,14 +29,11 @@ export async function createClinic(_prev: unknown, formData: FormData) {
     password: formData.get("password"),
     plan: formData.get("plan") || "starter",
   });
-  if (!parsed.success) {
-    return { error: parsed.error.errors[0].message };
-  }
+  if (!parsed.success) return { error: parsed.error.errors[0].message };
   const { clinicName, adminEmail, adminName, password, plan } = parsed.data;
 
   const admin = createAdminClient();
 
-  // 1) clínica
   const { data: clinic, error: clinicErr } = await admin
     .from("clinics")
     .insert({ name: clinicName, plan })
@@ -52,19 +43,16 @@ export async function createClinic(_prev: unknown, formData: FormData) {
     return { error: `No se pudo crear la clínica: ${clinicErr?.message}` };
   }
 
-  // 2) usuario auth (admin de esa clínica), email ya confirmado
   const { data: created, error: userErr } = await admin.auth.admin.createUser({
     email: adminEmail,
     password,
     email_confirm: true,
   });
   if (userErr || !created.user) {
-    // rollback de la clínica para no dejar huérfana
     await admin.from("clinics").delete().eq("id", clinic.id);
     return { error: `No se pudo crear el usuario: ${userErr?.message}` };
   }
 
-  // 3) profile que liga usuario -> clínica con rol admin
   const { error: profErr } = await admin.from("profiles").insert({
     id: created.user.id,
     clinic_id: clinic.id,
@@ -81,9 +69,109 @@ export async function createClinic(_prev: unknown, formData: FormData) {
   return { ok: `Clínica "${clinicName}" creada. Admin: ${adminEmail}` };
 }
 
-// ----------------------------------------------------------------------------
-// Encender / apagar un módulo de una clínica.
-// ----------------------------------------------------------------------------
+// ── Añadir usuario a clínica existente ──────────────────────────────────────
+const addUserSchema = z.object({
+  clinicId: z.string().uuid("Clínica inválida"),
+  email: z.string().email("Email inválido"),
+  fullName: z.string().min(2, "Nombre muy corto"),
+  password: z.string().min(8, "Mínimo 8 caracteres"),
+  role: z.enum(["admin", "recepcionista", "odontologo_general", "especialista", "asistente"]),
+});
+
+export async function addClinicUser(_prev: unknown, formData: FormData) {
+  await assertSuperadmin();
+
+  const parsed = addUserSchema.safeParse({
+    clinicId: formData.get("clinicId"),
+    email: formData.get("email"),
+    fullName: formData.get("fullName"),
+    password: formData.get("password"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return { error: parsed.error.errors[0].message };
+  const { clinicId, email, fullName, password, role } = parsed.data;
+
+  const admin = createAdminClient();
+
+  const { data: created, error: userErr } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (userErr || !created.user) {
+    return { error: `Error creando usuario: ${userErr?.message}` };
+  }
+
+  const { error: profErr } = await admin.from("profiles").insert({
+    id: created.user.id,
+    clinic_id: clinicId,
+    role,
+    full_name: fullName,
+  });
+  if (profErr) {
+    await admin.auth.admin.deleteUser(created.user.id);
+    return { error: `Error creando perfil: ${profErr.message}` };
+  }
+
+  revalidatePath("/superadmin");
+  return { ok: `Usuario ${email} añadido` };
+}
+
+// ── Cambiar rol de usuario ────────────────────────────────────────────────────
+export async function updateUserRole(formData: FormData) {
+  await assertSuperadmin();
+  const userId = String(formData.get("userId") ?? "");
+  const role = String(formData.get("role") ?? "");
+  const valid = ["admin", "recepcionista", "odontologo_general", "especialista", "asistente"];
+  if (!userId || !valid.includes(role)) return;
+  const admin = createAdminClient();
+  await admin.from("profiles").update({ role }).eq("id", userId);
+  revalidatePath("/superadmin");
+}
+
+// ── Eliminar usuario ─────────────────────────────────────────────────────────
+export async function removeClinicUser(formData: FormData) {
+  await assertSuperadmin();
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return;
+  const admin = createAdminClient();
+  await admin.auth.admin.deleteUser(userId);
+  revalidatePath("/superadmin");
+}
+
+// ── Renombrar clínica ────────────────────────────────────────────────────────
+export async function updateClinicName(_prev: unknown, formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!clinicId || name.length < 2) return { error: "Nombre demasiado corto" };
+  const admin = createAdminClient();
+  await admin.from("clinics").update({ name }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+  return { ok: true };
+}
+
+// ── Eliminar clínica (+ todos sus usuarios) ──────────────────────────────────
+export async function deleteClinic(formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  if (!clinicId) return;
+  const admin = createAdminClient();
+
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("clinic_id", clinicId);
+
+  for (const p of profiles ?? []) {
+    await admin.auth.admin.deleteUser(p.id);
+  }
+
+  await admin.from("clinics").delete().eq("id", clinicId);
+  revalidatePath("/superadmin");
+}
+
+// ── Feature toggle ───────────────────────────────────────────────────────────
 export async function toggleFeature(formData: FormData) {
   await assertSuperadmin();
 
@@ -92,8 +180,7 @@ export async function toggleFeature(formData: FormData) {
   const enabled = formData.get("enabled") === "true";
 
   const meta = FEATURES.find((f) => f.key === key);
-  if (!clinicId || !meta) return;
-  if (meta.core) return; // núcleo no se apaga
+  if (!clinicId || !meta || meta.core) return;
 
   const admin = createAdminClient();
   const { data: clinic } = await admin
@@ -109,15 +196,12 @@ export async function toggleFeature(formData: FormData) {
   revalidatePath("/superadmin");
 }
 
-// ----------------------------------------------------------------------------
-// Cambiar el plan de una clínica.
-// ----------------------------------------------------------------------------
+// ── Cambiar plan ─────────────────────────────────────────────────────────────
 export async function setPlan(formData: FormData) {
   await assertSuperadmin();
   const clinicId = String(formData.get("clinicId") ?? "");
   const plan = String(formData.get("plan") ?? "");
   if (!clinicId || !["starter", "pro", "premium"].includes(plan)) return;
-
   const admin = createAdminClient();
   await admin.from("clinics").update({ plan }).eq("id", clinicId);
   revalidatePath("/superadmin");

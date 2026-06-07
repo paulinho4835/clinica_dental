@@ -5,25 +5,44 @@ import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
 import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
 import { PlanSelect } from "@/components/superadmin/PlanSelect";
+import { ClinicUsers, type ClinicUser } from "@/components/superadmin/ClinicUsers";
+import { AddUserForm } from "@/components/superadmin/AddUserForm";
+import { EditClinicName } from "@/components/superadmin/EditClinicName";
+import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 
 export default async function SuperadminPage() {
   if (!(await isPlatformAdmin())) redirect("/agenda");
 
   const admin = createAdminClient();
-  // Orden estable y predecible: por nombre, con id como desempate. Evita que
-  // la lista "salte" al refrescar (created_at empata entre clínicas sembradas
-  // a la vez y Postgres no garantiza orden ante empate).
+
   const { data: clinics } = await admin
     .from("clinics")
     .select("id, name, plan, features, created_at")
     .order("name", { ascending: true })
     .order("id", { ascending: true });
 
-  // Conteo de usuarios por clínica (para mostrar tamaño).
-  const { data: profiles } = await admin.from("profiles").select("clinic_id");
-  const userCount = new Map<string, number>();
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id, clinic_id, full_name, role");
+
+  // Emails desde auth.users (service_role tiene acceso completo)
+  const emailMap = new Map<string, string>();
+  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  for (const u of authList?.users ?? []) {
+    emailMap.set(u.id, u.email ?? "");
+  }
+
+  // Agrupar usuarios por clínica
+  const usersByClinic = new Map<string, ClinicUser[]>();
   for (const p of profiles ?? []) {
-    userCount.set(p.clinic_id, (userCount.get(p.clinic_id) ?? 0) + 1);
+    const list = usersByClinic.get(p.clinic_id) ?? [];
+    list.push({
+      id: p.id,
+      full_name: p.full_name,
+      role: p.role,
+      email: emailMap.get(p.id) ?? "",
+    });
+    usersByClinic.set(p.clinic_id, list);
   }
 
   const toggleable = FEATURES.filter((f) => !f.core);
@@ -47,22 +66,30 @@ export default async function SuperadminPage() {
         <h2 className="text-lg font-semibold">
           Clínicas ({clinics?.length ?? 0})
         </h2>
+
         {clinics?.map((c) => {
           const features = normalizeFeatures(c.features);
+          const users = usersByClinic.get(c.id) ?? [];
           return (
             <div
               key={c.id}
               className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-slate-200"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-clinic-fg">{c.name}</div>
-                  <div className="text-xs text-slate-500">
-                    {userCount.get(c.id) ?? 0} usuario(s)
+              {/* Encabezado */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <EditClinicName clinicId={c.id} name={c.name} />
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    {users.length} usuario{users.length !== 1 ? "s" : ""}
                   </div>
                 </div>
-                <PlanSelect clinicId={c.id} plan={c.plan} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <PlanSelect clinicId={c.id} plan={c.plan} />
+                  <DeleteClinicButton clinicId={c.id} clinicName={c.name} />
+                </div>
               </div>
+
+              {/* Módulos */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {toggleable.map((f) => (
                   <FeatureToggle
@@ -74,9 +101,24 @@ export default async function SuperadminPage() {
                   />
                 ))}
               </div>
+
+              {/* Usuarios */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Usuarios
+                </h3>
+                <ClinicUsers users={users} />
+                <AddUserForm clinicId={c.id} />
+              </div>
             </div>
           );
         })}
+
+        {!clinics?.length && (
+          <p className="text-sm text-slate-500">
+            Sin clínicas registradas aún.
+          </p>
+        )}
       </section>
     </div>
   );
