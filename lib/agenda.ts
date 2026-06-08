@@ -109,3 +109,53 @@ export function dentistColumns<T extends { dentist_name: string | null }>(
   for (const a of appts) names.add(a.dentist_name?.trim() || "Sin asignar");
   return [...names].sort((x, y) => x.localeCompare(y, "es"));
 }
+
+// Reparte citas solapadas en "lanes" (sub-columnas) lado a lado para que ninguna
+// quede tapada. Devuelve por cita su lane y el total de lanes de su grupo, de modo
+// que el ancho de cada bloque sea 1/lanes. Agrupa en clusters de citas encadenadas
+// por solapamiento y asigna greedily la primera lane libre.
+export type Laid<T> = { appt: T; lane: number; lanes: number };
+
+export function assignLanes<T extends TimeAppt>(appts: T[]): Laid<T>[] {
+  const defMs = STEP_MIN * 60_000;
+  const items = appts
+    .map((a) => {
+      const s = new Date(a.starts_at).getTime();
+      const e = a.ends_at ? new Date(a.ends_at).getTime() : s + defMs;
+      return { a, s, e };
+    })
+    .sort((x, y) => x.s - y.s || x.e - y.e);
+
+  const result: Laid<T>[] = [];
+  let cluster: typeof items = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    const laneEnds: number[] = []; // fin de la última cita en cada lane
+    const assigned: { a: T; lane: number }[] = [];
+    for (const it of cluster) {
+      let lane = laneEnds.findIndex((end) => end <= it.s);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(it.e);
+      } else {
+        laneEnds[lane] = it.e;
+      }
+      assigned.push({ a: it.a, lane });
+    }
+    const lanes = laneEnds.length;
+    for (const x of assigned) result.push({ appt: x.a, lane: x.lane, lanes });
+    cluster = [];
+  };
+
+  for (const it of items) {
+    if (cluster.length && it.s >= clusterEnd) {
+      flush();
+      clusterEnd = -Infinity;
+    }
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.e);
+  }
+  if (cluster.length) flush();
+  return result;
+}

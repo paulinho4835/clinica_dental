@@ -9,6 +9,7 @@ import {
   gridRange,
   weekDays,
   dentistColumns,
+  assignLanes,
   type TimeAppt,
 } from "@/lib/agenda";
 
@@ -215,5 +216,37 @@ describe("dentistColumns", () => {
 
   it("día sin citas => sin columnas", () => {
     expect(dentistColumns([])).toEqual([]);
+  });
+});
+
+describe("assignLanes", () => {
+  it("citas que no se solapan van todas en la lane 0 (1 lane)", () => {
+    const laid = assignLanes([appt("09:00", "10:00"), appt("10:00", "11:00")]);
+    expect(laid.map((l) => l.lane)).toEqual([0, 0]);
+    expect(laid.every((l) => l.lanes === 1)).toBe(true);
+  });
+
+  it("dos citas solapadas => lanes 0 y 1, ambas con lanes=2", () => {
+    const laid = assignLanes([appt("09:00", "10:00"), appt("09:30", "10:30")]);
+    expect(laid.map((l) => l.lane).sort()).toEqual([0, 1]);
+    expect(laid.every((l) => l.lanes === 2)).toBe(true);
+  });
+
+  it("reusa una lane libre cuando una cita anterior ya terminó", () => {
+    // A 09–10 y B 09:30–10:30 solapan (2 lanes). C 10:00–11:00 puede reusar
+    // la lane de A. Las tres están en el mismo cluster (cadena solapada).
+    const laid = assignLanes([
+      appt("09:00", "10:00"),
+      appt("09:30", "10:30"),
+      appt("10:00", "11:00"),
+    ]);
+    expect(laid.every((l) => l.lanes === 2)).toBe(true);
+  });
+
+  it("preserva la cita original en el resultado", () => {
+    const a = appt("09:00", "10:00");
+    const laid = assignLanes([a]);
+    expect(laid[0].appt).toBe(a);
+    expect(laid[0]).toMatchObject({ lane: 0, lanes: 1 });
   });
 });
