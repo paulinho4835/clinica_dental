@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,17 +10,38 @@ import { ClinicUsers, type ClinicUser } from "@/components/superadmin/ClinicUser
 import { AddUserForm } from "@/components/superadmin/AddUserForm";
 import { EditClinicName } from "@/components/superadmin/EditClinicName";
 import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
+import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
 
-export default async function SuperadminPage() {
+const SORTS = [
+  { key: "recientes", label: "Más recientes" },
+  { key: "antiguas", label: "Más antiguas" },
+  { key: "nombre", label: "Nombre (A-Z)" },
+] as const;
+
+type SortKey = (typeof SORTS)[number]["key"];
+
+export default async function SuperadminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
   if (!(await isPlatformAdmin())) redirect("/agenda");
+
+  const sortParam = (await searchParams).sort;
+  const sort: SortKey = SORTS.some((s) => s.key === sortParam)
+    ? (sortParam as SortKey)
+    : "recientes";
 
   const admin = createAdminClient();
 
-  const { data: clinics } = await admin
+  let query = admin
     .from("clinics")
-    .select("id, name, plan, features, created_at")
-    .order("name", { ascending: true })
-    .order("id", { ascending: true });
+    .select("id, name, plan, features, active, created_at");
+  if (sort === "antiguas") query = query.order("created_at", { ascending: true });
+  else if (sort === "nombre") query = query.order("name", { ascending: true });
+  else query = query.order("created_at", { ascending: false }); // recientes
+
+  const { data: clinics } = await query;
 
   const { data: profiles } = await admin
     .from("profiles")
@@ -63,28 +85,64 @@ export default async function SuperadminPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">
-          Clínicas ({clinics?.length ?? 0})
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">
+            Clínicas ({clinics?.length ?? 0})
+          </h2>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-400">Ordenar:</span>
+            {SORTS.map((s) => (
+              <Link
+                key={s.key}
+                href={`/superadmin?sort=${s.key}`}
+                scroll={false}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  sort === s.key
+                    ? "bg-clinic text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {s.label}
+              </Link>
+            ))}
+          </div>
+        </div>
 
         {clinics?.map((c) => {
           const features = normalizeFeatures(c.features);
           const users = usersByClinic.get(c.id) ?? [];
+          const active = c.active !== false;
           return (
             <div
               key={c.id}
-              className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-slate-200"
+              className={`rounded-lg bg-white p-5 shadow-sm ring-1 ${
+                active ? "ring-slate-200" : "ring-amber-300"
+              }`}
             >
               {/* Encabezado */}
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <EditClinicName clinicId={c.id} name={c.name} />
+                  <div className="flex items-center gap-2">
+                    <EditClinicName clinicId={c.id} name={c.name} />
+                    {!active && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Suspendida
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-0.5 text-xs text-slate-500">
                     {users.length} usuario{users.length !== 1 ? "s" : ""}
+                    {" · "}
+                    {new Date(c.created_at).toLocaleDateString("es-BO")}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <PlanSelect clinicId={c.id} plan={c.plan} />
+                  <SuspendClinicButton
+                    clinicId={c.id}
+                    clinicName={c.name}
+                    active={active}
+                  />
                   <DeleteClinicButton clinicId={c.id} clinicName={c.name} />
                 </div>
               </div>

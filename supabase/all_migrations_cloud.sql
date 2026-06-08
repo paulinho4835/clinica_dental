@@ -803,6 +803,11 @@ alter table clinics
     "ajustes": true
   }'::jsonb;
 
+-- Estado de alta/baja: una clínica suspendida (active=false) conserva sus datos
+-- pero sus usuarios no pueden operar. Reversible desde /superadmin.
+alter table clinics
+  add column if not exists active boolean not null default true;
+
 -- ----------------------------------------------------------------------------
 -- Operadores de la plataforma (superadmins del SaaS). No pertenecen a una
 -- clínica: gestionan TODAS desde /superadmin.

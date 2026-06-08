@@ -151,6 +151,17 @@ export async function updateClinicName(_prev: unknown, formData: FormData) {
   return { ok: true };
 }
 
+// ── Dar de baja / reactivar clínica (reversible) ─────────────────────────────
+export async function setClinicActive(formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  const active = formData.get("active") === "true";
+  if (!clinicId) return;
+  const admin = createAdminClient();
+  await admin.from("clinics").update({ active }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+}
+
 // ── Eliminar clínica (+ todos sus usuarios) ──────────────────────────────────
 export async function deleteClinic(formData: FormData) {
   await assertSuperadmin();

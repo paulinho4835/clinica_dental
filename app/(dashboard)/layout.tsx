@@ -18,15 +18,33 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, clinics(name, features)")
+    .select("full_name, role, clinics(name, features, active)")
     .eq("id", user.id)
     .single();
 
   const superadmin = await isPlatformAdmin();
 
   const clinic = profile?.clinics as
-    | { name?: string; features?: unknown }
+    | { name?: string; features?: unknown; active?: boolean }
     | null;
+
+  // Clínica dada de baja: bloquea el acceso a sus usuarios (el superadmin sí
+  // entra, pues opera la plataforma, no una clínica).
+  if (!superadmin && clinic && clinic.active === false) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-md rounded-xl bg-white p-8 text-center shadow ring-1 ring-slate-200">
+          <h1 className="text-xl font-bold text-slate-800">Cuenta suspendida</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            El acceso a {clinic.name ?? "esta clínica"} está temporalmente
+            suspendido. Contacta al administrador de la plataforma para
+            reactivar tu cuenta.
+          </p>
+        </div>
+        <Toaster />
+      </main>
+    );
+  }
   const clinicName = superadmin ? "Plataforma" : clinic?.name ?? "Clínica";
 
   // Menú = solo módulos encendidos de la clínica. El superadmin no opera una
