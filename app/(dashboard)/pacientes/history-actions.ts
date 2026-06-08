@@ -12,6 +12,7 @@ const PaymentSchema = z.object({
   patient_id: z.string().uuid(),
   amount: z.coerce.number().positive("Monto debe ser > 0"),
   method: z.enum(["cash", "qr"]),
+  doctor_id: z.string().uuid().optional().nullable(),
   note: z.string().max(120).optional().nullable(),
 });
 
@@ -30,6 +31,7 @@ export async function addPatientPayment(
     patient_id: formData.get("patient_id"),
     amount: formData.get("amount"),
     method: formData.get("method"),
+    doctor_id: formData.get("doctor_id") || null,
     note: formData.get("note") || null,
   });
   if (!parsed.success)
@@ -42,6 +44,7 @@ export async function addPatientPayment(
     amount: parsed.data.amount,
     method: parsed.data.method,
     kind: "payment",
+    doctor_id: parsed.data.doctor_id ?? null,
     note: parsed.data.note ?? null,
   });
   if (error) return { error: error.message };

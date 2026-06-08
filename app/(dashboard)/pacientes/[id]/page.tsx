@@ -6,6 +6,8 @@ import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import {
   PatientHistoryPanel,
+  WorkStatusPanel,
+  VisitasPanel,
   type PaymentRow,
   type ApptRow,
 } from "@/components/history/PatientHistoryPanel";
@@ -53,7 +55,7 @@ export default async function PatientPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, method, note, received_at")
+      .select("id, amount, method, note, received_at, doctor:doctors(full_name)")
       .eq("patient_id", id)
       .order("received_at", { ascending: false }),
     supabase
@@ -100,6 +102,7 @@ export default async function PatientPage({
     method: p.method as string,
     note: p.note as string | null,
     receivedAt: p.received_at as string,
+    doctorName: ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
   }));
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
@@ -140,14 +143,22 @@ export default async function PatientPage({
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Historial del paciente</h2>
+        <h2 className="mb-3 text-lg font-semibold">Seguimiento del tratamiento</h2>
+        <WorkStatusPanel patientId={patient.id} canWrite={canClinical} works={works} />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Visitas</h2>
+        <VisitasPanel appointments={apptRows} />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Historial de pagos del paciente</h2>
         <PatientHistoryPanel
           patientId={patient.id}
-          canClinical={canClinical}
           canBilling={canBilling}
-          works={works}
           payments={paymentRows}
-          appointments={apptRows}
+          doctors={dentists ?? []}
           totalQuoted={totalQuoted}
           totalPaid={totalPaid}
         />

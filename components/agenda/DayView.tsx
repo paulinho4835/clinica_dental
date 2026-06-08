@@ -156,7 +156,7 @@ export function DayView({
                     </div>
                   )}
 
-                  {/* Bloques de cita con wrapper group para popover */}
+                  {/* Bloques de cita */}
                   {laid.map(({ appt: a, lane, lanes }) => {
                     const s = new Date(a.starts_at);
                     const e = a.ends_at
@@ -165,12 +165,13 @@ export function DayView({
                     const g = blockGeometry(s, e);
                     const isHit = highlightId === a.id;
                     const blockH = Math.max(g.height * AXIS_H, 16);
-                    // Citas de ≥90px (~45 min) muestran acciones dentro del bloque.
-                    const tall = blockH >= 90;
+                    // ≥80px (~40 min): acciones con texto; ≥32px: sólo iconos; <32px: sin acciones.
+                    const tall = blockH >= 80;
+                    const showActions = canWrite && blockH >= 32;
                     return (
                       <div
                         key={a.id}
-                        className="group absolute z-10"
+                        className="absolute z-10"
                         style={{
                           top: g.top * AXIS_H,
                           height: blockH,
@@ -197,31 +198,21 @@ export function DayView({
                           {isQuickConsult(a) && (
                             <span className="text-[10px] text-amber-600">sin registrar</span>
                           )}
-                          {tall && (
+                          {showActions && (
                             <div
-                              className="mt-auto pt-1"
+                              className="mt-auto pt-0.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <ApptActions
                                 appt={a}
                                 canWrite={canWrite}
                                 onLink={onLink}
-                                compact
+                                compact={!tall}
+                                iconOnly={!tall}
                               />
                             </div>
                           )}
                         </button>
-                        {/* Popover para citas pequeñas (< 45 min) */}
-                        {!tall && canWrite && (
-                          <div
-                            className="absolute left-full top-0 z-30 hidden group-hover:block"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="ml-1 rounded-md bg-white p-1 shadow-lg ring-1 ring-slate-200">
-                              <ApptActions appt={a} canWrite={canWrite} onLink={onLink} />
-                            </div>
-                          </div>
-                        )}
                       </div>
                     );
                   })}

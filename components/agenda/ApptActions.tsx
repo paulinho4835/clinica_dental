@@ -8,15 +8,17 @@ export function ApptActions({
   canWrite,
   onLink,
   compact = false,
+  iconOnly = false,
 }: {
   appt: MonthAppt;
   canWrite: boolean;
   onLink: (a: MonthAppt) => void;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   return (
     <div className={`flex items-center gap-1 ${compact ? "flex-wrap" : ""}`}>
-      <MiniStatus id={appt.id} status={appt.status} canWrite={canWrite} />
+      <MiniStatus id={appt.id} status={appt.status} canWrite={canWrite} iconOnly={iconOnly} />
       {canWrite && isQuickConsult(appt) && (
         <button
           type="button"

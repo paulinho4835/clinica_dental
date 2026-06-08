@@ -28,7 +28,7 @@ export const FEATURES: FeatureMeta[] = [
   // Para reactivar: descomentar esta línea.
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
-  { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
+  { key: "ajustes", label: "Registro de Doctores", href: "/ajustes", core: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;

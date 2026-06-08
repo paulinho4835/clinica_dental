@@ -7,7 +7,7 @@ import {
   Users,
   Package,
   Wallet,
-  Settings,
+  Stethoscope,
   Shield,
   Menu,
   X,
@@ -25,7 +25,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/pacientes": Users,
   "/inventario": Package,
   "/caja": Wallet,
-  "/ajustes": Settings,
+  "/ajustes": Stethoscope,
 };
 
 function navIcon(href: string) {
