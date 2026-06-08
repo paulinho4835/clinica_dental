@@ -202,9 +202,10 @@ describe("dentistColumns", () => {
   });
 
   it("varios odontólogos => columnas ordenadas alfabéticamente", () => {
-    expect(dentistColumns([a("Dr. Soto"), a("Dra. Paz")])).toEqual([
-      "Dra. Paz",
-      "Dr. Soto",
+    expect(dentistColumns([a("Soto"), a("Paz"), a("Andrade")])).toEqual([
+      "Andrade",
+      "Paz",
+      "Soto",
     ]);
   });
 
