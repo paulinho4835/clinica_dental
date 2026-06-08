@@ -10,3 +10,5 @@ next-env.d.ts
 supabase/.branches
 supabase/.temp
 e2e/.auth/
+test-results/
+playwright-report/
