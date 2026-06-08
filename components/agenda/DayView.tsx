@@ -164,7 +164,7 @@ export function DayView({
                       : new Date(s.getTime() + STEP_MIN * 60_000);
                     const g = blockGeometry(s, e);
                     const isHit = highlightId === a.id;
-                    const blockH = Math.max(g.height * AXIS_H, 16);
+                    const blockH = Math.max(g.height * AXIS_H, 40);
                     // ≥80px (~40 min): acciones con texto; ≥40px: sólo iconos; <40px: sin acciones.
                     const tall = blockH >= 80;
                     const showActions = canWrite && blockH >= 40;
