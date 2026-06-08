@@ -164,10 +164,13 @@ export function DayView({
                       : new Date(s.getTime() + STEP_MIN * 60_000);
                     const g = blockGeometry(s, e);
                     const isHit = highlightId === a.id;
-                    const blockH = Math.max(g.height * AXIS_H, 40);
-                    // ≥80px (~40 min): acciones con texto; ≥40px: sólo iconos; <40px: sin acciones.
-                    const tall = blockH >= 80;
-                    const showActions = canWrite && blockH >= 40;
+                    // Una cita de 30 min mide sólo ~28px: no caben los botones.
+                    // Damos altura mínima para que SIEMPRE quepan los iconos de
+                    // acción; los bloques largos (≥78px ≈ 1h+) muestran texto.
+                    const naturalH = g.height * AXIS_H;
+                    const showActions = canWrite;
+                    const blockH = Math.max(naturalH, showActions ? 58 : 24);
+                    const tall = blockH >= 78;
                     return (
                       <div
                         key={a.id}
@@ -188,21 +191,23 @@ export function DayView({
                           title={canWrite ? "Editar cita" : undefined}
                           className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition ${canWrite ? "cursor-pointer hover:shadow-md" : "cursor-default"} ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
                         >
-                          <span className="tabular-nums opacity-70">{hhmm(s)}</span>
-                          <span
-                            className={`truncate font-medium ${a.status === "no_show" ? "line-through" : ""}`}
-                          >
-                            {apptName(a)}
+                          <span className="truncate leading-tight">
+                            <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
+                            <span
+                              className={`font-medium ${a.status === "no_show" ? "line-through" : ""}`}
+                            >
+                              {apptName(a)}
+                            </span>
                           </span>
-                          {apptCI(a) && (
+                          {tall && apptCI(a) && (
                             <span className="truncate text-[10px] opacity-60">CI {apptCI(a)}</span>
                           )}
                           {isQuickConsult(a) && (
-                            <span className="text-[10px] text-amber-600">sin registrar</span>
+                            <span className="truncate text-[10px] text-amber-600">sin registrar</span>
                           )}
                           {showActions && (
                             <div
-                              className="mt-auto pt-0.5"
+                              className="mt-auto shrink-0 pt-0.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <ApptActions
