@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
-import { STEP_MIN, buildTimeline, mins } from "@/lib/agenda";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { STEP_MIN } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
 import { MonthView } from "./MonthView";
-import { MiniStatus } from "./MiniStatus";
+import { DayView } from "./DayView";
+import { WeekView } from "./WeekView";
 import { ApptModal } from "./ApptModal";
 import { LinkPatientModal } from "./LinkPatientModal";
 import {
@@ -15,9 +16,6 @@ import {
   type DoctorOption,
   apptName,
   apptCI,
-  isQuickConsult,
-  apptRowStyle,
-  apptNameColor,
 } from "./apptHelpers";
 
 export type AgendaView = "day" | "week" | "month";
@@ -25,8 +23,6 @@ export type AgendaView = "day" | "week" | "month";
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const hhmm = (d: Date) =>
-  d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 
 type ModalState = { start: Date; end: Date; appt?: MonthAppt; dentist?: string };
 
@@ -152,7 +148,7 @@ export function AgendaShell({
         </span>
       </div>
 
-      {/* Vista Mes: calendario + timeline del día seleccionado */}
+      {/* Vista Mes: calendario + DayView del día seleccionado */}
       {view === "month" && (
         <>
           <MonthView
@@ -162,12 +158,12 @@ export function AgendaShell({
             onSelectDay={setSelectedDay}
           />
           {selectedDay && (
-            <DayTimeline
+            <DayView
               day={selectedDay}
               appts={byDay.get(selectedDay) ?? []}
               canWrite={canWrite}
               highlightId={highlightId}
-              onPick={(start, end) => setModal({ start, end })}
+              onPick={(start, end, dentist) => setModal({ start, end, dentist })}
               onEdit={(a) =>
                 setModal({
                   start: new Date(a.starts_at),
@@ -177,10 +173,49 @@ export function AgendaShell({
                   appt: a,
                 })
               }
-              onLink={(a) => setLinkAppt(a)}
             />
           )}
         </>
+      )}
+
+      {/* Vista Día */}
+      {view === "day" && (
+        <DayView
+          day={date}
+          appts={byDay.get(date) ?? []}
+          canWrite={canWrite}
+          highlightId={highlightId}
+          onPick={(start, end, dentist) => setModal({ start, end, dentist })}
+          onEdit={(a) =>
+            setModal({
+              start: new Date(a.starts_at),
+              end: a.ends_at
+                ? new Date(a.ends_at)
+                : new Date(new Date(a.starts_at).getTime() + STEP_MIN * 60_000),
+              appt: a,
+            })
+          }
+        />
+      )}
+
+      {/* Vista Semana */}
+      {view === "week" && (
+        <WeekView
+          date={date}
+          byDay={byDay}
+          canWrite={canWrite}
+          onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
+          onPick={(start, end) => setModal({ start, end })}
+          onEdit={(a) =>
+            setModal({
+              start: new Date(a.starts_at),
+              end: a.ends_at
+                ? new Date(a.ends_at)
+                : new Date(new Date(a.starts_at).getTime() + STEP_MIN * 60_000),
+              appt: a,
+            })
+          }
+        />
       )}
 
       {/* Modales compartidos por todas las vistas */}
@@ -202,153 +237,6 @@ export function AgendaShell({
           onClose={() => setLinkAppt(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ─── DayTimeline (temporal — se reemplaza por DayView en Task 8) ──────────────
-function DayTimeline({
-  day,
-  appts,
-  canWrite,
-  highlightId,
-  onPick,
-  onEdit,
-  onLink,
-}: {
-  day: string;
-  appts: MonthAppt[];
-  canWrite: boolean;
-  highlightId: string | null;
-  onPick: (start: Date, end: Date) => void;
-  onEdit: (a: MonthAppt) => void;
-  onLink: (a: MonthAppt) => void;
-}) {
-  const [y, m, d] = day.split("-").map(Number);
-  const dayLabel = new Date(y, m - 1, d).toLocaleDateString("es-BO", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  });
-
-  const segments = buildTimeline(day, appts);
-
-  const highlightRef = useRef<HTMLLIElement | null>(null);
-  useEffect(() => {
-    if (highlightId && highlightRef.current) {
-      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [highlightId]);
-
-  return (
-    <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold capitalize text-slate-700">{dayLabel}</h2>
-        <span className="text-xs text-slate-400">{appts.length} cita(s)</span>
-      </div>
-
-      <div className="space-y-1.5">
-        {segments.map((seg) => {
-          if (seg.type === "busy") {
-            return (
-              <div
-                key={seg.start.toISOString()}
-                className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-              >
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="tabular-nums font-medium text-slate-600">
-                    {hhmm(seg.start)}–{hhmm(seg.end)}
-                  </span>
-                  <span className="text-xs text-slate-400">({mins(seg.start, seg.end)} min)</span>
-                </div>
-                <ul className="space-y-1">
-                  {seg.appts.map((a) => {
-                    const s = new Date(a.starts_at);
-                    const e = a.ends_at
-                      ? new Date(a.ends_at)
-                      : new Date(s.getTime() + STEP_MIN * 60_000);
-                    const isHit = highlightId === a.id;
-                    return (
-                      <li
-                        key={a.id}
-                        ref={isHit ? highlightRef : null}
-                        className={`flex items-center gap-2 rounded-md px-2 py-1 transition ${isHit ? "animate-flash ring-2 ring-clinic" : ""} ${!isHit ? apptRowStyle(a.status) : "bg-clinic/10"}`}
-                      >
-                        <span className="tabular-nums text-xs text-slate-500">
-                          {hhmm(s)}–{hhmm(e)}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={!canWrite}
-                          onClick={() => onEdit(a)}
-                          title={canWrite ? "Editar cita" : undefined}
-                          className={`flex-1 truncate text-left font-medium enabled:hover:underline disabled:cursor-default ${apptNameColor(a.status)}`}
-                        >
-                          {apptName(a)}
-                          {apptCI(a) && (
-                            <span className="ml-1 text-[11px] font-normal text-slate-400">
-                              · CI {apptCI(a)}
-                            </span>
-                          )}
-                          {isQuickConsult(a) && (
-                            <span className="ml-1 text-[11px] font-normal text-amber-600">
-                              · sin registrar
-                            </span>
-                          )}
-                        </button>
-                        {canWrite && (
-                          <button
-                            type="button"
-                            onClick={() => onEdit(a)}
-                            aria-label="Editar cita"
-                            title="Editar cita"
-                            className="rounded p-1 text-slate-400 transition hover:bg-white hover:text-clinic"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {canWrite && isQuickConsult(a) && (
-                          <button
-                            type="button"
-                            onClick={() => onLink(a)}
-                            className="rounded border border-clinic px-2 py-0.5 text-[11px] font-medium text-clinic hover:bg-clinic hover:text-white"
-                          >
-                            Vincular
-                          </button>
-                        )}
-                        <MiniStatus id={a.id} status={a.status} canWrite={canWrite} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          }
-
-          const gap = mins(seg.start, seg.end);
-          const defaultEnd = new Date(
-            Math.min(seg.start.getTime() + STEP_MIN * 60_000, seg.end.getTime()),
-          );
-          return (
-            <button
-              key={seg.start.toISOString()}
-              type="button"
-              disabled={!canWrite}
-              onClick={() => onPick(seg.start, defaultEnd)}
-              className="flex w-full items-center gap-2 rounded-md border border-dashed border-green-300 bg-green-50/60 px-3 py-2 text-sm text-green-700 transition enabled:hover:border-green-500 enabled:hover:bg-green-100 disabled:cursor-default disabled:opacity-60"
-            >
-              <span className="tabular-nums font-medium text-slate-500">
-                {hhmm(seg.start)}–{hhmm(seg.end)}
-              </span>
-              <span className="text-xs text-slate-400">({gap} min libres)</span>
-              <span className="flex-1 text-right">{canWrite ? "+ Agendar" : "Libre"}</span>
-            </button>
-          );
-        })}
-        {segments.length === 0 && (
-          <p className="py-2 text-sm text-slate-500">Día completo ocupado.</p>
-        )}
-      </div>
     </div>
   );
 }
