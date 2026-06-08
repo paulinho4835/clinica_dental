@@ -16,6 +16,7 @@ import {
   isQuickConsult,
   apptBlockStyle,
 } from "./apptHelpers";
+import { ApptActions } from "./ApptActions";
 
 const PX_PER_HOUR = 56;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -41,6 +42,7 @@ export function DayView({
   highlightId,
   onPick,
   onEdit,
+  onLink,
 }: {
   day: string;
   appts: MonthAppt[];
@@ -48,6 +50,7 @@ export function DayView({
   highlightId: string | null;
   onPick: (start: Date, end: Date, dentist?: string) => void;
   onEdit: (a: MonthAppt) => void;
+  onLink: (a: MonthAppt) => void;
 }) {
   const [y, m, d] = day.split("-").map(Number);
   const dayLabel = new Date(y, m - 1, d).toLocaleDateString("es-BO", {
@@ -153,7 +156,7 @@ export function DayView({
                     </div>
                   )}
 
-                  {/* Bloques de cita */}
+                  {/* Bloques de cita con wrapper group para popover */}
                   {laid.map(({ appt: a, lane, lanes }) => {
                     const s = new Date(a.starts_at);
                     const e = a.ends_at
@@ -161,39 +164,65 @@ export function DayView({
                       : new Date(s.getTime() + STEP_MIN * 60_000);
                     const g = blockGeometry(s, e);
                     const isHit = highlightId === a.id;
+                    const blockH = Math.max(g.height * AXIS_H, 16);
+                    // Citas de ≥90px (~45 min) muestran acciones dentro del bloque.
+                    const tall = blockH >= 90;
                     return (
-                      <button
+                      <div
                         key={a.id}
-                        type="button"
-                        disabled={!canWrite}
-                        onClick={() => onEdit(a)}
-                        title={canWrite ? "Editar cita" : undefined}
-                        className={`absolute z-10 overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition enabled:hover:shadow-md disabled:cursor-default ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
+                        className="group absolute z-10"
                         style={{
                           top: g.top * AXIS_H,
-                          height: Math.max(g.height * AXIS_H, 16),
+                          height: blockH,
                           left: `${(lane / lanes) * 100}%`,
                           width: `${(1 / lanes) * 100}%`,
                         }}
                       >
-                        <span className="block tabular-nums opacity-70">{hhmm(s)}</span>
-                        <span
-                          className={`block truncate font-medium ${a.status === "no_show" ? "line-through" : ""}`}
+                        <button
+                          type="button"
+                          disabled={!canWrite}
+                          onClick={() => onEdit(a)}
+                          title={canWrite ? "Editar cita" : undefined}
+                          className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition enabled:hover:shadow-md disabled:cursor-default ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
                         >
-                          {apptName(a)}
-                        </span>
-                        {apptCI(a) && (
-                          <span className="block truncate text-[10px] opacity-60">
-                            CI {apptCI(a)}
+                          <span className="tabular-nums opacity-70">{hhmm(s)}</span>
+                          <span
+                            className={`truncate font-medium ${a.status === "no_show" ? "line-through" : ""}`}
+                          >
+                            {apptName(a)}
                           </span>
+                          {apptCI(a) && (
+                            <span className="truncate text-[10px] opacity-60">CI {apptCI(a)}</span>
+                          )}
+                          {isQuickConsult(a) && (
+                            <span className="text-[10px] text-amber-600">sin registrar</span>
+                          )}
+                          {tall && (
+                            <div
+                              className="mt-auto pt-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ApptActions
+                                appt={a}
+                                canWrite={canWrite}
+                                onLink={onLink}
+                                compact
+                              />
+                            </div>
+                          )}
+                        </button>
+                        {/* Popover para citas pequeñas (< 45 min) */}
+                        {!tall && canWrite && (
+                          <div
+                            className="absolute left-full top-0 z-30 hidden group-hover:block"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="ml-1 rounded-md bg-white p-1 shadow-lg ring-1 ring-slate-200">
+                              <ApptActions appt={a} canWrite={canWrite} onLink={onLink} />
+                            </div>
+                          </div>
                         )}
-                        {isQuickConsult(a) && (
-                          <span className="block text-[10px] text-amber-600">sin registrar</span>
-                        )}
-                        {a.reason && g.height * AXIS_H > 44 && (
-                          <span className="block truncate opacity-70">{a.reason}</span>
-                        )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>

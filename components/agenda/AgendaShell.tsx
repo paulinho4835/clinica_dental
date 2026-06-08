@@ -173,6 +173,7 @@ export function AgendaShell({
                   appt: a,
                 })
               }
+              onLink={(a) => setLinkAppt(a)}
             />
           )}
         </>
@@ -195,6 +196,7 @@ export function AgendaShell({
               appt: a,
             })
           }
+          onLink={(a) => setLinkAppt(a)}
         />
       )}
 
