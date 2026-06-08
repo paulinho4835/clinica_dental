@@ -5,6 +5,8 @@ import {
   OPEN_HOUR,
   CLOSE_HOUR,
   STEP_MIN,
+  blockGeometry,
+  gridRange,
   type TimeAppt,
 } from "@/lib/agenda";
 
@@ -119,5 +121,54 @@ describe("buildTimeline", () => {
   it("cita que termina exactamente al cierre no deja hueco al final", () => {
     const segs = buildTimeline(DAY, [appt("18:00", "20:00")]);
     expect(segs[segs.length - 1].type).toBe("busy");
+  });
+});
+
+describe("blockGeometry", () => {
+  it("cita de día completo (08:00–20:00) ocupa todo el alto", () => {
+    const g = blockGeometry(new Date(at("08:00")), new Date(at("20:00")));
+    expect(g.top).toBeCloseTo(0, 5);
+    expect(g.height).toBeCloseTo(1, 5);
+  });
+
+  it("cita 08:00–09:00 ocupa la primera 1/12 del día", () => {
+    const g = blockGeometry(new Date(at("08:00")), new Date(at("09:00")));
+    expect(g.top).toBeCloseTo(0, 5);
+    expect(g.height).toBeCloseTo(1 / 12, 5);
+  });
+
+  it("cita 14:00–14:30 se posiciona a la mitad con alto de media hora", () => {
+    const g = blockGeometry(new Date(at("14:00")), new Date(at("14:30")));
+    expect(g.top).toBeCloseTo(6 / 12, 5); // 14:00 = 6h desde apertura
+    expect(g.height).toBeCloseTo(0.5 / 12, 5);
+  });
+
+  it("recorta una cita que empieza antes de apertura", () => {
+    const g = blockGeometry(new Date(at("07:00")), new Date(at("09:00")));
+    expect(g.top).toBeCloseTo(0, 5);
+    expect(g.height).toBeCloseTo(1 / 12, 5);
+  });
+
+  it("recorta una cita que termina después del cierre", () => {
+    const g = blockGeometry(new Date(at("19:00")), new Date(at("21:00")));
+    expect(g.top).toBeCloseTo(11 / 12, 5);
+    expect(g.height).toBeCloseTo(1 / 12, 5);
+  });
+});
+
+describe("gridRange", () => {
+  it("cubre 42 días empezando un lunes", () => {
+    // Junio 2026: el 1 es lunes => la grilla arranca el 2026-06-01.
+    const { start, end } = gridRange(new Date(2026, 5, 15));
+    expect(start.getDay()).toBe(1); // lunes
+    expect(Math.round((end.getTime() - start.getTime()) / 86_400_000)).toBe(42);
+  });
+
+  it("arranca el lunes de la semana que contiene el día 1", () => {
+    // Julio 2026: el 1 es miércoles => la grilla arranca el lunes 2026-06-29.
+    const { start } = gridRange(new Date(2026, 6, 10));
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(5); // junio
+    expect(start.getDate()).toBe(29);
   });
 });

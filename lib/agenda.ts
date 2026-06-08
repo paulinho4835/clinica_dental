@@ -61,3 +61,29 @@ export function buildTimeline<T extends TimeAppt>(
   if (cursor < close) segs.push({ type: "free", start: cursor, end: close });
   return segs;
 }
+
+// ─── Geometría de un bloque dentro del eje de horas (fracciones 0..1) ────────
+// Devuelve la posición vertical (top) y la altura como fracción del día visible
+// [OPEN_HOUR, CLOSE_HOUR]. El componente las multiplica por su alto en píxeles.
+// Recorta citas que se salen del horario para que nunca desborden.
+export type BlockGeom = { top: number; height: number };
+
+export function blockGeometry(start: Date, end: Date): BlockGeom {
+  const total = (CLOSE_HOUR - OPEN_HOUR) * 60;
+  const toMin = (d: Date) => d.getHours() * 60 + d.getMinutes() - OPEN_HOUR * 60;
+  const s = Math.max(0, Math.min(total, toMin(start)));
+  const e = Math.max(0, Math.min(total, toMin(end)));
+  return { top: s / total, height: Math.max(0, (e - s) / total) };
+}
+
+// Rango [inicio, fin) que cubre la grilla de 6 semanas (42 días, lunes primero)
+// del mes que contiene `date`. Se usa para traer las citas del server: así la
+// vista Semana en el borde de mes no aparece vacía.
+export function gridRange(date: Date): { start: Date; end: Date } {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7; // 0 = lunes
+  const start = new Date(date.getFullYear(), date.getMonth(), 1 - offset);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 42);
+  return { start, end };
+}
