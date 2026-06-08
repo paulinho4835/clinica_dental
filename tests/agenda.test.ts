@@ -7,6 +7,7 @@ import {
   STEP_MIN,
   blockGeometry,
   gridRange,
+  weekDays,
   type TimeAppt,
 } from "@/lib/agenda";
 
@@ -170,5 +171,24 @@ describe("gridRange", () => {
     expect(start.getFullYear()).toBe(2026);
     expect(start.getMonth()).toBe(5); // junio
     expect(start.getDate()).toBe(29);
+  });
+});
+
+describe("weekDays", () => {
+  it("devuelve lunes..domingo de la semana que contiene la fecha", () => {
+    // 2026-06-10 es miércoles.
+    const days = weekDays(new Date(2026, 5, 10));
+    expect(days).toHaveLength(7);
+    expect(days[0].getDay()).toBe(1); // lunes
+    expect(days[0].getDate()).toBe(8); // lun 8
+    expect(days[6].getDay()).toBe(0); // domingo
+    expect(days[6].getDate()).toBe(14); // dom 14
+  });
+
+  it("para un domingo devuelve la semana que termina ese domingo", () => {
+    // 2026-06-14 es domingo.
+    const days = weekDays(new Date(2026, 5, 14));
+    expect(days[0].getDate()).toBe(8);
+    expect(days[6].getDate()).toBe(14);
   });
 });

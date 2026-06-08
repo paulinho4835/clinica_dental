@@ -87,3 +87,14 @@ export function gridRange(date: Date): { start: Date; end: Date } {
   end.setDate(start.getDate() + 42);
   return { start, end };
 }
+
+// Los 7 días (lunes..domingo) de la semana que contiene `date`, en hora local.
+export function weekDays(date: Date): Date[] {
+  const offset = (date.getDay() + 6) % 7; // 0 = lunes
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - offset);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
