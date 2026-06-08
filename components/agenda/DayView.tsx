@@ -165,9 +165,9 @@ export function DayView({
                     const g = blockGeometry(s, e);
                     const isHit = highlightId === a.id;
                     const blockH = Math.max(g.height * AXIS_H, 16);
-                    // ≥80px (~40 min): acciones con texto; ≥32px: sólo iconos; <32px: sin acciones.
+                    // ≥80px (~40 min): acciones con texto; ≥40px: sólo iconos; <40px: sin acciones.
                     const tall = blockH >= 80;
-                    const showActions = canWrite && blockH >= 32;
+                    const showActions = canWrite && blockH >= 40;
                     return (
                       <div
                         key={a.id}
@@ -179,12 +179,14 @@ export function DayView({
                           width: `${(1 / lanes) * 100}%`,
                         }}
                       >
-                        <button
-                          type="button"
-                          disabled={!canWrite}
-                          onClick={() => onEdit(a)}
+                        {/* div en lugar de button para evitar button-dentro-de-button (HTML inválido) */}
+                        <div
+                          role={canWrite ? "button" : undefined}
+                          tabIndex={canWrite ? 0 : undefined}
+                          onClick={canWrite ? () => onEdit(a) : undefined}
+                          onKeyDown={canWrite ? (e) => e.key === "Enter" && onEdit(a) : undefined}
                           title={canWrite ? "Editar cita" : undefined}
-                          className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition enabled:hover:shadow-md disabled:cursor-default ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
+                          className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition ${canWrite ? "cursor-pointer hover:shadow-md" : "cursor-default"} ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
                         >
                           <span className="tabular-nums opacity-70">{hhmm(s)}</span>
                           <span
@@ -212,7 +214,7 @@ export function DayView({
                               />
                             </div>
                           )}
-                        </button>
+                        </div>
                       </div>
                     );
                   })}
