@@ -8,6 +8,7 @@ import {
   blockGeometry,
   gridRange,
   weekDays,
+  dentistColumns,
   type TimeAppt,
 } from "@/lib/agenda";
 
@@ -190,5 +191,28 @@ describe("weekDays", () => {
     const days = weekDays(new Date(2026, 5, 14));
     expect(days[0].getDate()).toBe(8);
     expect(days[6].getDate()).toBe(14);
+  });
+});
+
+describe("dentistColumns", () => {
+  const a = (name: string | null) => ({ dentist_name: name });
+
+  it("un solo odontólogo => una columna", () => {
+    expect(dentistColumns([a("Dra. Paz"), a("Dra. Paz")])).toEqual(["Dra. Paz"]);
+  });
+
+  it("varios odontólogos => columnas ordenadas alfabéticamente", () => {
+    expect(dentistColumns([a("Dr. Soto"), a("Dra. Paz")])).toEqual([
+      "Dra. Paz",
+      "Dr. Soto",
+    ]);
+  });
+
+  it("nombres vacíos o null caen en 'Sin asignar'", () => {
+    expect(dentistColumns([a(null), a("  ")])).toEqual(["Sin asignar"]);
+  });
+
+  it("día sin citas => sin columnas", () => {
+    expect(dentistColumns([])).toEqual([]);
   });
 });

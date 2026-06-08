@@ -98,3 +98,14 @@ export function weekDays(date: Date): Date[] {
     return d;
   });
 }
+
+// Nombres distintos de odontólogo con cita ese día, ordenados alfabéticamente.
+// Decide cuántas columnas dibuja la vista Día (0–1 => una columna ancha).
+// Citas sin odontólogo caen en "Sin asignar".
+export function dentistColumns<T extends { dentist_name: string | null }>(
+  appts: T[],
+): string[] {
+  const names = new Set<string>();
+  for (const a of appts) names.add(a.dentist_name?.trim() || "Sin asignar");
+  return [...names].sort((x, y) => x.localeCompare(y, "es"));
+}
