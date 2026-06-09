@@ -63,6 +63,40 @@ Los logs de Railway (Deploy Logs) muestran `✅ número — nombre` por cada env
   En cada redeploy del servicio se borra → habrá que **re-escanear el QR** en `/qr`.
   Para persistir: montar un volumen en Railway o guardar credenciales en Supabase.
 
+## PENDIENTE FUTURO — Multi-clínica (número de WhatsApp por clínica)
+
+Requisito: cada clínica tiene su propio número de WhatsApp. El servicio actual maneja
+**una sola sesión Baileys** (una carpeta `auth_info/`, un número). Hay que hacerlo multi-número.
+
+### Opciones
+
+1. **Una sesión por clínica dentro del mismo servicio** (recomendada para Baileys)
+   - `Map<clinic_id, socket>`; una carpeta de auth por clínica (`auth_info/<clinic_id>/`).
+   - `/qr` pasa a ser por clínica: `/qr?clinic=<id>` (cada clínica escanea su propio QR).
+   - Al enviar, elegir el socket según el `clinic_id` de la cita.
+   - **Persistencia es crítica**: N sesiones que no se pueden perder en cada redeploy →
+     montar volumen en Railway o guardar el auth state en Supabase (tabla `wa_sessions`).
+   - Un solo deploy, escala razonable. Más código.
+
+2. **Un servicio Railway por clínica**
+   - Sin cambios de código, pero N deploys, N URLs, N juegos de variables. Costoso y tedioso.
+
+3. **Pasar a Meta Cloud API oficial** (ya existe el camino en el repo: `lib/whatsapp.ts`)
+   - Multi-número nativo: cada clínica = su `WHATSAPP_PHONE_NUMBER_ID`.
+   - Más "correcto" y estable, pero requiere verificación de Meta Business por número
+     y plantillas aprobadas. Ver `docs/WHATSAPP-SETUP.md`.
+
+### Trabajo previo a verificar (base de datos)
+- Confirmar que `appointment_reminders` / `appointments` lleven `clinic_id` para poder
+  enrutar cada recordatorio al número correcto. Hoy `reminders.ts` ya hace join a `clinics(name)`
+  pero NO filtra ni enruta por clínica — envía todo desde el único número conectado.
+- Definir cómo se mapea cada clínica a su número/sesión.
+
+### Decisión pendiente
+Elegir entre opción 1 (Baileys multi-sesión + persistencia) y opción 3 (Meta Cloud API).
+Recomendación inicial: si el volumen es bajo y se quiere gratis/rápido → opción 1;
+si se quiere estabilidad/oficial a largo plazo → opción 3.
+
 ## Notas técnicas
 
 - Hay DOS caminos de WhatsApp en el repo:
