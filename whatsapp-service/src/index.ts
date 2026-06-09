@@ -78,7 +78,7 @@ cron.schedule(
 );
 
 // HTTP server
-const PORT = Number(process.env.WA_PORT ?? 3001);
+const PORT = Number(process.env.PORT ?? process.env.WA_PORT ?? 3001);
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
