@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send } from "lucide-react";
 import { STEP_MIN } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
@@ -49,6 +49,8 @@ export function AgendaShell({
   const [linkAppt, setLinkAppt] = useState<MonthAppt | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<string | null>(null);
 
   const byDay = useMemo(() => {
     const map = new Map<string, MonthAppt[]>();
@@ -100,6 +102,21 @@ export function AgendaShell({
     return () => clearTimeout(t);
   }, [highlightId]);
 
+  async function sendReminders() {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await fetch("/api/whatsapp/send-reminders", { method: "POST" });
+      const body = await res.json();
+      setSendResult(res.ok ? "✅ Recordatorios enviados" : `❌ ${body.error}`);
+    } catch {
+      setSendResult("❌ Error de conexión");
+    } finally {
+      setSending(false);
+      setTimeout(() => setSendResult(null), 5000);
+    }
+  }
+
   const base = new Date(date + "T00:00:00");
   const monthLabel = base.toLocaleDateString("es-BO", { month: "long", year: "numeric" });
 
@@ -146,6 +163,22 @@ export function AgendaShell({
         <span className="ml-2 text-lg font-semibold capitalize text-slate-700">
           {monthLabel}
         </span>
+
+        {canWrite && (
+          <div className="ml-auto flex items-center gap-2">
+            {sendResult && (
+              <span className="text-sm text-slate-600">{sendResult}</span>
+            )}
+            <button
+              onClick={sendReminders}
+              disabled={sending}
+              className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {sending ? "Enviando..." : "Recordatorios WhatsApp"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Vista Mes: calendario + DayView del día seleccionado */}

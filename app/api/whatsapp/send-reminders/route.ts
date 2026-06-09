@@ -1,0 +1,26 @@
+import { NextResponse } from "next/server";
+import { getProfile } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+
+const WA_URL = process.env.WA_SERVICE_URL ?? "http://localhost:3001";
+
+export async function POST() {
+  const profile = await getProfile();
+  if (!can(profile?.role, "appointments:write")) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
+  try {
+    const res = await fetch(`${WA_URL}/send-reminders`, {
+      method: "POST",
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = await res.json();
+    return NextResponse.json(body, { status: res.status });
+  } catch {
+    return NextResponse.json(
+      { error: "Servicio WhatsApp no disponible. ¿Está corriendo whatsapp-service?" },
+      { status: 503 },
+    );
+  }
+}

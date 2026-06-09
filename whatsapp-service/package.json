@@ -1,0 +1,25 @@
+{
+  "name": "whatsapp-service",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "send-now": "tsx src/index.ts --now"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "@whiskeysockets/baileys": "^6.7.18",
+    "dotenv": "^16.5.0",
+    "node-cron": "^3.0.3",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "@types/node-cron": "^3.0.11",
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
