@@ -24,10 +24,15 @@ export default {
           "0%, 100%": { boxShadow: "0 0 0 2px currentColor, 0 0 8px rgba(0,0,0,.2)" },
           "50%": { boxShadow: "0 0 0 4px currentColor, 0 0 16px rgba(0,0,0,.35)" },
         },
+        "ghost-pulse": {
+          "0%, 100%": { opacity: "0.35" },
+          "50%":       { opacity: "0.65" },
+        },
       },
       animation: {
         flash: "flash 0.9s ease-in-out 3",
         "pulse-ring": "pulse-ring 1.5s ease-in-out infinite",
+        "ghost-pulse": "ghost-pulse 1.2s ease-in-out infinite",
       },
     },
   },

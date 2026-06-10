@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import {
   OPEN_HOUR,
   CLOSE_HOUR,
@@ -9,7 +9,14 @@ import {
   assignLanes,
   weekDays,
 } from "@/lib/agenda";
-import { type MonthAppt, apptName, apptBlockStyle } from "./apptHelpers";
+import { type MonthAppt, apptName, apptBlockClass } from "./apptHelpers";
+import { getDoctorColor } from "@/lib/agenda/doctorColor";
+import {
+  useDrag,
+  applyOptimisticMove,
+  revertMove,
+  type SlotTarget,
+} from "@/lib/agenda/dragDrop";
 
 const PX_PER_HOUR = 48;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -37,6 +44,60 @@ export function WeekView({
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
   const todayKey = dayKey(new Date());
 
+  // ── Optimistic state ──────────────────────────────────────────────────────
+  const [localAppts, setLocalAppts] = useState<MonthAppt[]>([]);
+
+  const handleDrop = useCallback(
+    async (apptId: string, slot: SlotTarget) => {
+      const allAppts = [...byDay.values()].flat();
+      const updated = applyOptimisticMove(allAppts, apptId, slot.date, slot.time);
+      setLocalAppts(updated);
+      try {
+        const moved = updated.find((a) => a.id === apptId)!;
+        const res = await fetch(`/api/appointments/${apptId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starts_at: moved.starts_at, ends_at: moved.ends_at }),
+        });
+        if (!res.ok) throw new Error("patch failed");
+      } catch {
+        setLocalAppts(revertMove(updated, allAppts));
+      }
+    },
+    [byDay],
+  );
+
+  // ── Drag hook ─────────────────────────────────────────────────────────────
+  const activeDayRef = useRef<string>("");
+  const { ghostSlot, dragHandlers: rawDragHandlers, isDragging } = useDrag({
+    axisH: AXIS_H,
+    day: activeDayRef.current,
+    onDrop: handleDrop,
+  });
+
+  const dragHandlers = useCallback(
+    (apptId: string, dayK: string) => {
+      const handlers = rawDragHandlers(apptId);
+      return {
+        onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+          activeDayRef.current = dayK;
+          handlers.onPointerDown(e);
+        },
+      };
+    },
+    [rawDragHandlers],
+  );
+
+  // ── Merged byDay (optimistic) ─────────────────────────────────────────────
+  const mergedByDay = useMemo(() => {
+    if (localAppts.length === 0) return byDay;
+    const merged = new Map(byDay);
+    for (const [k, arr] of byDay) {
+      merged.set(k, arr.map((a) => localAppts.find((l) => l.id === a.id) ?? a));
+    }
+    return merged;
+  }, [byDay, localAppts]);
+
   return (
     <div className="overflow-x-auto rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="flex min-w-[680px]">
@@ -58,7 +119,7 @@ export function WeekView({
           {days.map((d, idx) => {
             const k = dayKey(d);
             const isToday = k === todayKey;
-            const dayAppts = byDay.get(k) ?? [];
+            const dayAppts = mergedByDay.get(k) ?? [];
             const laid = assignLanes(dayAppts);
 
             const slots: Date[] = [];
@@ -80,6 +141,7 @@ export function WeekView({
                   {WD[idx]} {d.getDate()}
                 </button>
                 <div
+                  data-agenda-col
                   className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
                   style={{ height: AXIS_H }}
                 >
@@ -114,20 +176,24 @@ export function WeekView({
                       : new Date(s.getTime() + STEP_MIN * 60_000);
                     const g = blockGeometry(s, e);
                     const initial = (a.dentist_name?.trim() || "")[0]?.toUpperCase();
+                    const col = getDoctorColor(a.dentist_name ?? "");
+                    const dragging = isDragging(a.id);
                     return (
                       <button
                         key={a.id}
                         type="button"
                         disabled={!canWrite}
                         onClick={() => onEdit(a)}
-                        className={`absolute z-10 overflow-hidden rounded border px-1 text-left text-[10px] leading-tight transition enabled:hover:shadow-md disabled:cursor-default ${apptBlockStyle(a.status)}`}
+                        className={`absolute z-10 overflow-hidden rounded border-l-4 px-1 text-left text-[10px] leading-tight transition ${col.bg} ${col.border} ${col.text} ${apptBlockClass(a.status)} ${dragging ? "scale-105 shadow-lg opacity-90 z-20 cursor-grabbing" : canWrite ? "cursor-grab hover:shadow-md" : "cursor-default"}`}
                         style={{
                           top: g.top * AXIS_H,
                           height: Math.max(g.height * AXIS_H, 14),
                           left: `${(lane / lanes) * 100}%`,
                           width: `${(1 / lanes) * 100}%`,
+                          touchAction: "none",
                         }}
                         title={`${hhmm(s)} ${apptName(a)}${a.dentist_name ? " · " + a.dentist_name : ""}`}
+                        {...(canWrite ? dragHandlers(a.id, k) : {})}
                       >
                         <span
                           className={`block truncate font-medium ${a.status === "no_show" ? "line-through" : ""}`}
@@ -138,6 +204,24 @@ export function WeekView({
                       </button>
                     );
                   })}
+
+                  {/* Ghost slot durante drag */}
+                  {ghostSlot && ghostSlot.date === k && (() => {
+                    const [gh, gm] = ghostSlot.time.split(":").map(Number);
+                    const gYear = d.getFullYear();
+                    const gMonth = d.getMonth();
+                    const gDay = d.getDate();
+                    const gDate = new Date(gYear, gMonth, gDay, gh, gm);
+                    const gEnd = new Date(gDate.getTime() + 30 * 60_000);
+                    const gg = blockGeometry(gDate, gEnd);
+                    return (
+                      <div
+                        key="ghost"
+                        className="pointer-events-none absolute inset-x-0 z-30 animate-ghost-pulse rounded border-2 border-dashed border-clinic bg-clinic/20"
+                        style={{ top: gg.top * AXIS_H, height: Math.max(gg.height * AXIS_H, 20) }}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
             );
