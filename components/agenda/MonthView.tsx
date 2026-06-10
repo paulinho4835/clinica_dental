@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { type MonthAppt } from "./apptHelpers";
+import { getDoctorColor } from "@/lib/agenda/doctorColor";
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -67,21 +68,30 @@ export function MonthView({
                 {d.getDate()}
               </span>
               {inMonth && dayAppts.length > 0 && (
-                <div className="flex flex-col gap-0.5">
-                  <span className="rounded bg-clinic/10 px-1.5 py-0.5 text-[11px] font-medium text-clinic">
-                    {dayAppts.length} cita{dayAppts.length > 1 ? "s" : ""}
-                  </span>
-                  <div className="flex gap-0.5">
-                    {dayAppts.some((a) => a.status === "finished") && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Atendidos" />
-                    )}
-                    {dayAppts.some((a) => a.status === "scheduled") && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-clinic" title="Pendientes" />
-                    )}
-                    {dayAppts.some((a) => a.status === "no_show") && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" title="No vino" />
-                    )}
-                  </div>
+                <div className="flex w-full flex-col gap-0.5">
+                  {dayAppts.slice(0, 2).map((a) => {
+                    const col = getDoctorColor(a.dentist_name ?? "");
+                    const name = a.patients?.full_name ?? a.patient_name ?? "Cita";
+                    return (
+                      <div
+                        key={a.id}
+                        className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${col.bg} ${col.text}`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${col.border.replace(
+                            "border-",
+                            "bg-"
+                          )}`}
+                        />
+                        <span className="truncate">{name}</span>
+                      </div>
+                    );
+                  })}
+                  {dayAppts.length > 2 && (
+                    <span className="pl-1 text-[10px] text-slate-400">
+                      +{dayAppts.length - 2} más
+                    </span>
+                  )}
                 </div>
               )}
             </button>
