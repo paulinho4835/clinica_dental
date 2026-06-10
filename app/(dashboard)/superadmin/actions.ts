@@ -32,11 +32,13 @@ export async function createClinic(_prev: unknown, formData: FormData) {
   if (!parsed.success) return { error: parsed.error.errors[0].message };
   const { clinicName, adminEmail, adminName, password, plan } = parsed.data;
 
+  const whatsappAddon = formData.get("whatsapp_addon") === "true";
+
   const admin = createAdminClient();
 
   const { data: clinic, error: clinicErr } = await admin
     .from("clinics")
-    .insert({ name: clinicName, plan })
+    .insert({ name: clinicName, plan, features: { whatsapp: whatsappAddon } })
     .select("id")
     .single();
   if (clinicErr || !clinic) {

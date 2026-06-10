@@ -53,7 +53,7 @@ export default async function CashPage({
   // Pagos del día seleccionado, filtrados opcionalmente por doctor
   let paymentsQuery = supabase
     .from("payments")
-    .select("amount, method, kind, note, received_at, doctor_id, patients(full_name), doctor:profiles!payments_doctor_id_fkey(full_name)")
+    .select("amount, method, kind, note, received_at, doctor_id, commission_pct, patients(full_name), doctor:profiles!payments_doctor_id_fkey(full_name)")
     .gte("received_at", dayStartUTC.toISOString())
     .lt("received_at", dayEndUTC.toISOString())
     .order("received_at", { ascending: true });
@@ -69,6 +69,7 @@ export default async function CashPage({
     : null;
 
   const totalPay = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+  const totalCommission = (payments ?? []).reduce((s, p) => s + (Number(p.amount) * (Number(p.commission_pct) || 0)) / 100, 0);
   const todayTotal = (paymentsToday ?? []).reduce((s, p) => s + Number(p.amount), 0);
   const todayPatients = new Set((paymentsToday ?? []).map((p) => p.patient_id)).size;
 
@@ -122,12 +123,13 @@ export default async function CashPage({
 
         <div className="divide-y divide-slate-100 rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="overflow-x-auto">
-            <div className="min-w-[44rem]">
+            <div className="min-w-[50rem]">
               <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
                 <span>Hora</span>
                 <span>Paciente</span>
                 <span>Motivo de pago</span>
                 <span>Doctor</span>
+                <span className="text-right">Comisión</span>
                 <span className="text-right">Monto</span>
               </div>
               {(payments ?? []).map((p, i) => (
@@ -138,6 +140,7 @@ export default async function CashPage({
                   note={(p as { note?: string | null }).note}
                   doctorName={(p.doctor as { full_name?: string } | null)?.full_name ?? null}
                   method={p.method}
+                  commissionPct={Number(p.commission_pct || 0)}
                   amount={Number(p.amount)}
                 />
               ))}
@@ -157,7 +160,14 @@ export default async function CashPage({
               <span className="text-slate-500">
                 {selectedDoctor ? `Subtotal — ${selectedDoctor.full_name}` : "Total del período"}
               </span>
-              <span className="tabular-nums text-emerald-700">{bs(totalPay)}</span>
+              <div className="flex items-center gap-6">
+                {selectedDoctor && (
+                  <span className="text-slate-500">
+                    Comisiones: <span className="text-clinic tabular-nums">{bs(totalCommission)}</span>
+                  </span>
+                )}
+                <span className="tabular-nums text-emerald-700">Total: {bs(totalPay)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -167,7 +177,7 @@ export default async function CashPage({
 }
 
 // Plantilla de columnas compartida: encabezado y filas usan los mismos anchos fijos.
-const PAY_GRID = "grid grid-cols-[11rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_8rem] items-center gap-x-4";
+const PAY_GRID = "grid grid-cols-[11rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_6rem_8rem] items-center gap-x-4";
 
 const METHOD_LABEL: Record<string, string> = { cash: "Efectivo", qr: "QR", card: "Tarjeta", transfer: "Transf." };
 
@@ -175,20 +185,32 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
 }
 
-function PaymentRow({ receivedAt, patient, note, doctorName, method, amount }: {
+function PaymentRow({ receivedAt, patient, note, doctorName, method, amount, commissionPct }: {
   receivedAt: string;
   patient: string;
   note?: string | null;
   doctorName?: string | null;
   method: string;
   amount: number;
+  commissionPct: number;
 }) {
+  const commission = (amount * commissionPct) / 100;
   return (
     <div className={`${PAY_GRID} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}>
       <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">{fmtTime(receivedAt)}</span>
       <span className="truncate font-medium">{patient}</span>
       <span className="truncate text-slate-600">{note ?? <span className="text-slate-400">—</span>}</span>
       <span className="truncate text-slate-600">{doctorName ?? <span className="text-slate-400">—</span>}</span>
+      <div className="flex flex-col items-end leading-tight">
+        {commission > 0 ? (
+          <>
+            <span className="tabular-nums font-medium text-clinic">{bs(commission)}</span>
+            <span className="text-[10px] text-slate-400">{commissionPct}%</span>
+          </>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )}
+      </div>
       <div className="flex flex-col items-end leading-tight">
         <span className="tabular-nums font-medium">{bs(amount)}</span>
         <span className="text-xs text-slate-400">{METHOD_LABEL[method] ?? method}</span>

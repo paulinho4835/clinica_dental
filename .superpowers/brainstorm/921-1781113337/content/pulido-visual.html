@@ -1,0 +1,193 @@
+<h2>Sección 4 · Pulido visual</h2>
+<p class="subtitle">Los detalles que hacen que el Dr. diga "wow" — tipografía, sombras, micro-animaciones y estados de interacción.</p>
+
+<style>
+  .pg { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:12px; }
+  @media(max-width:900px){ .pg { grid-template-columns:1fr; } }
+  .panel { background:#fff; border-radius:14px; border:1px solid #eef2f6; padding:14px 16px; }
+  .panel h4 { margin:0 0 8px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b; }
+
+  /* ── Tipografía ── */
+  .typo-row { display:flex; flex-direction:column; gap:5px; }
+  .ty-blk { background:#f8fafc; border-radius:8px; padding:8px 12px; }
+  .ty-label { font-size:10px; color:#94a3b8; margin-bottom:2px; display:block; }
+  .ty-name   { font-size:15px; font-weight:600; color:#0f172a; line-height:1.2; }
+  .ty-sub    { font-size:11px; color:#64748b; }
+  .ty-badge  { font-size:10px; color:#0ea5a4; font-weight:600; }
+  .ty-meta   { font-size:10px; color:#94a3b8; }
+
+  /* ── Sombras ── */
+  .shadow-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .sh { background:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#64748b; }
+  .sh-xs  { width:60px; height:36px; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .sh-sm  { width:70px; height:44px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+  .sh-md  { width:80px; height:52px; box-shadow:0 4px 12px rgba(0,0,0,.10); }
+  .sh-drag{ width:80px; height:52px; box-shadow:0 8px 24px rgba(0,0,0,.15); transform:scale(1.04); border:1px solid #e2e8f0; }
+
+  /* ── Hover states ── */
+  .appt-demo { width:100%; border-radius:8px; padding:8px 10px 8px 14px;
+    font-size:11px; border-left:4px solid #0ea5a4; background:#ecfeff;
+    color:#155e63; position:relative; transition:all .15s; cursor:pointer;
+    display:flex; flex-direction:column; gap:2px; }
+  .appt-demo:hover { background:#cffafe; box-shadow:0 2px 8px rgba(14,165,164,.2); transform:translateY(-1px); }
+  .appt-demo .nm  { font-weight:600; font-size:12px; }
+  .appt-demo .sub { font-size:10px; opacity:.7; }
+  .appt-demo .tick{ position:absolute; top:6px; right:8px; font-size:10px; color:#0ea5a4; opacity:0; transition:opacity .1s; }
+  .appt-demo:hover .tick { opacity:1; }
+
+  /* ── Animaciones ── */
+  @keyframes slideIn {
+    from { opacity:0; transform:translateY(6px) scale(.97); }
+    to   { opacity:1; transform:translateY(0)   scale(1);   }
+  }
+  @keyframes pulse-ring {
+    0%,100% { box-shadow:0 0 0 2px #0ea5a4, 0 0 8px rgba(14,165,164,.4); }
+    50%      { box-shadow:0 0 0 4px #0ea5a4, 0 0 16px rgba(14,165,164,.7); }
+  }
+  @keyframes ghost-pulse {
+    0%,100% { opacity:.35; }
+    50%      { opacity:.6;  }
+  }
+  .anim-slide { animation:slideIn .25s ease both; background:#ecfeff; border-left:4px solid #0ea5a4;
+    border-radius:8px; padding:8px 12px; font-size:11px; color:#155e63; margin-bottom:6px; }
+  .anim-pulse { animation:pulse-ring 1.5s ease-in-out infinite; background:#ecfeff; border-left:4px solid #0ea5a4;
+    border-radius:8px; padding:8px 12px; font-size:11px; color:#155e63; margin-bottom:6px; }
+  .anim-ghost { animation:ghost-pulse 1.2s ease-in-out infinite; background:#e2e8f0; border-left:4px solid #cbd5e1;
+    border-radius:8px; padding:8px 12px; font-size:11px; color:#94a3b8; }
+
+  /* ── Spacing scale ── */
+  .sp-row { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; margin-top:4px; }
+  .sp { background:#0ea5a4; border-radius:3px; opacity:.7; }
+  .sp-label { font-size:9px; color:#64748b; text-align:center; margin-top:3px; }
+  .sp-col { display:flex; flex-direction:column; align-items:center; }
+
+  /* ── Barra controles mini ── */
+  .ctrl-bar { display:flex; align-items:center; gap:8px; background:#f8fafc;
+    border-radius:10px; padding:6px 10px; border:1px solid #e2e8f0; flex-wrap:wrap; }
+  .seg { display:flex; background:#e2e8f0; border-radius:7px; padding:2px; }
+  .seg-btn { padding:3px 10px; border-radius:5px; font-size:10px; font-weight:600; color:#64748b; cursor:pointer; transition:all .15s; }
+  .seg-btn.active { background:#fff; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .doc-dot { width:8px; height:8px; border-radius:50%; background:#6366f1; display:inline-block; margin-right:3px; }
+  .doc-sel { display:flex; align-items:center; font-size:10px; color:#334155; background:#fff;
+    border:1px solid #e2e8f0; border-radius:7px; padding:3px 8px; gap:3px; }
+  .nav-btn { background:#fff; border:1px solid #e2e8f0; border-radius:7px; padding:3px 7px;
+    font-size:11px; color:#64748b; cursor:pointer; transition:background .15s; }
+  .nav-btn:hover { background:#f1f5f9; }
+  .today-btn { background:#0ea5a4; color:#fff; border-radius:7px; padding:3px 9px; font-size:10px; font-weight:600; }
+  .date-lbl { font-size:11px; font-weight:600; color:#0f172a; }
+  .sp-push { margin-left:auto; }
+  .wa-btn { background:#ecfdf5; border:1px solid #6ee7b7; border-radius:7px; padding:3px 9px; font-size:10px; color:#059669; font-weight:600; }
+</style>
+
+<div class="pg">
+
+  <!-- Panel 1: Tipografía -->
+  <div class="panel">
+    <h4>Tipografía jerárquica</h4>
+    <div class="typo-row">
+      <div class="ty-blk">
+        <span class="ty-label">Nombre del paciente</span>
+        <span class="ty-name">Ana Vargas</span>
+      </div>
+      <div class="ty-blk">
+        <span class="ty-label">Subtexto (doctor · motivo)</span>
+        <span class="ty-sub">Dr. Pérez · Limpieza dental</span>
+      </div>
+      <div class="ty-blk">
+        <span class="ty-label">Hora + badge de estado</span>
+        <span class="ty-badge">09:00 ·</span>
+        <span class="ty-meta">45 min · Consultorio 1</span>
+      </div>
+    </div>
+    <p style="font-size:10px;color:#94a3b8;margin-top:8px;margin-bottom:0;">
+      Nombre: 600 weight, 12–13px · Sub: 400, 10–11px · Meta: 400 italic 9–10px.
+      Tres niveles claros sin nunca necesitar leer todo el bloque.
+    </p>
+  </div>
+
+  <!-- Panel 2: Sistema de sombras -->
+  <div class="panel">
+    <h4>Sistema de sombras · 4 niveles</h4>
+    <div class="shadow-row">
+      <div>
+        <div class="sh sh-xs">xs</div>
+        <div class="sp-label">bloque<br>normal</div>
+      </div>
+      <div>
+        <div class="sh sh-sm">sm</div>
+        <div class="sp-label">hover</div>
+      </div>
+      <div>
+        <div class="sh sh-md">md</div>
+        <div class="sp-label">click<br>/ focus</div>
+      </div>
+      <div>
+        <div class="sh sh-drag">drag</div>
+        <div class="sp-label">arrastrando<br>+ scale</div>
+      </div>
+    </div>
+    <p style="font-size:10px;color:#94a3b8;margin-top:10px;margin-bottom:0;">
+      La sombra comunica el estado de interacción sin cambiar el color.
+      Al hacer drag el bloque "flota" visualmente.
+    </p>
+  </div>
+
+  <!-- Panel 3: Micro-animaciones -->
+  <div class="panel">
+    <h4>Micro-animaciones</h4>
+    <div class="anim-slide">
+      <strong style="font-size:11px;">slideIn</strong> — nueva cita aparece con slide+fade (0.25s)
+    </div>
+    <div class="anim-pulse">
+      <strong style="font-size:11px;">pulse-ring</strong> — cita "en sillón" (pulsa el anillo de color)
+    </div>
+    <div class="anim-ghost">
+      <strong style="font-size:11px;">ghost-pulse</strong> — slot destino mientras arrastras
+    </div>
+    <p style="font-size:10px;color:#94a3b8;margin-top:8px;margin-bottom:0;">
+      Todo vía CSS <code>@keyframes</code> + <code>transition</code> — sin dependencias extra.
+    </p>
+  </div>
+
+  <!-- Panel 4: Hover states + controles -->
+  <div class="panel">
+    <h4>Hover / focus states</h4>
+    <div class="appt-demo">
+      <span class="nm">09:00 · Ana Vargas</span>
+      <span class="sub">Dr. Pérez · Limpieza</span>
+      <span class="tick">✏️</span>
+    </div>
+    <p style="font-size:10px;color:#94a3b8;margin:6px 0 10px;">
+      Hover: fondo un tono más oscuro, sombra sm, translateY(-1px), ícono editar visible.
+    </p>
+    <h4 style="margin-top:6px;">Barra de controles pulida</h4>
+    <div class="ctrl-bar">
+      <div class="seg">
+        <div class="seg-btn">D</div>
+        <div class="seg-btn active">S</div>
+        <div class="seg-btn">M</div>
+      </div>
+      <div class="nav-btn">‹</div>
+      <span class="date-lbl">Jun 2026</span>
+      <div class="nav-btn">›</div>
+      <div class="today-btn">Hoy</div>
+      <div class="doc-sel sp-push"><span class="doc-dot"></span> Dr. Soto ▾</div>
+      <div class="wa-btn">WA</div>
+    </div>
+    <p style="font-size:10px;color:#94a3b8;margin-top:8px;margin-bottom:0;">
+      Segmented control con "píldora" animada al cambiar vista. Todo en una sola línea, sin desbordarse.
+    </p>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px; background:#f0fdfa; border-radius:12px; padding:12px 16px; border:1px solid #99f6e4;">
+  <span class="label" style="color:#0f766e;">Resumen del sistema visual</span>
+  <p class="subtitle" style="margin-top:6px; margin-bottom:0;">
+    <strong>Color:</strong> doctor → identidad · <strong>Estado:</strong> opacidad + borde + ícono ·
+    <strong>Sombra:</strong> nivel de interacción · <strong>Animación:</strong> CSS nativo, sin librerías ·
+    <strong>Tipografía:</strong> 3 niveles jerárquicos en cada bloque
+  </p>
+</div>
+
+<p class="subtitle" style="margin-top:14px;">¿Cierra este sistema de pulido, o querés ajustar algo — sombras, animaciones, hover?</p>

@@ -17,6 +17,7 @@ import {
   revertMove,
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
+import { ApptPopover, type PopoverAppt } from "./ApptPopover";
 
 const PX_PER_HOUR = 48;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -33,6 +34,7 @@ export function WeekView({
   onOpenDay,
   onPick,
   onEdit,
+  onLink,
 }: {
   date: string;
   byDay: Map<string, MonthAppt[]>;
@@ -40,6 +42,7 @@ export function WeekView({
   onOpenDay: (day: string) => void;
   onPick: (start: Date, end: Date) => void;
   onEdit: (a: MonthAppt) => void;
+  onLink: (a: MonthAppt) => void;
 }) {
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
   const todayKey = dayKey(new Date());
@@ -48,9 +51,28 @@ export function WeekView({
   const [localAppts, setLocalAppts] = useState<MonthAppt[]>([]);
   const [shakingId, setShakingId] = useState<string | null>(null);
 
+  // ── Popover state ──────────────────────────────────────────────────────────
+  const [popover, setPopover] = useState<PopoverAppt | null>(null);
+
+  function openPopover(appt: MonthAppt, el: HTMLElement) {
+    setPopover({ appt, anchor: el.getBoundingClientRect() });
+  }
+
   const handleDrop = useCallback(
     async (apptId: string, slot: SlotTarget) => {
       const allAppts = [...byDay.values()].flat();
+      const movedAppt = allAppts.find((a) => a.id === apptId);
+      if (!movedAppt) return;
+
+      const oldTime = new Date(movedAppt.starts_at);
+      const [h, m] = slot.time.split(":").map(Number);
+      
+      // Si la cita no se movió de su día y hora original, ignorar el drop
+      const isSameDate = movedAppt.starts_at.startsWith(slot.date);
+      if (isSameDate && oldTime.getHours() === h && oldTime.getMinutes() === m) {
+        return;
+      }
+
       const updated = applyOptimisticMove(allAppts, apptId, slot.date, slot.time);
       setLocalAppts(updated);
       try {
@@ -146,7 +168,7 @@ export function WeekView({
                 <div
                   data-agenda-col
                   className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
-                  style={{ height: AXIS_H }}
+                  style={{ height: AXIS_H, overflow: "visible" }}
                 >
                   {HOURS.slice(1, -1).map((h, i) => (
                     <div
@@ -181,19 +203,30 @@ export function WeekView({
                     const initial = (a.dentist_name?.trim() || "")[0]?.toUpperCase();
                     const col = getDoctorColor(a.dentist_name ?? "");
                     const dragging = isDragging(a.id);
+                    const isOpen = popover?.appt.id === a.id;
                     return (
                       <button
                         key={a.id}
                         type="button"
                         disabled={!canWrite}
-                        onClick={() => onEdit(a)}
-                        className={`absolute z-10 overflow-hidden rounded border-l-4 px-1 text-left text-[10px] leading-tight transition ${col.bg} ${col.border} ${col.text} ${apptBlockClass(a.status)} ${dragging ? "scale-105 shadow-lg opacity-90 z-20 cursor-grabbing" : canWrite ? "cursor-grab hover:shadow-md" : "cursor-default"} ${shakingId === a.id ? "animate-shake" : ""}`}
+                        onClick={(ev) => {
+                          if (!canWrite) return;
+                          if (dragging) return;
+                          ev.stopPropagation();
+                          if (isOpen) {
+                            setPopover(null);
+                          } else {
+                            openPopover(a, ev.currentTarget as HTMLElement);
+                          }
+                        }}
+                        className={`absolute z-10 overflow-hidden rounded border-l-4 px-1 text-left text-[10px] leading-tight transition select-none ${col.bg} ${col.border} ${col.text} ${apptBlockClass(a.status)} ${isOpen ? "ring-2 ring-clinic shadow-lg brightness-95" : ""} ${dragging ? "scale-105 shadow-lg opacity-90 z-20 cursor-grabbing" : canWrite ? "cursor-grab hover:shadow-md" : "cursor-default"} ${shakingId === a.id ? "animate-shake" : ""}`}
                         style={{
                           top: g.top * AXIS_H,
                           height: Math.max(g.height * AXIS_H, 14),
                           left: `${(lane / lanes) * 100}%`,
                           width: `${(1 / lanes) * 100}%`,
                           touchAction: "none",
+                          zIndex: isOpen ? 50 : 10,
                         }}
                         title={`${hhmm(s)} ${apptName(a)}${a.dentist_name ? " · " + a.dentist_name : ""}`}
                         {...(canWrite ? dragHandlers(a.id, k) : {})}
@@ -231,6 +264,17 @@ export function WeekView({
           })}
         </div>
       </div>
+
+      {popover && (
+        <ApptPopover
+          appt={popover.appt}
+          anchor={popover.anchor}
+          canWrite={canWrite}
+          onEdit={() => { onEdit(popover.appt); setPopover(null); }}
+          onLink={() => { onLink(popover.appt); setPopover(null); }}
+          onClose={() => setPopover(null)}
+        />
+      )}
     </div>
   );
 }

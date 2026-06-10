@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeFeatures, isEnabled } from "@/lib/features";
+import { normalizeFeatures, isEnabled, FEATURES } from "@/lib/features";
 
 describe("normalizeFeatures", () => {
   it("módulos ausentes se asumen encendidos (no romper clínicas viejas)", () => {
@@ -50,5 +50,55 @@ describe("normalizeFeatures", () => {
     const f = normalizeFeatures({ agenda: true, caja: true });
     expect(f.agenda).toBe(true);
     expect(f.caja).toBe(true);
+  });
+});
+
+describe("add-on whatsapp (optIn)", () => {
+  it("está apagado por defecto cuando la clave falta (optIn)", () => {
+    const f = normalizeFeatures({});
+    expect(f.whatsapp).toBe(false);
+  });
+
+  it("está apagado por defecto con null/undefined (optIn)", () => {
+    expect(normalizeFeatures(null).whatsapp).toBe(false);
+    expect(normalizeFeatures(undefined).whatsapp).toBe(false);
+  });
+
+  it("se enciende solo cuando está explícitamente en true", () => {
+    const f = normalizeFeatures({ whatsapp: true });
+    expect(f.whatsapp).toBe(true);
+  });
+
+  it("false explícito sigue siendo false", () => {
+    const f = normalizeFeatures({ whatsapp: false });
+    expect(f.whatsapp).toBe(false);
+  });
+
+  it("los demás módulos opt-out siguen encendidos aunque whatsapp esté apagado", () => {
+    const f = normalizeFeatures({ whatsapp: false });
+    expect(f.agenda).toBe(true);
+    expect(f.pacientes).toBe(true);
+    expect(f.caja).toBe(true);
+  });
+
+  it("isEnabled refleja el estado del add-on", () => {
+    expect(isEnabled(normalizeFeatures({ whatsapp: true }), "whatsapp")).toBe(true);
+    expect(isEnabled(normalizeFeatures({ whatsapp: false }), "whatsapp")).toBe(false);
+    expect(isEnabled(normalizeFeatures({}), "whatsapp")).toBe(false);
+  });
+
+  it("whatsapp es optIn en el catálogo FEATURES", () => {
+    const meta = FEATURES.find((f) => f.key === "whatsapp");
+    expect(meta).toBeDefined();
+    expect(meta?.optIn).toBe(true);
+    expect(meta?.core).toBeFalsy();
+  });
+
+  it("activar whatsapp no afecta a otros módulos", () => {
+    const antes = normalizeFeatures({ caja: false });
+    const despues = normalizeFeatures({ caja: false, whatsapp: true });
+    expect(despues.whatsapp).toBe(true);
+    expect(despues.caja).toBe(antes.caja); // sigue igual: false
+    expect(despues.agenda).toBe(antes.agenda); // sigue igual: true
   });
 });

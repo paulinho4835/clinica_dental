@@ -9,7 +9,8 @@ export type FeatureKey =
   | "tratamientos"
   | "caja"
   | "inventario"
-  | "ajustes";
+  | "ajustes"
+  | "whatsapp";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -17,6 +18,8 @@ export interface FeatureMeta {
   href: string;
   /** Núcleo: no se puede apagar desde el panel (dejaría la clínica inoperable). */
   core?: boolean;
+  /** Opt-in: apagado por defecto para clínicas sin el feature explícitamente habilitado. */
+  optIn?: boolean;
 }
 
 // Orden = orden en el menú lateral.
@@ -31,6 +34,7 @@ export const FEATURES: FeatureMeta[] = [
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
+  { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;
@@ -41,8 +45,22 @@ export function normalizeFeatures(raw: unknown): Features {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const out = {} as Features;
   for (const f of FEATURES) {
-    out[f.key] = f.core ? true : obj[f.key] !== false;
+    if (f.core) {
+      out[f.key] = true;
+    } else if (f.optIn) {
+      // Opt-in: debe estar explícitamente en true para considerarse habilitado.
+      out[f.key] = obj[f.key] === true;
+    } else {
+      // Opt-out: se asume encendido si la clave falta (retrocompatibilidad).
+      out[f.key] = obj[f.key] !== false;
+    }
   }
+  // "tratamientos" está en FeatureKey pero comentado de FEATURES (módulo oculto).
+  // Sin esta línea, features.tratamientos sería undefined en runtime aunque
+  // TypeScript diga boolean — lo que haría que requireFeature("tratamientos")
+  // redirigiera por accidente en lugar de por diseño.
+  out.tratamientos = false;
+
   return out;
 }
 

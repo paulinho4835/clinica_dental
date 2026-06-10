@@ -25,6 +25,7 @@ export async function registerPayment(
     kind: formData.get("kind") || "payment",
     note: formData.get("note") || null,
     doctor_id: formData.get("doctor_id") || null,
+    commission_pct: formData.get("commission_pct") || 0,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -39,8 +40,23 @@ export async function registerPayment(
     kind: parsed.data.kind,
     note: parsed.data.note ?? null,
     doctor_id: parsed.data.doctor_id ?? null,
+    commission_pct: parsed.data.commission_pct,
   });
   if (error) return { error: error.message };
+
+  if (parsed.data.doctor_id) {
+    await supabase.from("doctor_works").insert({
+      clinic_id: profile.clinicId,
+      doctor_id: parsed.data.doctor_id,
+      patient_id: parsed.data.patient_id,
+      description: parsed.data.note ?? "Pago registrado en caja",
+      cost: parsed.data.amount,
+      commission_pct: parsed.data.commission_pct,
+      amount_paid: parsed.data.amount,
+      payment_method: parsed.data.method,
+      performed_at: new Date().toISOString().split("T")[0],
+    });
+  }
 
   revalidatePath("/caja");
   return { ok: true };

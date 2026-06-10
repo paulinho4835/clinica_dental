@@ -157,6 +157,18 @@ export function PaymentForm({ patients, doctors }: { patients: Patient[]; doctor
             </select>
           </label>
 
+          <label className="block text-sm">
+            <FieldLabel>Comisión Dr. (%)</FieldLabel>
+            <input
+              name="commission_pct"
+              type="number"
+              min="0"
+              max="100"
+              defaultValue="0"
+              className={fieldInputClass}
+            />
+          </label>
+
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Motivo de pago</FieldLabel>
             <input

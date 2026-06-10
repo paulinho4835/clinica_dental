@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   OPEN_HOUR,
   CLOSE_HOUR,
@@ -24,7 +25,8 @@ import {
   revertMove,
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
-import { ApptActions } from "./ApptActions";
+import { MiniStatus } from "./MiniStatus";
+import { X, Pencil, Link } from "lucide-react";
 
 const PX_PER_HOUR = 56;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -43,6 +45,10 @@ function nowFraction(day: string): number | null {
   return min / total;
 }
 
+import { ApptPopover, type PopoverAppt } from "./ApptPopover";
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function DayView({
   day,
   appts,
@@ -60,7 +66,7 @@ export function DayView({
   onPick: (start: Date, end: Date, dentist?: string) => void;
   onEdit: (a: MonthAppt) => void;
   onLink: (a: MonthAppt) => void;
-  /** Cuando se pasa, se usan estos nombres como columnas fijas (vista overview). */
+  /** Cuando se pasa, se usan estos nombres como columnas fijas (vista con doctores). */
   forcedColumns?: string[];
 }) {
   const [y, m, d] = day.split("-").map(Number);
@@ -70,16 +76,37 @@ export function DayView({
     month: "long",
   });
 
-  // ── Optimistic state for drag-to-move ──────────────────────────────────────
+  // ── Popover state ──────────────────────────────────────────────────────────
+  const [popover, setPopover] = useState<PopoverAppt | null>(null);
+
+  function openPopover(appt: MonthAppt, el: HTMLElement) {
+    setPopover({ appt, anchor: el.getBoundingClientRect() });
+  }
+
+  // Optimistic state para drag-to-move
   const [localAppts, setLocalAppts] = useState<MonthAppt[]>(appts);
   const [shakingId, setShakingId] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalAppts(appts);
+    setPopover((prev) =>
+      prev ? { ...prev, appt: appts.find((a) => a.id === prev.appt.id) ?? prev.appt } : null,
+    );
   }, [appts]);
 
   const handleDrop = useCallback(
     async (apptId: string, slot: SlotTarget) => {
+      const movedAppt = appts.find((a) => a.id === apptId);
+      if (!movedAppt) return;
+
+      const oldTime = new Date(movedAppt.starts_at);
+      const [h, m] = slot.time.split(":").map(Number);
+      
+      // Si la cita no se movió de su hora original, ignorar el drop (fue un simple clic)
+      if (oldTime.getHours() === h && oldTime.getMinutes() === m) {
+        return;
+      }
+
       const updated = applyOptimisticMove(appts, apptId, slot.date, slot.time);
       setLocalAppts(updated);
       try {
@@ -99,22 +126,18 @@ export function DayView({
     [appts],
   );
 
-  const { draggingId: _draggingId, ghostSlot, dragHandlers, isDragging } = useDrag({
+  const { ghostSlot, dragHandlers, isDragging } = useDrag({
     axisH: AXIS_H,
     day,
     onDrop: handleDrop,
   });
 
-  // ── Columns ─────────────────────────────────────────────────────────────────
   const columns = useMemo<(string | null)[]>(() => {
     if (forcedColumns && forcedColumns.length > 0) return forcedColumns;
     const names = dentistColumns(localAppts);
     return names.length > 1 ? names : [null];
   }, [localAppts, forcedColumns]);
 
-  // La línea de "ahora" depende de la hora actual, que difiere entre server
-  // (UTC) y cliente (Bolivia). Se calcula solo tras montar para no romper la
-  // hidratación, y se refresca cada minuto.
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(nowFraction(day));
@@ -140,8 +163,9 @@ export function DayView({
         <span className="text-xs text-slate-400">{localAppts.length} cita(s)</span>
       </div>
 
+      {/* ── Grilla horaria ─────────────────────────────────────────────── */}
       <div className="flex">
-        {/* Eje de horas — fijo a la izquierda */}
+        {/* Eje de horas */}
         <div className="relative z-10 w-12 shrink-0" style={{ height: AXIS_H }}>
           {HOURS.map((h, i) => (
             <div
@@ -154,7 +178,7 @@ export function DayView({
           ))}
         </div>
 
-        {/* Columnas — scroll horizontal en modo overview */}
+        {/* Columnas de doctores / columna única */}
         <div className={isOverview ? "flex-1 overflow-x-auto" : "flex flex-1 gap-1"}>
           <div className={`flex gap-1 ${isOverview ? "min-w-max" : "flex-1"}`}>
             {columns.map((col) => {
@@ -194,21 +218,22 @@ export function DayView({
                     </div>
                   )}
 
+                  {/* Carril de citas — overflow visible para que el anillo de selección no se corte */}
                   <div
                     data-agenda-col
                     className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
                     style={{ height: AXIS_H }}
                   >
-                    {/* Líneas de hora */}
+                    {/* Líneas divisoras de hora */}
                     {HOURS.slice(1, -1).map((h, i) => (
                       <div
                         key={h}
-                        className="absolute inset-x-0 border-t border-slate-100"
+                        className="pointer-events-none absolute inset-x-0 border-t border-slate-100"
                         style={{ top: ((i + 1) / (CLOSE_HOUR - OPEN_HOUR)) * AXIS_H }}
                       />
                     ))}
 
-                    {/* Slots clicables */}
+                    {/* Slots clicables para crear nueva cita */}
                     {canWrite &&
                       slots.map((s) => {
                         const end = new Date(s.getTime() + STEP_MIN * 60_000);
@@ -235,7 +260,7 @@ export function DayView({
                       </div>
                     )}
 
-                    {/* Estado vacío en overview */}
+                    {/* Estado vacío en modo multi-columna */}
                     {isOverview && colAppts.length === 0 && (
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                         <span className="text-[11px] text-slate-300">Sin citas</span>
@@ -260,7 +285,6 @@ export function DayView({
 
                     {/* Bloques de cita */}
                     {laid.map(({ appt: a, lane, lanes }) => {
-                      // Solo en modo "Todos" (>1 columna) para no repetir lo que ya dice el header
                       const doctorLabel =
                         isOverview && columns.length > 1 && a.dentist_name?.trim()
                           ? a.dentist_name.trim()
@@ -270,42 +294,59 @@ export function DayView({
                         ? new Date(a.ends_at)
                         : new Date(s.getTime() + STEP_MIN * 60_000);
                       const g = blockGeometry(s, e);
-                      const isHit = highlightId === a.id;
                       const naturalH = g.height * AXIS_H;
-                      const showActions = canWrite;
-                      const blockH = Math.max(naturalH, showActions ? 58 : 24);
-                      const tall = blockH >= 78;
+                      const blockH = Math.max(naturalH, 28);
+                      const tall = blockH >= 52;
                       const col2 = getDoctorColor(a.dentist_name ?? "");
+                      const isOpen = popover?.appt.id === a.id;
+                      const isHit = highlightId === a.id;
+
                       return (
                         <div
                           key={a.id}
-                          className={`absolute ${showActions ? "z-20" : "z-10"}`}
+                          className="absolute"
                           style={{
                             top: g.top * AXIS_H,
                             height: blockH,
                             left: `${(lane / lanes) * 100}%`,
                             width: `${(1 / lanes) * 100}%`,
+                            zIndex: isOpen ? 50 : 10,
                           }}
                         >
                           <div
                             role={canWrite ? "button" : undefined}
                             tabIndex={canWrite ? 0 : undefined}
-                            onClick={canWrite ? () => onEdit(a) : undefined}
-                            onKeyDown={canWrite ? (ev) => ev.key === "Enter" && onEdit(a) : undefined}
-                            title={canWrite ? "Editar cita" : undefined}
+                            aria-label={`Cita: ${apptName(a)}`}
+                            aria-pressed={isOpen}
+                            onClick={(ev) => {
+                              if (!canWrite) return;
+                              if (isDragging(a.id)) return;
+                              ev.stopPropagation();
+                              if (isOpen) {
+                                setPopover(null);
+                              } else {
+                                openPopover(a, ev.currentTarget as HTMLElement);
+                              }
+                            }}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter" && canWrite) {
+                                openPopover(a, ev.currentTarget as HTMLElement);
+                              }
+                            }}
                             {...(canWrite ? dragHandlers(a.id) : {})}
                             style={{ touchAction: "none" }}
                             className={[
-                              "relative flex h-full w-full flex-col rounded border-l-4 px-1.5 py-0.5 text-left text-[11px] transition",
+                              "relative flex h-full w-full flex-col overflow-hidden rounded border-l-4 px-1.5 py-0.5 text-left text-[11px] transition select-none",
                               col2.bg,
                               col2.border,
                               col2.text,
                               "border",
                               apptBlockClass(a.status),
+                              isOpen ? "ring-2 ring-clinic shadow-lg brightness-95" : "",
                               isDragging(a.id)
-                                ? "scale-105 shadow-xl z-30 opacity-90 cursor-grabbing"
+                                ? "scale-105 shadow-xl opacity-90 cursor-grabbing"
                                 : canWrite
-                                  ? "cursor-grab hover:shadow-md"
+                                  ? "cursor-pointer hover:shadow-md"
                                   : "cursor-default",
                               shakingId === a.id ? "animate-shake" : "",
                               isHit ? "animate-flash ring-2 ring-clinic" : "",
@@ -316,50 +357,31 @@ export function DayView({
                             {isFinished(a.status) && (
                               <span className="absolute right-1 top-0.5 text-[10px] font-bold opacity-70">✓</span>
                             )}
-                            {/* Texto en su propio contenedor overflow-hidden para no cortar los botones */}
-                            <div className="min-h-0 flex-1 overflow-hidden">
-                              <span className="block truncate leading-tight">
-                                <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
-                                <span
-                                  className={`font-medium ${a.status === "no_show" ? "line-through" : ""}`}
-                                >
-                                  {apptName(a)}
-                                </span>
+                            <span className="block truncate leading-tight">
+                              <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
+                              <span className={`font-medium ${a.status === "no_show" ? "line-through" : ""}`}>
+                                {apptName(a)}
                               </span>
-                              {tall && a.reason && (
-                                <span className="block truncate text-[10px] italic text-slate-500">
-                                  {a.reason}
-                                </span>
-                              )}
-                              {tall && doctorLabel && (
-                                <span className="block truncate text-[10px] font-medium text-slate-400">
-                                  {doctorLabel}
-                                </span>
-                              )}
-                              {tall && apptCI(a) && (
-                                <span className="block truncate text-[10px] opacity-60">
-                                  CI {apptCI(a)}
-                                </span>
-                              )}
-                              {isQuickConsult(a) && (
-                                <span className="block truncate text-[10px] text-amber-600">
-                                  sin registrar
-                                </span>
-                              )}
-                            </div>
-                            {showActions && (
-                              <div
-                                className="shrink-0 pt-0.5"
-                                onClick={(ev) => ev.stopPropagation()}
-                              >
-                                <ApptActions
-                                  appt={a}
-                                  canWrite={canWrite}
-                                  onLink={onLink}
-                                  compact={!tall}
-                                  iconOnly={!tall}
-                                />
-                              </div>
+                            </span>
+                            {tall && a.reason && (
+                              <span className="block truncate text-[10px] italic text-slate-500">
+                                {a.reason}
+                              </span>
+                            )}
+                            {tall && doctorLabel && (
+                              <span className="block truncate text-[10px] font-medium text-slate-400">
+                                {doctorLabel}
+                              </span>
+                            )}
+                            {tall && apptCI(a) && (
+                              <span className="block truncate text-[10px] opacity-60">
+                                CI {apptCI(a)}
+                              </span>
+                            )}
+                            {isQuickConsult(a) && (
+                              <span className="block truncate text-[10px] text-amber-600">
+                                sin registrar
+                              </span>
                             )}
                           </div>
                         </div>
@@ -377,6 +399,18 @@ export function DayView({
         <p className="mt-2 text-center text-sm text-slate-500">
           {canWrite ? "Día libre — hacé clic en una franja para agendar." : "Sin citas este día."}
         </p>
+      )}
+
+      {/* Popover flotante — montado en document.body via portal, escapa de todo overflow */}
+      {popover && (
+        <ApptPopover
+          appt={popover.appt}
+          anchor={popover.anchor}
+          canWrite={canWrite}
+          onEdit={() => { onEdit(popover.appt); setPopover(null); }}
+          onLink={() => { onLink(popover.appt); setPopover(null); }}
+          onClose={() => setPopover(null)}
+        />
       )}
     </div>
   );

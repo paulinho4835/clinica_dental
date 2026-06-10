@@ -4,6 +4,7 @@ import { can } from "@/lib/rbac";
 import { AgendaShell, type AgendaView } from "@/components/agenda/AgendaShell";
 import { RealtimeAppointments } from "@/components/agenda/RealtimeAppointments";
 import { requireFeature } from "@/lib/guard";
+import { getClinicFeatures } from "@/lib/superadmin";
 import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 
@@ -25,7 +26,7 @@ export default async function AgendaPage({
   const { start, end } = gridRange(new Date(date + "T00:00:00"));
 
   const supabase = await createClient();
-  const profile = await getProfile();
+  const [profile, features] = await Promise.all([getProfile(), getClinicFeatures()]);
   const writable = can(profile?.role, "appointments:write");
   const isAdmin = profile?.role === "admin";
 
@@ -75,6 +76,7 @@ export default async function AgendaPage({
         doctors={doctors ?? []}
         isAdmin={isAdmin ?? false}
         myName={myName}
+        whatsappEnabled={features.whatsapp}
       />
     </div>
   );

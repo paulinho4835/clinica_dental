@@ -1,0 +1,187 @@
+<h2>Sección 5 · Arquitectura y cambios de componentes</h2>
+<p class="subtitle">Qué archivos se tocan, qué se crea, cómo fluye la información — sin reescribir lo que ya funciona.</p>
+
+<style>
+  .arch-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
+  @media(max-width:900px){ .arch-grid{ grid-template-columns:1fr; } }
+  .ap { background:#fff; border-radius:12px; border:1px solid #eef2f6; padding:14px 16px; }
+  .ap h4 { margin:0 0 8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b; }
+
+  .file-list { display:flex; flex-direction:column; gap:4px; }
+  .fl { display:flex; align-items:flex-start; gap:8px; padding:5px 8px; border-radius:7px; font-size:11px; }
+  .fl.new    { background:#f0fdf4; }
+  .fl.mod    { background:#fffbeb; }
+  .fl.same   { background:#f8fafc; }
+  .fl-badge  { font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px; white-space:nowrap; margin-top:1px; }
+  .badge-new  { background:#dcfce7; color:#166534; }
+  .badge-mod  { background:#fef9c3; color:#854d0e; }
+  .badge-same { background:#e2e8f0; color:#475569; }
+  .fl-text { flex:1; }
+  .fl-name { font-weight:600; color:#0f172a; font-family:monospace; }
+  .fl-desc { color:#64748b; font-size:10px; }
+
+  .flow { display:flex; flex-direction:column; gap:6px; }
+  .flow-row { display:flex; align-items:center; gap:6px; font-size:11px; }
+  .fb { background:#f1f5f9; border-radius:6px; padding:4px 8px; font-weight:600; color:#334155; font-size:10px; }
+  .fb.teal { background:#ecfeff; color:#0e7490; }
+  .fb.indigo { background:#eef2ff; color:#3730a3; }
+  .arrow { color:#94a3b8; font-size:12px; }
+  .flow-note { font-size:10px; color:#94a3b8; padding-left:4px; }
+
+  .hook-list { display:flex; flex-direction:column; gap:6px; }
+  .hk { background:#f8fafc; border-radius:7px; padding:6px 10px; font-size:11px; }
+  .hk code { background:#e2e8f0; border-radius:4px; padding:1px 5px; font-size:10px; font-family:monospace; color:#0e7490; }
+  .hk p { margin:3px 0 0; font-size:10px; color:#64748b; }
+
+  .constraint-list { display:flex; flex-direction:column; gap:5px; }
+  .cn { display:flex; gap:6px; align-items:flex-start; font-size:11px; color:#334155; }
+  .cn-icon { font-size:12px; margin-top:1px; }
+</style>
+
+<div class="arch-grid">
+
+  <!-- Panel 1: Mapa de archivos -->
+  <div class="ap" style="grid-column:1/-1;">
+    <h4>Mapa de archivos — qué se toca</h4>
+    <div class="file-list">
+      <div class="fl new">
+        <span class="fl-badge badge-new">NUEVO</span>
+        <div class="fl-text">
+          <div class="fl-name">lib/agenda/doctorColor.ts</div>
+          <div class="fl-desc">Hash determinístico doctor id/nombre → índice de paleta. Exporta <code>getDoctorColor(id)</code> → <code>{bg, border, text}</code>. Paleta de 8 colores fijos.</div>
+        </div>
+      </div>
+      <div class="fl new">
+        <span class="fl-badge badge-new">NUEVO</span>
+        <div class="fl-text">
+          <div class="fl-name">lib/agenda/dragDrop.ts</div>
+          <div class="fl-desc">Lógica pura de pointer events: <code>useDrag()</code> hook. Recibe <code>blockGeometry</code>, devuelve handlers y estado de drag. Sin JSX.</div>
+        </div>
+      </div>
+      <div class="fl mod">
+        <span class="fl-badge badge-mod">MOD</span>
+        <div class="fl-text">
+          <div class="fl-name">components/agenda/WeekView.tsx</div>
+          <div class="fl-desc">Usa <code>getDoctorColor()</code> en cada bloque. Integra <code>useDrag()</code>. Muestra ghost-slot destino. Optimistic update → revert en error.</div>
+        </div>
+      </div>
+      <div class="fl mod">
+        <span class="fl-badge badge-mod">MOD</span>
+        <div class="fl-text">
+          <div class="fl-name">components/agenda/DayView.tsx</div>
+          <div class="fl-desc">Mismo color-por-doctor y drag que WeekView. Bloques más altos, muestra motivo + CI cuando el bloque tiene espacio suficiente (altura > 48px).</div>
+        </div>
+      </div>
+      <div class="fl mod">
+        <span class="fl-badge badge-mod">MOD</span>
+        <div class="fl-text">
+          <div class="fl-name">components/agenda/MonthView.tsx</div>
+          <div class="fl-desc">Reemplaza badge contador por pastillas de nombre. Hasta 2 pastillas + "+N más". Puntito de color del doctor en cada pastilla.</div>
+        </div>
+      </div>
+      <div class="fl mod">
+        <span class="fl-badge badge-mod">MOD</span>
+        <div class="fl-text">
+          <div class="fl-name">components/agenda/apptHelpers.ts</div>
+          <div class="fl-desc">Agrega <code>apptBlockClass(status)</code> que devuelve clases Tailwind para estado (no cambia el color base, que ahora viene del doctor).</div>
+        </div>
+      </div>
+      <div class="fl same">
+        <span class="fl-badge badge-same">SIN CAMBIO</span>
+        <div class="fl-text">
+          <div class="fl-name">lib/agenda/index.ts · blockGeometry · assignLanes · dentistColumns</div>
+          <div class="fl-desc">La matemática de posicionamiento no cambia — ya funciona bien y el drag la reutiliza.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Flujo de datos drag -->
+  <div class="ap">
+    <h4>Flujo: drag-and-drop optimista</h4>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="fb teal">onPointerDown</div>
+        <span class="arrow">→</span>
+        <div class="fb">captura blockId + offsetY</div>
+      </div>
+      <div class="flow-row">
+        <div class="fb teal">onPointerMove</div>
+        <span class="arrow">→</span>
+        <div class="fb">calcula slot destino (snap 15min)</div>
+      </div>
+      <div class="flow-row">
+        <div class="fb teal">onPointerUp</div>
+        <span class="arrow">→</span>
+        <div class="fb">mutación optimista local</div>
+      </div>
+      <div class="flow-row">
+        <span style="font-size:10px;color:#64748b;padding-left:4px;">↓ en paralelo</span>
+      </div>
+      <div class="flow-row">
+        <div class="fb indigo">PATCH /api/appointments/[id]</div>
+      </div>
+      <div class="flow-row">
+        <div class="fb" style="background:#fef9c3;color:#854d0e;">error?</div>
+        <span class="arrow">→</span>
+        <div class="fb" style="background:#fee2e2;color:#991b1b;">revert + toast</div>
+      </div>
+      <div class="flow-note">
+        El bloque se mueve instantáneo. Si falla el server, vuelve a su lugar con un shake animation y toast de error.
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 3: Hook useDrag -->
+  <div class="ap">
+    <h4>Interfaz del hook <code style="font-size:11px;">useDrag()</code></h4>
+    <div class="hook-list">
+      <div class="hk">
+        <code>draggingId: string | null</code>
+        <p>ID de la cita en vuelo. null = nadie se arrastra.</p>
+      </div>
+      <div class="hk">
+        <code>ghostSlot: {date, time} | null</code>
+        <p>Slot destino actual. El componente renderiza el ghost con este dato.</p>
+      </div>
+      <div class="hk">
+        <code>dragHandlers(apptId)</code>
+        <p>Devuelve <code>{ onPointerDown, onPointerMove, onPointerUp }</code> listo para spread en el div del bloque.</p>
+      </div>
+      <div class="hk">
+        <code>isDragging(apptId)</code>
+        <p>Devuelve true si ese bloque está siendo arrastrado (aplica clase CSS "dragging" = sombra elevada + scale).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 4: Restricciones -->
+  <div class="ap" style="grid-column:1/-1;">
+    <h4>Restricciones y decisiones de diseño</h4>
+    <div class="constraint-list">
+      <div class="cn">
+        <span class="cn-icon">🔒</span>
+        <div><strong>Sin drag cross-day en Vista Semana v1</strong> — arrastrar entre columnas de días queda para v2. En v1 solo se arrastra dentro del mismo día (evita complejidad de mutación de fecha).</div>
+      </div>
+      <div class="cn">
+        <span class="cn-icon">🔒</span>
+        <div><strong>Clic-arrastre para crear solo en Vista Día</strong> — en Vista Semana los slots son demasiado estrechos para un drag de creación usable. Vista Semana: clic simple abre el modal.</div>
+      </div>
+      <div class="cn">
+        <span class="cn-icon">📐</span>
+        <div><strong>Snap a 15 minutos</strong> — <code>STEP_MIN = 15</code> ya definido en DayView. El hook lo usa directamente.</div>
+      </div>
+      <div class="cn">
+        <span class="cn-icon">📐</span>
+        <div><strong>getDoctorColor es pura y determinística</strong> — el mismo doctor siempre obtiene el mismo color en cualquier render, sin necesidad de contexto o estado.</div>
+      </div>
+      <div class="cn">
+        <span class="cn-icon">♿</span>
+        <div><strong>Accesibilidad mínima v1</strong> — los bloques conservan <code>role="button"</code> y <code>aria-label</code> existentes. Keyboard nav y screen reader completo queda para v2.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">¿Te cierra la arquitectura — archivos a tocar, flujo optimista, interfaz del hook?</p>

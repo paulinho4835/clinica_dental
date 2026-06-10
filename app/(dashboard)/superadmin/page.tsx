@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
 import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
+import { AddonToggle } from "@/components/superadmin/AddonToggle";
 import { PlanSelect } from "@/components/superadmin/PlanSelect";
 import { ClinicUsers, type ClinicUser } from "@/components/superadmin/ClinicUsers";
 import { AddUserForm } from "@/components/superadmin/AddUserForm";
@@ -67,7 +68,8 @@ export default async function SuperadminPage({
     usersByClinic.set(p.clinic_id, list);
   }
 
-  const toggleable = FEATURES.filter((f) => !f.core);
+  const modules = FEATURES.filter((f) => !f.core && !f.optIn);
+  const addons  = FEATURES.filter((f) => !f.core && f.optIn);
 
   return (
     <div className="space-y-8">
@@ -147,10 +149,26 @@ export default async function SuperadminPage({
                 </div>
               </div>
 
-              {/* Módulos */}
+              {/* Módulos principales */}
               <div className="mt-4 flex flex-wrap gap-2">
-                {toggleable.map((f) => (
+                {modules.map((f) => (
                   <FeatureToggle
+                    key={f.key}
+                    clinicId={c.id}
+                    featureKey={f.key}
+                    label={f.label}
+                    enabled={features[f.key]}
+                  />
+                ))}
+              </div>
+
+              {/* Add-ons opcionales */}
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Add-ons
+                </span>
+                {addons.map((f) => (
+                  <AddonToggle
                     key={f.key}
                     clinicId={c.id}
                     featureKey={f.key}

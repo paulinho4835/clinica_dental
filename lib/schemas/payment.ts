@@ -9,6 +9,7 @@ export const PaymentSchema = z.object({
   kind: z.enum(["payment", "credit"]).default("payment"),
   note: z.string().max(120).optional().nullable(),
   doctor_id: z.string().uuid().optional().nullable(),
+  commission_pct: z.coerce.number().min(0).max(100).default(0),
 });
 
 export type PaymentInput = z.infer<typeof PaymentSchema>;

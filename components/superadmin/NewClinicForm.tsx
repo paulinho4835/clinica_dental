@@ -44,6 +44,25 @@ export function NewClinicForm() {
           required
         />
       </div>
+
+      {/* Add-on WhatsApp */}
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 hover:bg-slate-100">
+        <input
+          type="checkbox"
+          name="whatsapp_addon"
+          value="true"
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-green-600"
+        />
+        <div>
+          <span className="text-sm font-medium text-slate-700">
+            Activar módulo WhatsApp
+          </span>
+          <p className="text-xs text-slate-500">
+            Habilita el botón de recordatorios por WhatsApp en la agenda de esta clínica.
+          </p>
+        </div>
+      </label>
+
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state.ok && <p className="text-sm text-green-700">{state.ok}</p>}
       <button

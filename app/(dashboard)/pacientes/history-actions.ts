@@ -54,8 +54,8 @@ export async function addPatientPayment(
   });
   if (error) return { error: error.message };
 
-  // Si hay doctor y comisión, registrar automáticamente en Mis trabajos.
-  if (d.doctor_id && d.commission_pct > 0) {
+  // Si hay doctor, registrar automáticamente en Mis trabajos.
+  if (d.doctor_id) {
     await supabase.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,

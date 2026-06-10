@@ -1,0 +1,149 @@
+<h2>Sección 6 · Testing</h2>
+<p class="subtitle">Qué se testea, cómo, y qué queda fuera de scope — sin sobre-invertir en tests de UI que no aportan.</p>
+
+<style>
+  .tg { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
+  @media(max-width:900px){ .tg{ grid-template-columns:1fr; } }
+  .tp { background:#fff; border-radius:12px; border:1px solid #eef2f6; padding:14px 16px; }
+  .tp h4 { margin:0 0 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b; }
+
+  .test-list { display:flex; flex-direction:column; gap:5px; }
+  .tc { display:flex; gap:8px; align-items:flex-start; font-size:11px; padding:5px 8px; border-radius:7px; }
+  .tc.unit  { background:#f0fdf4; }
+  .tc.integ { background:#eff6ff; }
+  .tc.skip  { background:#f8fafc; opacity:.6; }
+  .tc-badge { font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px; white-space:nowrap; margin-top:1px; }
+  .b-unit  { background:#dcfce7; color:#166534; }
+  .b-integ { background:#dbeafe; color:#1e40af; }
+  .b-skip  { background:#e2e8f0; color:#475569; }
+  .tc-text { flex:1; color:#334155; }
+  .tc-sub  { font-size:10px; color:#94a3b8; margin-top:2px; }
+
+  .rule { display:flex; gap:8px; align-items:flex-start; padding:6px 10px; border-radius:8px; background:#f8fafc; margin-bottom:6px; font-size:11px; }
+  .rule-icon { font-size:13px; }
+</style>
+
+<div class="tg">
+
+  <!-- Panel 1: Tests unitarios -->
+  <div class="tp">
+    <h4>Unit tests (Vitest) — lógica pura</h4>
+    <div class="test-list">
+      <div class="tc unit">
+        <span class="tc-badge b-unit">UNIT</span>
+        <div class="tc-text">
+          <div><code>getDoctorColor(id)</code> — mismo id → mismo color siempre</div>
+          <div class="tc-sub">8 colores, distribución uniforme, never undefined</div>
+        </div>
+      </div>
+      <div class="tc unit">
+        <span class="tc-badge b-unit">UNIT</span>
+        <div class="tc-text">
+          <div>Snap a 15min — <code>snapToStep(y, pxPerHour)</code></div>
+          <div class="tc-sub">bordes, medianoche, límite OPEN/CLOSE_HOUR</div>
+        </div>
+      </div>
+      <div class="tc unit">
+        <span class="tc-badge b-unit">UNIT</span>
+        <div class="tc-text">
+          <div>Ghost slot calc — dado pointer Y → devuelve <code>{date, time}</code> correcto</div>
+          <div class="tc-sub">reutiliza blockGeometry existente</div>
+        </div>
+      </div>
+      <div class="tc unit">
+        <span class="tc-badge b-unit">UNIT</span>
+        <div class="tc-text">
+          <div>Optimistic update + revert — estado antes/después/error</div>
+          <div class="tc-sub">mock de fetch, verifica que el estado vuelve al original</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Tests de integración -->
+  <div class="tp">
+    <h4>Integration tests (Vitest + Testing Library)</h4>
+    <div class="test-list">
+      <div class="tc integ">
+        <span class="tc-badge b-integ">INTEG</span>
+        <div class="tc-text">
+          <div>WeekView renderiza colores por doctor</div>
+          <div class="tc-sub">2 doctores distintos → 2 colores distintos en pantalla</div>
+        </div>
+      </div>
+      <div class="tc integ">
+        <span class="tc-badge b-integ">INTEG</span>
+        <div class="tc-text">
+          <div>Estado "no_show" aplica clase tachado + gris</div>
+          <div class="tc-sub">verifica que apptBlockClass devuelve las clases correctas</div>
+        </div>
+      </div>
+      <div class="tc integ">
+        <span class="tc-badge b-integ">INTEG</span>
+        <div class="tc-text">
+          <div>MonthView muestra pastillas de nombre (no badge contador)</div>
+          <div class="tc-sub">3 citas → 2 pastillas + "+1 más"</div>
+        </div>
+      </div>
+      <div class="tc integ">
+        <span class="tc-badge b-integ">INTEG</span>
+        <div class="tc-text">
+          <div>Drag: pointerDown→Move→Up dispara PATCH con nueva hora</div>
+          <div class="tc-sub">mock fetch, verifica payload {start, end}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 3: Fuera de scope -->
+  <div class="tp">
+    <h4>Fuera de scope v1 — no se testea ahora</h4>
+    <div class="test-list">
+      <div class="tc skip">
+        <span class="tc-badge b-skip">SKIP</span>
+        <div class="tc-text">
+          <div>Tests E2E / Playwright</div>
+          <div class="tc-sub">costo alto, el proyecto no tiene setup E2E todavía</div>
+        </div>
+      </div>
+      <div class="tc skip">
+        <span class="tc-badge b-skip">SKIP</span>
+        <div class="tc-text">
+          <div>Tests de animaciones CSS</div>
+          <div class="tc-sub">no hay valor en verificar que @keyframes se ejecuta</div>
+        </div>
+      </div>
+      <div class="tc skip">
+        <span class="tc-badge b-skip">SKIP</span>
+        <div class="tc-text">
+          <div>Tests de accesibilidad / keyboard nav</div>
+          <div class="tc-sub">postergado con el resto de a11y a v2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 4: Reglas -->
+  <div class="tp">
+    <h4>Reglas de calidad</h4>
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div>Los tests unitarios de <code>doctorColor</code> y <code>dragDrop</code> deben pasar antes de tocar los componentes.</div>
+    </div>
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div>Los 93 tests existentes deben seguir pasando después de cada cambio (no regresiones).</div>
+    </div>
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div>TypeScript strict: 0 errores en toda la implementación. Sin <code>as any</code>.</div>
+    </div>
+    <div class="rule">
+      <span class="rule-icon">📏</span>
+      <div>Cobertura objetivo: 80% en los 2 archivos nuevos. Los componentes se cubren con los tests de integración, no con unit tests de renderizado.</div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Eso cierra el diseño completo. ¿Te parece razonable el scope de testing?</p>
