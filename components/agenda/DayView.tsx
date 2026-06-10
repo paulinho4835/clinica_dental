@@ -279,7 +279,7 @@ export function DayView({
                       return (
                         <div
                           key={a.id}
-                          className="absolute z-10"
+                          className={`absolute ${showActions ? "z-20" : "z-10"}`}
                           style={{
                             top: g.top * AXIS_H,
                             height: blockH,
@@ -296,7 +296,7 @@ export function DayView({
                             {...(canWrite ? dragHandlers(a.id) : {})}
                             style={{ touchAction: "none" }}
                             className={[
-                              "relative flex h-full w-full flex-col overflow-hidden rounded border-l-4 px-1.5 py-0.5 text-left text-[11px] transition",
+                              "relative flex h-full w-full flex-col rounded border-l-4 px-1.5 py-0.5 text-left text-[11px] transition",
                               col2.bg,
                               col2.border,
                               col2.text,
@@ -316,37 +316,40 @@ export function DayView({
                             {isFinished(a.status) && (
                               <span className="absolute right-1 top-0.5 text-[10px] font-bold opacity-70">✓</span>
                             )}
-                            <span className="truncate leading-tight">
-                              <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
-                              <span
-                                className={`font-medium ${a.status === "no_show" ? "line-through" : ""}`}
-                              >
-                                {apptName(a)}
+                            {/* Texto en su propio contenedor overflow-hidden para no cortar los botones */}
+                            <div className="min-h-0 flex-1 overflow-hidden">
+                              <span className="block truncate leading-tight">
+                                <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
+                                <span
+                                  className={`font-medium ${a.status === "no_show" ? "line-through" : ""}`}
+                                >
+                                  {apptName(a)}
+                                </span>
                               </span>
-                            </span>
-                            {tall && a.reason && (
-                              <span className="truncate text-[10px] italic text-slate-500">
-                                {a.reason}
-                              </span>
-                            )}
-                            {tall && doctorLabel && (
-                              <span className="truncate text-[10px] font-medium text-slate-400">
-                                {doctorLabel}
-                              </span>
-                            )}
-                            {tall && apptCI(a) && (
-                              <span className="truncate text-[10px] opacity-60">
-                                CI {apptCI(a)}
-                              </span>
-                            )}
-                            {isQuickConsult(a) && (
-                              <span className="truncate text-[10px] text-amber-600">
-                                sin registrar
-                              </span>
-                            )}
+                              {tall && a.reason && (
+                                <span className="block truncate text-[10px] italic text-slate-500">
+                                  {a.reason}
+                                </span>
+                              )}
+                              {tall && doctorLabel && (
+                                <span className="block truncate text-[10px] font-medium text-slate-400">
+                                  {doctorLabel}
+                                </span>
+                              )}
+                              {tall && apptCI(a) && (
+                                <span className="block truncate text-[10px] opacity-60">
+                                  CI {apptCI(a)}
+                                </span>
+                              )}
+                              {isQuickConsult(a) && (
+                                <span className="block truncate text-[10px] text-amber-600">
+                                  sin registrar
+                                </span>
+                              )}
+                            </div>
                             {showActions && (
                               <div
-                                className="mt-auto shrink-0 pt-0.5"
+                                className="shrink-0 pt-0.5"
                                 onClick={(ev) => ev.stopPropagation()}
                               >
                                 <ApptActions
