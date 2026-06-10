@@ -48,3 +48,15 @@ export function apptBlockStyle(status: string) {
   if (status === "no_show") return "border-slate-300 bg-slate-100 text-slate-400";
   return "border-clinic/50 bg-clinic/10 text-slate-800"; // scheduled
 }
+
+// Canal de estado puro — sin color de fondo (el color viene del doctor).
+// Devuelve clases extra que se aplican sobre el color base del doctor.
+export function apptBlockClass(status: string): string {
+  if (status === "no_show")
+    return "opacity-70 border-dashed !border-slate-300 !bg-slate-100 !text-slate-400";
+  if (status === "in_chair")
+    return "ring-2 ring-offset-0 animate-pulse-ring";
+  return "";
+}
+
+export const isFinished = (status: string) => status === "finished";
