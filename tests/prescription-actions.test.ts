@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateMedications,
   type Medication,
-} from "@/app/(dashboard)/pacientes/prescription-actions";
+} from "@/lib/prescriptions";
 
 describe("validateMedications", () => {
   it("error si la lista está vacía", () => {
