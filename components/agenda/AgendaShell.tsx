@@ -17,6 +17,7 @@ import {
   apptName,
   apptCI,
 } from "./apptHelpers";
+import { getDoctorColor } from "@/lib/agenda/doctorColor";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
 
@@ -45,6 +46,7 @@ export function AgendaShell({
   doctors,
   isAdmin,
   myName,
+  whatsappEnabled,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -55,6 +57,7 @@ export function AgendaShell({
   isAdmin: boolean;
   /** Nombre completo del usuario logueado (para preseleccionar "Mi Agenda") */
   myName: string;
+  whatsappEnabled: boolean;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -193,14 +196,16 @@ export function AgendaShell({
       {/* Barra de controles: Toggle de vista | Dropdown doctor | Navegación */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Botones Día / Semana / Mes */}
-        <div className="flex rounded-md bg-slate-100 p-0.5 text-sm">
+        <div className="relative flex rounded-lg bg-slate-100 p-0.5 text-sm shadow-inner">
           {views.map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`rounded px-3 py-1.5 capitalize transition ${
-                view === v ? "bg-white font-medium text-clinic shadow-sm" : "text-slate-500"
+              className={`relative z-10 rounded-md px-3 py-1.5 capitalize transition-colors duration-150 ${
+                view === v
+                  ? "bg-white font-semibold text-clinic shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
               }`}
             >
               {VIEW_LABELS[v]}
@@ -210,21 +215,30 @@ export function AgendaShell({
 
         {/* Dropdown de doctor — permanente, solo visible para admin */}
         {isAdmin && (
-          <select
-            value={activeDoctor}
-            onChange={(e) => setActiveDoctor(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-          >
-            <option value={myName}>Mi Agenda</option>
-            <option value={ALL_DOCTORS}>Todos los doctores</option>
-            {doctors
-              .filter((d) => d.full_name !== myName)
-              .map((d) => (
-                <option key={d.id} value={d.full_name}>
-                  {d.full_name}
-                </option>
-              ))}
-          </select>
+          <div className="flex items-center gap-1.5">
+            {activeDoctor !== ALL_DOCTORS && activeDoctor && (
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDoctorColor(
+                  doctors.find((d) => d.full_name === activeDoctor)?.id ?? activeDoctor
+                ).border.replace("border-", "bg-")}`}
+              />
+            )}
+            <select
+              value={activeDoctor}
+              onChange={(e) => setActiveDoctor(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white py-1.5 pl-2 pr-7 text-sm font-medium text-slate-700 shadow-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            >
+              <option value={myName}>Mi Agenda</option>
+              <option value={ALL_DOCTORS}>Todos los doctores</option>
+              {doctors
+                .filter((d) => d.full_name !== myName)
+                .map((d) => (
+                  <option key={d.id} value={d.full_name}>
+                    {d.full_name}
+                  </option>
+                ))}
+            </select>
+          </div>
         )}
 
         {/* Navegación anterior / hoy / siguiente */}
@@ -252,7 +266,7 @@ export function AgendaShell({
           {monthLabel}
         </span>
 
-        {canWrite && (
+        {canWrite && whatsappEnabled && (
           <div className="ml-auto flex items-center gap-2">
             {sendResult && (
               <span className="text-sm text-slate-600">{sendResult}</span>
