@@ -18,6 +18,7 @@ import {
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
+import { normalizeFeatures } from "@/lib/features";
 import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
 import type {
   PrescriptionRow,
@@ -56,6 +57,7 @@ export default async function PatientPage({
     { data: appointments },
     { data: dentists },
     { data: rawPrescriptions },
+    { data: clinicRow },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -86,6 +88,11 @@ export default async function PatientPage({
       .select("id, medications, notes, issued_at, doctor:profiles(full_name)")
       .eq("patient_id", id)
       .order("issued_at", { ascending: false }),
+    supabase
+      .from("clinics")
+      .select("features")
+      .eq("id", patient.clinic_id)
+      .single(),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -130,6 +137,9 @@ export default async function PatientPage({
     issuedAt: rx.issued_at as string,
   }));
 
+  const features = normalizeFeatures(clinicRow?.features);
+  const recetasEnabled = features.recetas;
+
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
   const totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
 
@@ -164,7 +174,7 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} dentists={dentists ?? []} />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} dentists={dentists ?? []} recetasEnabled={recetasEnabled} />
       </section>
 
       <section>
@@ -189,14 +199,16 @@ export default async function PatientPage({
         />
       </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Recetas emitidas</h2>
-        <PrescriptionsPanel
-          patientId={patient.id}
-          prescriptions={prescriptionRows}
-          canWrite={canClinical}
-        />
-      </section>
+      {recetasEnabled && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Recetas emitidas</h2>
+          <PrescriptionsPanel
+            patientId={patient.id}
+            prescriptions={prescriptionRows}
+            canWrite={canClinical}
+          />
+        </section>
+      )}
     </div>
   );
 }

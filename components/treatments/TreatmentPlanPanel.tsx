@@ -37,11 +37,13 @@ export function TreatmentPlanPanel({
   canWrite,
   works,
   dentists,
+  recetasEnabled,
 }: {
   patientId: string;
   canWrite: boolean;
   works: Work[];
   dentists: Dentist[];
+  recetasEnabled?: boolean;
 }) {
   const total = works.reduce((s, w) => s + w.price, 0);
 
@@ -49,21 +51,23 @@ export function TreatmentPlanPanel({
     <div className="space-y-4">
       {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} />}
 
-      <div className="flex items-center justify-end">
-        <a
-          href={`/pacientes/${patientId}/imprimir`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 6 2 18 2 18 9"/>
-            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-            <rect x="6" y="14" width="12" height="8"/>
-          </svg>
-          Presupuesto
-        </a>
-      </div>
+      {recetasEnabled && (
+        <div className="flex items-center justify-end">
+          <a
+            href={`/pacientes/${patientId}/imprimir`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Presupuesto
+          </a>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
         <div className="hidden grid-cols-[10rem_1fr_9rem_7rem_2rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-medium uppercase text-slate-400 sm:grid">
