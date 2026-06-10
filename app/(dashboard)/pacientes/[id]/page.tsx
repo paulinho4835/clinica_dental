@@ -18,6 +18,11 @@ import {
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
+import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
+import type {
+  PrescriptionRow,
+  Medication,
+} from "@/app/(dashboard)/pacientes/prescription-actions";
 
 export default async function PatientPage({
   params,
@@ -45,7 +50,13 @@ export default async function PatientPage({
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
 
-  const [{ data: rawPlans }, { data: payments }, { data: appointments }, { data: dentists }] = await Promise.all([
+  const [
+    { data: rawPlans },
+    { data: payments },
+    { data: appointments },
+    { data: dentists },
+    { data: rawPrescriptions },
+  ] = await Promise.all([
     supabase
       .from("treatment_plans")
       .select(
@@ -70,6 +81,11 @@ export default async function PatientPage({
       .in("role", ["odontologo_general", "especialista", "admin"])
       .eq("clinic_id", patient.clinic_id)
       .order("full_name"),
+    supabase
+      .from("prescriptions")
+      .select("id, medications, notes, issued_at, doctor:profiles(full_name)")
+      .eq("patient_id", id)
+      .order("issued_at", { ascending: false }),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -103,6 +119,15 @@ export default async function PatientPage({
     note: p.note as string | null,
     receivedAt: p.received_at as string,
     doctorName: ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
+  }));
+
+  const prescriptionRows: PrescriptionRow[] = (rawPrescriptions ?? []).map((rx) => ({
+    id: rx.id as string,
+    doctorName:
+      ((rx.doctor as { full_name?: string } | null)?.full_name) ?? null,
+    medications: rx.medications as Medication[],
+    notes: rx.notes as string | null,
+    issuedAt: rx.issued_at as string,
   }));
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
@@ -161,6 +186,15 @@ export default async function PatientPage({
           doctors={dentists ?? []}
           totalQuoted={totalQuoted}
           totalPaid={totalPaid}
+        />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Recetas emitidas</h2>
+        <PrescriptionsPanel
+          patientId={patient.id}
+          prescriptions={prescriptionRows}
+          canWrite={canClinical}
         />
       </section>
     </div>
