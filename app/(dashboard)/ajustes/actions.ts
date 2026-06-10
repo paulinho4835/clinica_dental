@@ -115,6 +115,16 @@ export async function createTeamUser(
 
   const admin = createAdminClient();
 
+  // Verificar límite de usuarios antes de crear.
+  const [{ count }, { data: clinicRow }] = await Promise.all([
+    admin.from("profiles").select("id", { count: "exact", head: true }).eq("clinic_id", profile.clinicId),
+    admin.from("clinics").select("max_users").eq("id", profile.clinicId).single(),
+  ]);
+  const maxUsers = clinicRow?.max_users ?? 10;
+  if ((count ?? 0) >= maxUsers) {
+    return { error: `Límite de ${maxUsers} usuarios alcanzado. Contacta al administrador de la plataforma.` };
+  }
+
   const { data: created, error: userErr } = await admin.auth.admin.createUser({
     email,
     password,

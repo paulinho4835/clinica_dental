@@ -12,6 +12,7 @@ import { AddUserForm } from "@/components/superadmin/AddUserForm";
 import { EditClinicName } from "@/components/superadmin/EditClinicName";
 import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
+import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
 
 const SORTS = [
   { key: "recientes", label: "Más recientes" },
@@ -37,7 +38,7 @@ export default async function SuperadminPage({
 
   let query = admin
     .from("clinics")
-    .select("id, name, plan, features, active, created_at");
+    .select("id, name, plan, features, active, max_users, created_at");
   if (sort === "antiguas") query = query.order("created_at", { ascending: true });
   else if (sort === "nombre") query = query.order("name", { ascending: true });
   else query = query.order("created_at", { ascending: false }); // recientes
@@ -132,10 +133,14 @@ export default async function SuperadminPage({
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-500">
-                    {users.length} usuario{users.length !== 1 ? "s" : ""}
-                    {" · "}
-                    {new Date(c.created_at).toLocaleDateString("es-BO")}
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                    <MaxUsersInput
+                      clinicId={c.id}
+                      maxUsers={c.max_users ?? 10}
+                      currentCount={users.length}
+                    />
+                    <span className="text-slate-300">·</span>
+                    <span>{new Date(c.created_at).toLocaleDateString("es-BO")}</span>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

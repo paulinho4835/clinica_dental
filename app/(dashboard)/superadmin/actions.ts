@@ -209,6 +209,19 @@ export async function toggleFeature(formData: FormData) {
   revalidatePath("/superadmin");
 }
 
+// ── Límite de usuarios por clínica ───────────────────────────────────────────
+export async function setMaxUsers(_prev: unknown, formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  const maxUsers = Number(formData.get("maxUsers"));
+  if (!clinicId || !Number.isInteger(maxUsers) || maxUsers < 1)
+    return { error: "Valor inválido" };
+  const admin = createAdminClient();
+  await admin.from("clinics").update({ max_users: maxUsers }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+  return { ok: true };
+}
+
 // ── Cambiar plan ─────────────────────────────────────────────────────────────
 export async function setPlan(formData: FormData) {
   await assertSuperadmin();
