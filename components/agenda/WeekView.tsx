@@ -46,6 +46,7 @@ export function WeekView({
 
   // ── Optimistic state ──────────────────────────────────────────────────────
   const [localAppts, setLocalAppts] = useState<MonthAppt[]>([]);
+  const [shakingId, setShakingId] = useState<string | null>(null);
 
   const handleDrop = useCallback(
     async (apptId: string, slot: SlotTarget) => {
@@ -62,6 +63,8 @@ export function WeekView({
         if (!res.ok) throw new Error("patch failed");
       } catch {
         setLocalAppts(revertMove(updated, allAppts));
+        setShakingId(apptId);
+        setTimeout(() => setShakingId(null), 400);
       }
     },
     [byDay],
@@ -184,7 +187,7 @@ export function WeekView({
                         type="button"
                         disabled={!canWrite}
                         onClick={() => onEdit(a)}
-                        className={`absolute z-10 overflow-hidden rounded border-l-4 px-1 text-left text-[10px] leading-tight transition ${col.bg} ${col.border} ${col.text} ${apptBlockClass(a.status)} ${dragging ? "scale-105 shadow-lg opacity-90 z-20 cursor-grabbing" : canWrite ? "cursor-grab hover:shadow-md" : "cursor-default"}`}
+                        className={`absolute z-10 overflow-hidden rounded border-l-4 px-1 text-left text-[10px] leading-tight transition ${col.bg} ${col.border} ${col.text} ${apptBlockClass(a.status)} ${dragging ? "scale-105 shadow-lg opacity-90 z-20 cursor-grabbing" : canWrite ? "cursor-grab hover:shadow-md" : "cursor-default"} ${shakingId === a.id ? "animate-shake" : ""}`}
                         style={{
                           top: g.top * AXIS_H,
                           height: Math.max(g.height * AXIS_H, 14),
