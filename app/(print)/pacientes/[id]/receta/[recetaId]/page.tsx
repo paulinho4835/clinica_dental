@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { AutoPrint, PrintButtons } from "../../imprimir/AutoPrint";
 import type { Medication } from "@/app/(dashboard)/pacientes/prescription-actions";
 
-const now = () =>
-  new Date().toLocaleDateString("es-BO", {
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-BO", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -74,7 +74,7 @@ export default async function RecetaPage({
           </div>
           <div className="text-right text-sm text-slate-500">
             <p>Fecha de emisión:</p>
-            <p className="font-medium text-slate-700">{now()}</p>
+            <p className="font-medium text-slate-700">{fmtDate(rx.issued_at as string)}</p>
           </div>
         </div>
 
@@ -112,6 +112,13 @@ export default async function RecetaPage({
                 <td className="py-2 text-slate-600">{m.instructions || "—"}</td>
               </tr>
             ))}
+            {medications.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-4 text-center text-slate-400">
+                  Sin medicamentos registrados.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
