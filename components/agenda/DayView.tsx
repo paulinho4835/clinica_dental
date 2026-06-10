@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   OPEN_HOUR,
   CLOSE_HOUR,
@@ -14,8 +14,16 @@ import {
   apptName,
   apptCI,
   isQuickConsult,
-  apptBlockStyle,
+  apptBlockClass,
+  isFinished,
 } from "./apptHelpers";
+import { getDoctorColor } from "@/lib/agenda/doctorColor";
+import {
+  useDrag,
+  applyOptimisticMove,
+  revertMove,
+  type SlotTarget,
+} from "@/lib/agenda/dragDrop";
 import { ApptActions } from "./ApptActions";
 
 const PX_PER_HOUR = 56;
@@ -62,11 +70,47 @@ export function DayView({
     month: "long",
   });
 
+  // ── Optimistic state for drag-to-move ──────────────────────────────────────
+  const [localAppts, setLocalAppts] = useState<MonthAppt[]>(appts);
+  const [shakingId, setShakingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalAppts(appts);
+  }, [appts]);
+
+  const handleDrop = useCallback(
+    async (apptId: string, slot: SlotTarget) => {
+      const updated = applyOptimisticMove(appts, apptId, slot.date, slot.time);
+      setLocalAppts(updated);
+      try {
+        const moved = updated.find((a) => a.id === apptId)!;
+        const res = await fetch(`/api/appointments/${apptId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starts_at: moved.starts_at, ends_at: moved.ends_at }),
+        });
+        if (!res.ok) throw new Error("patch failed");
+      } catch {
+        setLocalAppts(revertMove(updated, appts));
+        setShakingId(apptId);
+        setTimeout(() => setShakingId(null), 400);
+      }
+    },
+    [appts],
+  );
+
+  const { draggingId: _draggingId, ghostSlot, dragHandlers, isDragging } = useDrag({
+    axisH: AXIS_H,
+    day,
+    onDrop: handleDrop,
+  });
+
+  // ── Columns ─────────────────────────────────────────────────────────────────
   const columns = useMemo<(string | null)[]>(() => {
     if (forcedColumns && forcedColumns.length > 0) return forcedColumns;
-    const names = dentistColumns(appts);
+    const names = dentistColumns(localAppts);
     return names.length > 1 ? names : [null];
-  }, [appts, forcedColumns]);
+  }, [localAppts, forcedColumns]);
 
   // La línea de "ahora" depende de la hora actual, que difiere entre server
   // (UTC) y cliente (Bolivia). Se calcula solo tras montar para no romper la
@@ -93,7 +137,7 @@ export function DayView({
     <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold capitalize text-slate-700">{dayLabel}</h2>
-        <span className="text-xs text-slate-400">{appts.length} cita(s)</span>
+        <span className="text-xs text-slate-400">{localAppts.length} cita(s)</span>
       </div>
 
       <div className="flex">
@@ -116,8 +160,8 @@ export function DayView({
             {columns.map((col) => {
               const colAppts =
                 col === null
-                  ? appts
-                  : appts.filter(
+                  ? localAppts
+                  : localAppts.filter(
                       (a) => (a.dentist_name?.trim() || "Sin asignar") === col,
                     );
               const inChair = colAppts.filter((a) => a.status === "in_chair").length;
@@ -151,6 +195,7 @@ export function DayView({
                   )}
 
                   <div
+                    data-agenda-col
                     className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
                     style={{ height: AXIS_H }}
                   >
@@ -197,6 +242,22 @@ export function DayView({
                       </div>
                     )}
 
+                    {/* Ghost slot durante drag */}
+                    {ghostSlot && (() => {
+                      const [gh, gm] = ghostSlot.time.split(":").map(Number);
+                      const [gY, gMo, gD] = day.split("-").map(Number);
+                      const gDate = new Date(gY, gMo - 1, gD, gh, gm);
+                      const gEnd = new Date(gDate.getTime() + 30 * 60_000);
+                      const gg = blockGeometry(gDate, gEnd);
+                      return (
+                        <div
+                          key="ghost"
+                          className="pointer-events-none absolute inset-x-0 z-30 animate-ghost-pulse rounded border-2 border-dashed border-clinic bg-clinic/20"
+                          style={{ top: gg.top * AXIS_H, height: Math.max(gg.height * AXIS_H, 20) }}
+                        />
+                      );
+                    })()}
+
                     {/* Bloques de cita */}
                     {laid.map(({ appt: a, lane, lanes }) => {
                       // Solo en modo "Todos" (>1 columna) para no repetir lo que ya dice el header
@@ -214,6 +275,7 @@ export function DayView({
                       const showActions = canWrite;
                       const blockH = Math.max(naturalH, showActions ? 58 : 24);
                       const tall = blockH >= 78;
+                      const col2 = getDoctorColor(a.dentist_name ?? "");
                       return (
                         <div
                           key={a.id}
@@ -229,10 +291,31 @@ export function DayView({
                             role={canWrite ? "button" : undefined}
                             tabIndex={canWrite ? 0 : undefined}
                             onClick={canWrite ? () => onEdit(a) : undefined}
-                            onKeyDown={canWrite ? (e) => e.key === "Enter" && onEdit(a) : undefined}
+                            onKeyDown={canWrite ? (ev) => ev.key === "Enter" && onEdit(a) : undefined}
                             title={canWrite ? "Editar cita" : undefined}
-                            className={`flex h-full w-full flex-col overflow-hidden rounded border px-1.5 py-0.5 text-left text-[11px] transition ${canWrite ? "cursor-pointer hover:shadow-md" : "cursor-default"} ${apptBlockStyle(a.status)} ${isHit ? "animate-flash ring-2 ring-clinic" : ""}`}
+                            {...(canWrite ? dragHandlers(a.id) : {})}
+                            style={{ touchAction: "none" }}
+                            className={[
+                              "relative flex h-full w-full flex-col overflow-hidden rounded border-l-4 px-1.5 py-0.5 text-left text-[11px] transition",
+                              col2.bg,
+                              col2.border,
+                              col2.text,
+                              "border",
+                              apptBlockClass(a.status),
+                              isDragging(a.id)
+                                ? "scale-105 shadow-xl z-30 opacity-90 cursor-grabbing"
+                                : canWrite
+                                  ? "cursor-grab hover:shadow-md"
+                                  : "cursor-default",
+                              shakingId === a.id ? "animate-shake" : "",
+                              isHit ? "animate-flash ring-2 ring-clinic" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
                           >
+                            {isFinished(a.status) && (
+                              <span className="absolute right-1 top-0.5 text-[10px] font-bold opacity-70">✓</span>
+                            )}
                             <span className="truncate leading-tight">
                               <span className="tabular-nums opacity-70">{hhmm(s)}</span>{" "}
                               <span
@@ -264,7 +347,7 @@ export function DayView({
                             {showActions && (
                               <div
                                 className="mt-auto shrink-0 pt-0.5"
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(ev) => ev.stopPropagation()}
                               >
                                 <ApptActions
                                   appt={a}
@@ -287,7 +370,7 @@ export function DayView({
         </div>
       </div>
 
-      {!isOverview && appts.length === 0 && (
+      {!isOverview && localAppts.length === 0 && (
         <p className="mt-2 text-center text-sm text-slate-500">
           {canWrite ? "Día libre — hacé clic en una franja para agendar." : "Sin citas este día."}
         </p>
