@@ -32,16 +32,44 @@ export default async function PatientsPage({
   const profile = await getProfile();
 
   const q = (await searchParams).q?.trim() ?? "";
+  const isDoctor =
+    profile?.role === "odontologo_general" || profile?.role === "especialista";
 
   let query = supabase
     .from("patients")
     .select("id, full_name, national_id, phone, medical_alerts")
     .order("full_name");
 
-  // Filtro por nombre o CI. Usa search_text (normalizado sin acentos ni
-  // mayúsculas) para que "maria" encuentre "María".
   if (q) {
     query = query.ilike("search_text", `%${normalizeSearch(q)}%`);
+  }
+
+  // Doctores ven solo sus pacientes: los que tienen cita con ellos o un trabajo.
+  if (isDoctor && profile) {
+    const [{ data: apptPatients }, { data: workPatients }] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("patient_id")
+        .eq("dentist_name", profile.fullName)
+        .not("patient_id", "is", null),
+      supabase
+        .from("doctor_works")
+        .select("patient_id")
+        .eq("doctor_id", profile.userId)
+        .not("patient_id", "is", null),
+    ]);
+    const ids = [
+      ...new Set([
+        ...(apptPatients ?? []).map((r) => r.patient_id as string),
+        ...(workPatients ?? []).map((r) => r.patient_id as string),
+      ]),
+    ];
+    if (ids.length > 0) {
+      query = query.in("id", ids);
+    } else {
+      // Sin pacientes aún asignados al doctor.
+      query = query.in("id", ["00000000-0000-0000-0000-000000000000"]);
+    }
   }
 
   const { data: patients } = await query;

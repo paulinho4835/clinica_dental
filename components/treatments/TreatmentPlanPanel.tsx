@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addPlanWork,
@@ -153,19 +153,24 @@ export function DoneToggle({
 
 function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Dentist[] }) {
   const [state, formAction, pending] = useActionState(addPlanWork, initial);
-  const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+
+  // Controlled fields — description and price reset on success; doctor persists.
+  const [descVal, setDescVal] = useState("");
+  const [priceVal, setPriceVal] = useState("");
+  const [doctorId, setDoctorId] = useState("");
 
   useEffect(() => {
     if (state.ok) {
-      formRef.current?.reset();
+      // Clear only work description and price; keep doctor selected.
+      setDescVal("");
+      setPriceVal("");
       router.refresh();
     }
-  }, [state.ok, router]);
+  }, [state, router]);
 
   return (
     <form
-      ref={formRef}
       action={formAction}
       className="flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
@@ -176,6 +181,8 @@ function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Den
           name="description"
           type="text"
           required
+          value={descVal}
+          onChange={(e) => setDescVal(e.target.value)}
           placeholder="ej. Resina diente 16, limpieza, endodoncia…"
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
@@ -184,6 +191,8 @@ function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Den
         <span className="mb-1 block text-slate-500">Doctor</span>
         <select
           name="doctor_id"
+          value={doctorId}
+          onChange={(e) => setDoctorId(e.target.value)}
           className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
         >
           <option value="">— Sin asignar —</option>
@@ -200,6 +209,8 @@ function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Den
           step="0.01"
           min="0"
           required
+          value={priceVal}
+          onChange={(e) => setPriceVal(e.target.value)}
           placeholder="0.00"
           className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />

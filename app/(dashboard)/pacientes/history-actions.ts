@@ -13,6 +13,7 @@ const PaymentSchema = z.object({
   amount: z.coerce.number().positive("Monto debe ser > 0"),
   method: z.enum(["cash", "qr"]),
   doctor_id: z.string().uuid().optional().nullable(),
+  commission_pct: z.coerce.number().min(0).max(100).default(0),
   note: z.string().max(120).optional().nullable(),
 });
 
@@ -32,23 +33,43 @@ export async function addPatientPayment(
     amount: formData.get("amount"),
     method: formData.get("method"),
     doctor_id: formData.get("doctor_id") || null,
+    commission_pct: formData.get("commission_pct") || 0,
     note: formData.get("note") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
+  const d = parsed.data;
   const supabase = await createClient();
+
   const { error } = await supabase.from("payments").insert({
     clinic_id: profile.clinicId,
-    patient_id: parsed.data.patient_id,
-    amount: parsed.data.amount,
-    method: parsed.data.method,
+    patient_id: d.patient_id,
+    amount: d.amount,
+    method: d.method,
     kind: "payment",
-    doctor_id: parsed.data.doctor_id ?? null,
-    note: parsed.data.note ?? null,
+    doctor_id: d.doctor_id ?? null,
+    commission_pct: d.commission_pct,
+    note: d.note ?? null,
   });
   if (error) return { error: error.message };
 
-  revalidatePath(`/pacientes/${parsed.data.patient_id}`);
+  // Si hay doctor y comisión, registrar automáticamente en Mis trabajos.
+  if (d.doctor_id && d.commission_pct > 0) {
+    await supabase.from("doctor_works").insert({
+      clinic_id: profile.clinicId,
+      doctor_id: d.doctor_id,
+      patient_id: d.patient_id,
+      description: d.note ?? "Pago desde ficha de paciente",
+      cost: d.amount,
+      commission_pct: d.commission_pct,
+      amount_paid: d.amount,
+      payment_method: d.method,
+      performed_at: new Date().toISOString().split("T")[0],
+    });
+  }
+
+  revalidatePath(`/pacientes/${d.patient_id}`);
+  revalidatePath("/mis-trabajos");
   return { ok: true };
 }

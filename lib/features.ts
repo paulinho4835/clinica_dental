@@ -5,6 +5,7 @@
 export type FeatureKey =
   | "agenda"
   | "pacientes"
+  | "mis_trabajos"
   | "tratamientos"
   | "caja"
   | "inventario"
@@ -22,13 +23,14 @@ export interface FeatureMeta {
 export const FEATURES: FeatureMeta[] = [
   { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "pacientes", label: "Pacientes", href: "/pacientes" },
+  { key: "mis_trabajos", label: "Mis trabajos", href: "/mis-trabajos" },
   { key: "inventario", label: "Inventario", href: "/inventario" },
   // Catálogo de procedimientos: oculto (no se usa). El código, la ruta
   // /tratamientos y la tabla procedure_catalog siguen intactos.
   // Para reactivar: descomentar esta línea.
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
-  { key: "ajustes", label: "Registro de Doctores", href: "/ajustes", core: true },
+  { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;

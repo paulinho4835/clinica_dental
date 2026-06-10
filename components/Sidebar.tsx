@@ -8,6 +8,7 @@ import {
   Package,
   Wallet,
   Stethoscope,
+  ClipboardList,
   Shield,
   Menu,
   X,
@@ -23,6 +24,7 @@ export type NavItem = { href: string; label: string };
 const ICONS: Record<string, LucideIcon> = {
   "/agenda": Calendar,
   "/pacientes": Users,
+  "/mis-trabajos": ClipboardList,
   "/inventario": Package,
   "/caja": Wallet,
   "/ajustes": Stethoscope,

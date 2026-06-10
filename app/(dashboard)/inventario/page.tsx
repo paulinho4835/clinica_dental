@@ -3,7 +3,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { MovementForm } from "@/components/inventory/MovementForm";
 import { StockTable } from "@/components/inventory/StockTable";
-import { requireFeature } from "@/lib/guard";
+import { requireNavAccess } from "@/lib/guard";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "Entrada",
@@ -31,7 +31,7 @@ function daysUntil(d: string): number {
 }
 
 export default async function InventoryPage() {
-  await requireFeature("inventario");
+  await requireNavAccess("inventario");
   const supabase = await createClient();
   const profile = await getProfile();
   const canWrite = can(profile?.role, "inventory:write");

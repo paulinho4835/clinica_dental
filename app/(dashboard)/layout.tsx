@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { isPlatformAdmin } from "@/lib/superadmin";
+import { canSeeNav, type Role } from "@/lib/rbac";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
@@ -47,10 +48,12 @@ export default async function DashboardLayout({
   }
   const clinicName = superadmin ? "Plataforma" : clinic?.name ?? "Clínica";
 
-  // Menú = solo módulos encendidos de la clínica. El superadmin no opera una
-  // clínica, así que no ve módulos clínicos (solo su panel).
+  // Menú = módulos encendidos de la clínica Y permitidos para el rol del usuario.
   const features = normalizeFeatures(clinic?.features);
-  const nav = superadmin ? [] : FEATURES.filter((f) => features[f.key]);
+  const role = profile?.role as Role | undefined;
+  const nav = superadmin
+    ? []
+    : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key));
 
   const initials =
     !superadmin && profile?.full_name

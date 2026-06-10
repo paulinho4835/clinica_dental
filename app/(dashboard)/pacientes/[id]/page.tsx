@@ -49,13 +49,13 @@ export default async function PatientPage({
     supabase
       .from("treatment_plans")
       .select(
-        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, doctor_id, doctor:doctors(full_name), procedure:procedure_catalog(name)))",
+        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, doctor_id, doctor:profiles!treatment_items_doctor_id_fkey(full_name), procedure:procedure_catalog(name)))",
       )
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, method, note, received_at, doctor:doctors(full_name)")
+      .select("id, amount, method, note, received_at, commission_pct, doctor:profiles(full_name)")
       .eq("patient_id", id)
       .order("received_at", { ascending: false }),
     supabase
@@ -65,10 +65,10 @@ export default async function PatientPage({
       .neq("status", "cancelled")
       .order("starts_at", { ascending: false }),
     supabase
-      .from("doctors")
+      .from("profiles")
       .select("id, full_name")
+      .in("role", ["odontologo_general", "especialista", "admin"])
       .eq("clinic_id", patient.clinic_id)
-      .eq("active", true)
       .order("full_name"),
   ]);
 

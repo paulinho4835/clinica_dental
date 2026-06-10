@@ -1,24 +1,25 @@
-import { Users, BarChart3, Banknote, TrendingUp } from "lucide-react";
+import { Users, BarChart3, Banknote, TrendingUp, UserCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PaymentForm } from "@/components/caja/PaymentForm";
-import { requireFeature } from "@/lib/guard";
+import { requireNavAccess } from "@/lib/guard";
 import { bs, boliviaTodayISO } from "@/lib/format";
 import { Stat } from "@/components/ui/Stat";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DateFilter } from "@/components/caja/DateFilter";
+import { DoctorFilter } from "@/components/caja/DoctorFilter";
 
 export default async function CashPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; doctor?: string }>;
 }) {
-  await requireFeature("caja");
+  await requireNavAccess("caja");
   const supabase = await createClient();
   const profile = await getProfile();
-  const { date: dateParam } = await searchParams;
+  const { date: dateParam, doctor: doctorParam } = await searchParams;
 
   // Inicio de hoy en Bolivia (UTC-4) expresado en UTC para filtrar la DB.
   const boliviaDate = boliviaTodayISO();
@@ -33,19 +34,39 @@ export default async function CashPage({
   const todayStartUTC = new Date(`${boliviaDate}T04:00:00.000Z`);
   const tomorrowStartUTC = new Date(todayStartUTC.getTime() + 24 * 60 * 60 * 1000);
 
-  const [{ data: payments }, { data: paymentsToday }, { data: patients }, { data: doctors }] = await Promise.all([
-    supabase.from("payments")
-      .select("amount, method, kind, note, received_at, patients(full_name), doctor:doctors(full_name)")
-      .gte("received_at", dayStartUTC.toISOString())
-      .lt("received_at", dayEndUTC.toISOString())
-      .order("received_at", { ascending: true }),
-    supabase.from("payments")
+  const [{ data: allDoctors }, { data: paymentsToday }, { data: patients }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("role", ["odontologo_general", "especialista", "admin"])
+      .order("full_name"),
+    supabase
+      .from("payments")
       .select("amount, patient_id")
       .gte("received_at", todayStartUTC.toISOString())
       .lt("received_at", tomorrowStartUTC.toISOString()),
     supabase.from("patients").select("id, full_name, national_id").order("full_name"),
-    supabase.from("doctors").select("id, full_name").eq("active", true).order("full_name"),
   ]);
+
+  const doctors = allDoctors ?? [];
+
+  // Pagos del día seleccionado, filtrados opcionalmente por doctor
+  let paymentsQuery = supabase
+    .from("payments")
+    .select("amount, method, kind, note, received_at, doctor_id, patients(full_name), doctor:profiles!payments_doctor_id_fkey(full_name)")
+    .gte("received_at", dayStartUTC.toISOString())
+    .lt("received_at", dayEndUTC.toISOString())
+    .order("received_at", { ascending: true });
+
+  if (doctorParam) {
+    paymentsQuery = paymentsQuery.eq("doctor_id", doctorParam);
+  }
+
+  const { data: payments } = await paymentsQuery;
+
+  const selectedDoctor = doctorParam
+    ? doctors.find((d) => d.id === doctorParam) ?? null
+    : null;
 
   const totalPay = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
   const todayTotal = (paymentsToday ?? []).reduce((s, p) => s + Number(p.amount), 0);
@@ -63,7 +84,7 @@ export default async function CashPage({
       />
 
       {can(profile?.role, "billing:write") && (
-        <PaymentForm patients={patients ?? []} doctors={doctors ?? []} />
+        <PaymentForm patients={patients ?? []} doctors={doctors} />
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -73,15 +94,32 @@ export default async function CashPage({
       </div>
 
       <section>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">
-            Pagos del {isToday ? "día" : selectedDate}
-            {totalPay > 0 && (
-              <span className="ml-2 text-base font-normal text-emerald-600 tabular-nums">{bs(totalPay)}</span>
+        {/* Encabezado con título + filtros */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 className="text-lg font-semibold">
+              Pagos del {isToday ? "día" : selectedDate}
+            </h2>
+            {selectedDoctor && (
+              <span className="flex items-center gap-1 rounded-full bg-clinic/10 px-2.5 py-0.5 text-xs font-medium text-clinic">
+                <UserCircle className="h-3.5 w-3.5" />
+                {selectedDoctor.full_name}
+              </span>
             )}
-          </h2>
-          <DateFilter selectedDate={selectedDate} todayDate={boliviaDate} />
+            {totalPay > 0 && (
+              <span className="text-base font-semibold tabular-nums text-emerald-600">
+                {bs(totalPay)}
+              </span>
+            )}
+          </div>
+
+          {/* Controles de filtro: doctor + fecha */}
+          <div className="flex flex-wrap items-center gap-2">
+            <DoctorFilter doctors={doctors} selectedDoctorId={doctorParam ?? ""} />
+            <DateFilter selectedDate={selectedDate} todayDate={boliviaDate} />
+          </div>
         </div>
+
         <div className="divide-y divide-slate-100 rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="overflow-x-auto">
             <div className="min-w-[44rem]">
@@ -105,29 +143,30 @@ export default async function CashPage({
               ))}
               {!payments?.length && (
                 <p className="px-4 py-3 text-sm text-slate-500">
-                  Sin pagos registrados {isToday ? "hoy" : `el ${selectedDate}`}.
+                  {selectedDoctor
+                    ? `Sin pagos registrados para ${selectedDoctor.full_name} ${isToday ? "hoy" : `el ${selectedDate}`}.`
+                    : `Sin pagos registrados ${isToday ? "hoy" : `el ${selectedDate}`}.`}
                 </p>
               )}
             </div>
           </div>
+
+          {/* Subtotal al pie, solo cuando hay registros */}
+          {(payments ?? []).length > 0 && (
+            <div className="flex items-center justify-between bg-slate-50 px-4 py-3 text-sm font-semibold">
+              <span className="text-slate-500">
+                {selectedDoctor ? `Subtotal — ${selectedDoctor.full_name}` : "Total del período"}
+              </span>
+              <span className="tabular-nums text-emerald-700">{bs(totalPay)}</span>
+            </div>
+          )}
         </div>
       </section>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-2 text-lg font-semibold">{title}</h2>
-      <div className="divide-y divide-slate-100 rounded-lg bg-white shadow-sm ring-1 ring-slate-200">{children}</div>
-    </section>
-  );
-}
-
-
-// Plantilla de columnas compartida: encabezado y filas usan los mismos anchos fijos
-// para que todo quede alineado (Fecha · Paciente · Motivo · Monto).
+// Plantilla de columnas compartida: encabezado y filas usan los mismos anchos fijos.
 const PAY_GRID = "grid grid-cols-[11rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_8rem] items-center gap-x-4";
 
 const METHOD_LABEL: Record<string, string> = { cash: "Efectivo", qr: "QR", card: "Tarjeta", transfer: "Transf." };

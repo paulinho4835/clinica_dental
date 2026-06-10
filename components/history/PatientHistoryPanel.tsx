@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addPatientPayment, type ActionState } from "@/app/(dashboard)/pacientes/history-actions";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
@@ -229,12 +229,23 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
   const noteRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  const [amount, setAmount] = useState("");
+  const [pct, setPct] = useState("");
+  const [doctorId, setDoctorId] = useState("");
+
+  const amountN = Number(amount) || 0;
+  const pctN = Number(pct) || 0;
+  const commission = Math.round(amountN * pctN) / 100;
+
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
+      setAmount("");
+      setPct("");
+      setDoctorId("");
       router.refresh();
     }
-  }, [state.ok, router]);
+  }, [state, router]);
 
   return (
     <form
@@ -253,6 +264,8 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
             min="0.01"
             required
             placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
             className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
@@ -271,7 +284,8 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
           <span className="mb-1 block text-slate-500">Doctor</span>
           <select
             name="doctor_id"
-            defaultValue=""
+            value={doctorId}
+            onChange={(e) => { setDoctorId(e.target.value); if (!e.target.value) setPct(""); }}
             className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
           >
             <option value="">— Sin asignar —</option>
@@ -280,6 +294,23 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
             ))}
           </select>
         </label>
+        {doctorId && (
+          <label className="text-xs">
+            <span className="mb-1 block text-slate-500">Comisión (%)</span>
+            <input
+              name="commission_pct"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              placeholder="ej. 40"
+              value={pct}
+              onChange={(e) => setPct(e.target.value)}
+              className="w-20 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            />
+          </label>
+        )}
+        {!doctorId && <input type="hidden" name="commission_pct" value="0" />}
         <label className="flex-1 text-xs">
           <span className="mb-1 block text-slate-500">Motivo de pago</span>
           <input
@@ -292,6 +323,13 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
           />
         </label>
       </div>
+      {doctorId && pctN > 0 && amountN > 0 && (
+        <div className="flex items-center gap-2 rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20">
+          <span className="text-slate-500">Comisión del doctor ({pctN}% de {bs(amountN)}):</span>
+          <span className="font-semibold text-clinic tabular-nums">{bs(commission)}</span>
+          <span className="ml-auto text-xs text-slate-400">Se registrará en Mis trabajos</span>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="submit"

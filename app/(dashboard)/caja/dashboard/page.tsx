@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireFeature } from "@/lib/guard";
+import { requireNavAccess } from "@/lib/guard";
 import { bs, boliviaTodayISO } from "@/lib/format";
 import {
   RevenueChart,
@@ -14,7 +14,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export default async function FinanceDashboardPage() {
-  await requireFeature("caja");
+  await requireNavAccess("caja");
   const supabase = await createClient();
 
   // "Hoy" en Bolivia: las RPC agregan por día en zona Bolivia, así que todos los

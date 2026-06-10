@@ -214,21 +214,27 @@ export function ApptModal({
 
         <label className="block text-sm">
           <span className="mb-1 block text-slate-600">Odontólogo *</span>
-          <input
-            name="dentist_name"
-            type="text"
-            required
-            list="agenda-doctors-list"
-            defaultValue={appt?.dentist_name ?? dentist ?? ""}
-            placeholder={doctors.length > 0 ? "Elige o escribe un nombre…" : "Nombre del odontólogo"}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-          />
-          {doctors.length > 0 && (
-            <datalist id="agenda-doctors-list">
+          {doctors.length > 0 ? (
+            <select
+              name="dentist_name"
+              required
+              defaultValue={appt?.dentist_name ?? dentist ?? ""}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            >
+              <option value="" disabled>Selecciona un odontólogo…</option>
               {doctors.map((d) => (
-                <option key={d.id} value={d.full_name} />
+                <option key={d.id} value={d.full_name}>{d.full_name}</option>
               ))}
-            </datalist>
+            </select>
+          ) : (
+            <input
+              name="dentist_name"
+              type="text"
+              required
+              defaultValue={appt?.dentist_name ?? dentist ?? ""}
+              placeholder="Nombre del odontólogo"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            />
           )}
         </label>
 

@@ -1,3 +1,5 @@
+import type { FeatureKey } from "@/lib/features";
+
 // Permisos por rol (espejo de las políticas RLS — la DB es la fuente de verdad).
 export type Role =
   | "admin"
@@ -5,6 +7,20 @@ export type Role =
   | "odontologo_general"
   | "especialista"
   | "asistente";
+
+// Módulos del menú lateral visibles por rol.
+const NAV_WHITELIST: Record<Role, FeatureKey[]> = {
+  admin:              ["agenda", "pacientes", "mis_trabajos", "tratamientos", "inventario", "caja", "ajustes"],
+  recepcionista:      ["agenda", "pacientes", "inventario", "caja"],
+  odontologo_general: ["agenda", "pacientes", "mis_trabajos"],
+  especialista:       ["agenda", "pacientes", "mis_trabajos"],
+  asistente:          ["agenda", "pacientes", "inventario"],
+};
+
+export function canSeeNav(role: Role | undefined, key: FeatureKey): boolean {
+  if (!role) return false;
+  return NAV_WHITELIST[role]?.includes(key) ?? false;
+}
 
 type Permission =
   | "patients:read" | "patients:write" | "patients:delete"

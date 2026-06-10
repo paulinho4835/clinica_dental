@@ -8,7 +8,7 @@ import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 
 const isView = (v: string | undefined): v is AgendaView =>
-  v === "day" || v === "week" || v === "month";
+  v === "day" || v === "week" || v === "month" || v === "overview";
 
 export default async function AgendaPage({
   searchParams,
@@ -27,19 +27,39 @@ export default async function AgendaPage({
   const supabase = await createClient();
   const profile = await getProfile();
   const writable = can(profile?.role, "appointments:write");
+  const isAdmin = profile?.role === "admin";
+
+  // Nombre del usuario logueado (para preseleccionar "Mi Agenda" en el dropdown).
+  const myName = profile?.fullName ?? "";
+
+  // Query base de citas del rango visible.
+  let apptsQuery = supabase
+    .from("appointments")
+    .select(
+      "id, starts_at, ends_at, status, dentist_name, patient_name, patient_id, reason, consult_price, deposit, deposit_method, patients(full_name, national_id)",
+    )
+    .gte("starts_at", start.toISOString())
+    .lt("starts_at", end.toISOString())
+    .neq("status", "cancelled")
+    .order("starts_at", { ascending: true });
+
+  // No-admin: solo ve SUS citas (filtrado en servidor, no puede cambiarlo).
+  if (!isAdmin && myName) {
+    apptsQuery = apptsQuery.eq("dentist_name", myName);
+  }
 
   const [{ data: appts }, { data: patients }, { data: doctors }] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select(
-        "id, starts_at, ends_at, status, dentist_name, patient_name, patient_id, reason, consult_price, deposit, deposit_method, patients(full_name, national_id)",
-      )
-      .gte("starts_at", start.toISOString())
-      .lt("starts_at", end.toISOString())
-      .neq("status", "cancelled")
-      .order("starts_at", { ascending: true }),
+    apptsQuery,
     supabase.from("patients").select("id, full_name, national_id").order("full_name"),
-    supabase.from("doctors").select("id, full_name").eq("active", true).order("full_name"),
+    // Admin ve todos los odontólogos (incluido él mismo) para el dropdown.
+    // No-admin recibe lista vacía (no usa el dropdown).
+    isAdmin
+      ? supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("role", ["odontologo_general", "especialista", "admin"])
+          .order("full_name")
+      : Promise.resolve({ data: [] }),
   ]);
 
   return (
@@ -53,6 +73,8 @@ export default async function AgendaPage({
         view={view}
         canWrite={writable}
         doctors={doctors ?? []}
+        isAdmin={isAdmin ?? false}
+        myName={myName}
       />
     </div>
   );

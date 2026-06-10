@@ -18,13 +18,23 @@ import {
   apptCI,
 } from "./apptHelpers";
 
-export type AgendaView = "day" | "week" | "month";
+export type AgendaView = "day" | "week" | "month" | "overview";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 type ModalState = { start: Date; end: Date; appt?: MonthAppt; dentist?: string };
+
+const VIEW_LABELS: Record<AgendaView, string> = {
+  day: "Día",
+  week: "Semana",
+  month: "Mes",
+  overview: "Doctores", // mantenido solo para compatibilidad de tipo
+};
+
+// Opción especial: muestra TODAS las columnas de doctores en DayView
+const ALL_DOCTORS = "__all__";
 
 export function AgendaShell({
   patients,
@@ -33,6 +43,8 @@ export function AgendaShell({
   view,
   canWrite,
   doctors,
+  isAdmin,
+  myName,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -40,6 +52,9 @@ export function AgendaShell({
   view: AgendaView;
   canWrite: boolean;
   doctors: DoctorOption[];
+  isAdmin: boolean;
+  /** Nombre completo del usuario logueado (para preseleccionar "Mi Agenda") */
+  myName: string;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -51,6 +66,9 @@ export function AgendaShell({
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
+  // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
+  // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
+  const [activeDoctor, setActiveDoctor] = useState<string>(myName);
 
   const byDay = useMemo(() => {
     const map = new Map<string, MonthAppt[]>();
@@ -60,6 +78,31 @@ export function AgendaShell({
     }
     return map;
   }, [appts]);
+
+  // byDay filtrado según activeDoctor (aplica a day, week y month).
+  const filteredByDay = useMemo(() => {
+    if (activeDoctor === ALL_DOCTORS) return byDay;
+    const map = new Map<string, MonthAppt[]>();
+    for (const [k, list] of byDay) {
+      const filtered = list.filter(
+        (a) => (a.dentist_name?.trim() || "") === activeDoctor,
+      );
+      if (filtered.length) map.set(k, filtered);
+    }
+    return map;
+  }, [byDay, activeDoctor]);
+
+  // columnas forzadas para DayView: si es ALL_DOCTORS → una columna por doctor;
+  // si hay un doctor específico → una sola columna con su nombre.
+  const forcedCols = useMemo<string[] | undefined>(() => {
+    if (!isAdmin) return undefined; // no-admin: sin columnas forzadas
+    if (activeDoctor === ALL_DOCTORS)
+      return doctors.map((d) => d.full_name);
+    return [activeDoctor];
+  }, [activeDoctor, doctors, isAdmin]);
+
+  // Vistas disponibles: siempre solo Día / Semana / Mes ("Doctores" ya no existe como botón).
+  const views: AgendaView[] = ["day", "week", "month"];
 
   function setView(next: AgendaView) {
     router.push(`/agenda?date=${date}&view=${next}`);
@@ -118,16 +161,40 @@ export function AgendaShell({
   }
 
   const base = new Date(date + "T00:00:00");
-  const monthLabel = base.toLocaleDateString("es-BO", { month: "long", year: "numeric" });
+  const monthLabel =
+    view === "day"
+      ? base.toLocaleDateString("es-BO", {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : base.toLocaleDateString("es-BO", { month: "long", year: "numeric" });
+
+  // Compartido por todas las vistas que muestran DayView
+  const dayViewHandlers = {
+    onPick: (start: Date, end: Date, dentist?: string) =>
+      setModal({ start, end, dentist }),
+    onEdit: (a: MonthAppt) =>
+      setModal({
+        start: new Date(a.starts_at),
+        end: a.ends_at
+          ? new Date(a.ends_at)
+          : new Date(new Date(a.starts_at).getTime() + STEP_MIN * 60_000),
+        appt: a,
+      }),
+    onLink: (a: MonthAppt) => setLinkAppt(a),
+  };
 
   return (
     <div className="space-y-4">
       <SearchBar onSearch={runSearch} message={searchMsg} />
 
-      {/* Toggle de vista + navegación */}
+      {/* Barra de controles: Toggle de vista | Dropdown doctor | Navegación */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Botones Día / Semana / Mes */}
         <div className="flex rounded-md bg-slate-100 p-0.5 text-sm">
-          {(["day", "week", "month"] as const).map((v) => (
+          {views.map((v) => (
             <button
               key={v}
               type="button"
@@ -136,10 +203,31 @@ export function AgendaShell({
                 view === v ? "bg-white font-medium text-clinic shadow-sm" : "text-slate-500"
               }`}
             >
-              {v === "day" ? "Día" : v === "week" ? "Semana" : "Mes"}
+              {VIEW_LABELS[v]}
             </button>
           ))}
         </div>
+
+        {/* Dropdown de doctor — permanente, solo visible para admin */}
+        {isAdmin && (
+          <select
+            value={activeDoctor}
+            onChange={(e) => setActiveDoctor(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          >
+            <option value={myName}>Mi Agenda</option>
+            <option value={ALL_DOCTORS}>Todos los doctores</option>
+            {doctors
+              .filter((d) => d.full_name !== myName)
+              .map((d) => (
+                <option key={d.id} value={d.full_name}>
+                  {d.full_name}
+                </option>
+              ))}
+          </select>
+        )}
+
+        {/* Navegación anterior / hoy / siguiente */}
         <button
           onClick={() => shift(-1)}
           aria-label="Anterior"
@@ -181,63 +269,45 @@ export function AgendaShell({
         )}
       </div>
 
-      {/* Vista Mes: calendario + DayView del día seleccionado */}
+      {/* Vista Mes: calendario filtrado + DayView del día seleccionado */}
       {view === "month" && (
         <>
           <MonthView
             month={date}
-            byDay={byDay}
+            byDay={filteredByDay}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
           />
           {selectedDay && (
             <DayView
               day={selectedDay}
-              appts={byDay.get(selectedDay) ?? []}
+              appts={filteredByDay.get(selectedDay) ?? []}
               canWrite={canWrite}
               highlightId={highlightId}
-              onPick={(start, end, dentist) => setModal({ start, end, dentist })}
-              onEdit={(a) =>
-                setModal({
-                  start: new Date(a.starts_at),
-                  end: a.ends_at
-                    ? new Date(a.ends_at)
-                    : new Date(new Date(a.starts_at).getTime() + STEP_MIN * 60_000),
-                  appt: a,
-                })
-              }
-              onLink={(a) => setLinkAppt(a)}
+              forcedColumns={forcedCols}
+              {...dayViewHandlers}
             />
           )}
         </>
       )}
 
-      {/* Vista Día */}
+      {/* Vista Día filtrada */}
       {view === "day" && (
         <DayView
           day={date}
-          appts={byDay.get(date) ?? []}
+          appts={filteredByDay.get(date) ?? []}
           canWrite={canWrite}
           highlightId={highlightId}
-          onPick={(start, end, dentist) => setModal({ start, end, dentist })}
-          onEdit={(a) =>
-            setModal({
-              start: new Date(a.starts_at),
-              end: a.ends_at
-                ? new Date(a.ends_at)
-                : new Date(new Date(a.starts_at).getTime() + STEP_MIN * 60_000),
-              appt: a,
-            })
-          }
-          onLink={(a) => setLinkAppt(a)}
+          forcedColumns={forcedCols}
+          {...dayViewHandlers}
         />
       )}
 
-      {/* Vista Semana */}
+      {/* Vista Semana filtrada */}
       {view === "week" && (
         <WeekView
           date={date}
-          byDay={byDay}
+          byDay={filteredByDay}
           canWrite={canWrite}
           onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
           onPick={(start, end) => setModal({ start, end })}
