@@ -41,6 +41,15 @@ export async function createPrescription(
   if (validationError) return { error: validationError };
 
   const supabase = await createClient();
+
+  // Verify patient belongs to this clinic (RLS on patients enforces it)
+  const { data: patientExists } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("id", patientId)
+    .single();
+  if (!patientExists) return { error: "Paciente no encontrado." };
+
   const { data, error } = await supabase
     .from("prescriptions")
     .insert({
