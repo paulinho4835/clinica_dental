@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
 
 // Dominio interno que identifica a los usuarios de vista previa.
-export const PREVIEW_DOMAIN = "plataforma.internal";
+const PREVIEW_DOMAIN = "plataforma.internal";
 
 export async function GET(
   req: NextRequest,
