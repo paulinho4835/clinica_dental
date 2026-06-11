@@ -86,6 +86,9 @@ export function useDrag({ axisH, day, onDrop }: UseDragOptions): UseDragReturn {
   const dragDayRef = useRef(day);
   const draggingIdRef = useRef<string | null>(null);
   const ghostSlotRef = useRef<SlotTarget | null>(null);
+  // true solo si se recibió al menos un pointermove; evita que un simple clic
+  // dispare onDrop con el slot incorrecto calculado en onPointerDown.
+  const hasDraggedRef = useRef(false);
 
   const axisHRef = useRef(axisH);
   axisHRef.current = axisH;
@@ -98,6 +101,7 @@ export function useDrag({ axisH, day, onDrop }: UseDragOptions): UseDragReturn {
 
   if (!moveRef.current) {
     moveRef.current = (e: PointerEvent) => {
+      hasDraggedRef.current = true;
       // Columna bajo el cursor → permite arrastrar entre días/columnas.
       const under = document
         .elementFromPoint(e.clientX, e.clientY)
@@ -130,9 +134,11 @@ export function useDrag({ axisH, day, onDrop }: UseDragOptions): UseDragReturn {
       }
       const id = draggingIdRef.current;
       const slot = ghostSlotRef.current;
-      if (id && slot) onDropRef.current(id, slot);
+      // Solo ejecutar el drop si hubo movimiento real; un simple clic no debe mover la cita.
+      if (id && slot && hasDraggedRef.current) onDropRef.current(id, slot);
       draggingIdRef.current = null;
       ghostSlotRef.current = null;
+      hasDraggedRef.current = false;
       blockRef.current = null;
       containerRef.current = null;
       setDraggingId(null);

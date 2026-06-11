@@ -101,14 +101,7 @@ export function DayView({
       const movedAppt = appts.find((a) => a.id === apptId);
       if (!movedAppt) return;
 
-      const oldTime = new Date(movedAppt.starts_at);
       const [h, m] = slot.time.split(":").map(Number);
-      
-      // Si la cita no se movió de su hora original, ignorar el drop (fue un simple clic)
-      if (oldTime.getHours() === h && oldTime.getMinutes() === m) {
-        return;
-      }
-
       const updated = applyOptimisticMove(appts, apptId, slot.date, slot.time);
       setLocalAppts(updated);
       try {
