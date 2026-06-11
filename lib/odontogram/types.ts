@@ -42,8 +42,10 @@ export function markColorOf(whole: string | null | undefined): string | null {
 }
 
 // Colores por defecto (espejo de dental_condition_catalog del seed).
+// `sano` usa una variable CSS para adaptarse a modo claro/oscuro; el resto son
+// colores clínicos fijos (su significado es universal).
 export const CONDITION_COLORS: Record<string, string> = {
-  sano: "#ffffff",
+  sano: "var(--tooth-healthy)",
   caries: "#ef4444",
   resina: "#3b82f6",
   amalgama: "#64748b",
@@ -56,6 +58,59 @@ export const CONDITION_COLORS: Record<string, string> = {
   extraccion_indicada: "#dc2626",
   protesis: "#d946ef",
 };
+
+// Etiquetas legibles para paleta y leyenda.
+export const CONDITION_LABELS: Record<string, string> = {
+  sano: "Sano",
+  caries: "Caries",
+  resina: "Resina",
+  amalgama: "Amalgama",
+  sellante: "Sellante",
+  fractura: "Fractura",
+  corona: "Corona",
+  endodoncia: "Endodoncia",
+  implante: "Implante",
+  ausente: "Ausente",
+  extraccion_indicada: "Extracción indicada",
+  protesis: "Prótesis",
+};
+
+// Condiciones que se pintan en UNA cara del diente (scope = surface).
+export const SURFACE_CONDITIONS = [
+  "caries",
+  "resina",
+  "amalgama",
+  "sellante",
+  "fractura",
+] as const;
+
+// Condiciones que afectan al DIENTE COMPLETO (scope = whole).
+export const WHOLE_CONDITIONS = [
+  "corona",
+  "endodoncia",
+  "implante",
+  "protesis",
+  "extraccion_indicada",
+  "ausente",
+] as const;
+
+// Tipo anatómico según el segundo dígito FDI (1-2 incisivo, 3 canino,
+// 4-5 premolar, 6-8 molar). Define la forma del diente en el dibujo.
+export type ToothType = "incisor" | "canine" | "premolar" | "molar";
+
+export function toothType(fdi: string): ToothType {
+  const n = Number(fdi[1]);
+  if (n >= 6) return "molar";
+  if (n >= 4) return "premolar";
+  if (n === 3) return "canine";
+  return "incisor";
+}
+
+// Anteriores (incisivos y caninos) no tienen cara oclusal: se dibujan
+// redondeados; los posteriores como cuadrado con cara oclusal central.
+export function isAnterior(fdi: string): boolean {
+  return Number(fdi[1]) <= 3;
+}
 
 // Dentición permanente, ordenada por cuadrantes (FDI).
 export const QUADRANTS: string[][] = [

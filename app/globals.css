@@ -27,6 +27,11 @@
 
   --background: #f8fafc;
   --foreground: #0f172a;
+
+  /* Odontograma: relleno de diente sano y trazo (se adaptan al tema). */
+  --tooth-healthy: #ffffff;
+  --tooth-stroke: #334155;
+  --tooth-plate: #f8fafc;
 }
 
 .dark {
@@ -49,12 +54,28 @@
 
   --background: #0f172a;
   --foreground: #e2e8f0;
+
+  /* En oscuro, el diente sano es un marfil suave (no blanco puro). */
+  --tooth-healthy: #e2e8f0;
+  --tooth-stroke: #64748b;
+  --tooth-plate: #1e293b;
 }
 
 /* El texto blanco siempre se usa sobre fondos de color (botones, badges,
    avatares); debe permanecer blanco aunque la escala se invierta. */
 .dark .text-white {
   color: #fff;
+}
+
+/* Realce sutil al pasar sobre una cara editable del odontograma. */
+.odo-surface {
+  transition: filter 0.1s ease;
+}
+.odo-surface:hover {
+  filter: brightness(0.9);
+}
+.dark .odo-surface:hover {
+  filter: brightness(1.25);
 }
 
 /* Al imprimir, forzar tema claro: el papel siempre es blanco. */
@@ -75,6 +96,9 @@
     --slate-950: 2 6 23;
     --background: #ffffff;
     --foreground: #0f172a;
+    --tooth-healthy: #ffffff;
+    --tooth-stroke: #334155;
+    --tooth-plate: #f8fafc;
   }
 }
 
