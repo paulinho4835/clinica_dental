@@ -119,9 +119,9 @@ export function OdontogramEditor({
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-500">
-        Elegí una condición y hacé click en la <strong>cara</strong> del diente. Para
-        condiciones de <strong>diente completo</strong> y <strong>marcas X</strong>, hacé
-        click en el número o sobre el diente.
+        Elige una condición y haz clic en la <strong>cara</strong> del diente. Para
+        condiciones de <strong>diente completo</strong> y <strong>marcas X</strong>, haz
+        clic en el número o sobre el diente.
       </p>
 
       {/* ── Paleta ────────────────────────────────────────────────────────── */}

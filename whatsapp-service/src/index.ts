@@ -96,7 +96,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:2rem">
         <h2>✅ WhatsApp ya está conectado</h2>
-        <p>No necesitás escanear nada.</p>
+        <p>No necesitas escanear nada.</p>
       </body></html>`);
       return;
     }

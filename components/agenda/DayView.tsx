@@ -396,7 +396,7 @@ export function DayView({
 
       {!isOverview && localAppts.length === 0 && (
         <p className="mt-2 text-center text-sm text-slate-500">
-          {canWrite ? "Día libre — hacé clic en una franja para agendar." : "Sin citas este día."}
+          {canWrite ? "Día libre — haz clic en una franja para agendar." : "Sin citas este día."}
         </p>
       )}
 

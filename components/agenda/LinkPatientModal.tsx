@@ -139,7 +139,7 @@ export function LinkPatientModal({
               </label>
             </div>
             <p className="text-xs text-slate-400">
-              Crea el expediente con lo mínimo. Podés completar el resto luego en la ficha.
+              Crea el expediente con lo mínimo. Puedes completar el resto luego en la ficha.
             </p>
           </div>
         )}
