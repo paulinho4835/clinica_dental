@@ -42,7 +42,7 @@ export default async function FinanceDashboardPage() {
   const dataStart = new Date(Math.min(yearStart.getTime(), firstPrevMonth.getTime(), queryStart.getTime()));
 
   // ── Consultas de agregación (RPC SQL · respetan RLS por clínica) ──
-  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: apptsRaw }, { data: worksRaw }, { data: debtRaw }, { count: newPatCount }] = await Promise.all([
+  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: apptsRaw }, { data: worksRaw }, { data: allPayments }, { data: allPlans }, { count: newPatCount }] = await Promise.all([
     supabase.rpc("dash_revenue_by_day", {
       p_from: firstPrevMonth.toISOString(),
       p_to: tomorrow.toISOString(),
@@ -63,9 +63,11 @@ export default async function FinanceDashboardPage() {
       .select("patient_id, commission_amount, performed_at, doctor:profiles!doctor_works_doctor_id_fkey(full_name)")
       .gte("performed_at", dataStart.toISOString().split("T")[0]),
     supabase
-      .from("patients")
-      .select("balance")
-      .lt("balance", 0),
+      .from("payments")
+      .select("patient_id, amount"),
+    supabase
+      .from("treatment_plans")
+      .select("patient_id, treatment_phases(treatment_items(price))"),
     supabase
       .from("patients")
       .select("id", { count: "exact" })
@@ -219,8 +221,26 @@ export default async function FinanceDashboardPage() {
   const patPeakMonth = patPeak && patPeak.count > 0 ? patPeak.name : null;
 
   // ── Inteligencia de Negocio (Insights) ──
-  const totalDebt = debtRaw?.reduce((s, p) => s + Math.abs(Number(p.balance)), 0) ?? 0;
-  const debtPatients = debtRaw?.length ?? 0;
+  // Balance = total cotizado (treatment_items) − total pagado (payments).
+  const paidByPatient = new Map<string, number>();
+  for (const p of allPayments ?? []) {
+    if (!p.patient_id) continue;
+    paidByPatient.set(p.patient_id, (paidByPatient.get(p.patient_id) ?? 0) + Number(p.amount));
+  }
+  const quotedByPatient = new Map<string, number>();
+  for (const plan of allPlans ?? []) {
+    const pid = plan.patient_id as string;
+    const phases = (plan.treatment_phases as { treatment_items: { price: number }[] }[] | null) ?? [];
+    const total = phases.flatMap((ph) => ph.treatment_items ?? []).reduce((s, i) => s + Number(i.price), 0);
+    quotedByPatient.set(pid, (quotedByPatient.get(pid) ?? 0) + total);
+  }
+  let totalDebt = 0;
+  let debtPatients = 0;
+  for (const [patId, quoted] of quotedByPatient) {
+    const paid = paidByPatient.get(patId) ?? 0;
+    const debt = quoted - paid;
+    if (debt > 0) { debtPatients++; totalDebt += debt; }
+  }
   const noShowRate = monthApptsTotal > 0 ? (monthApptsNoShow / monthApptsTotal) * 100 : 0;
 
   return (
