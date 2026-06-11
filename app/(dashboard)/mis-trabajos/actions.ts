@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { canSeeNav } from "@/lib/rbac";
 
@@ -21,6 +22,7 @@ const WorkSchema = z.object({
   payment_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
   performed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   notes: z.string().trim().max(300).optional().nullable(),
+  doctor_id: z.string().uuid().optional().nullable(),
 });
 
 export async function createDoctorWork(
@@ -29,9 +31,10 @@ export async function createDoctorWork(
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  // Solo quien tiene el módulo en su menú puede registrar trabajos.
   if (!canSeeNav(profile.role, "mis_trabajos"))
     return { error: "Sin permiso para registrar trabajos." };
+
+  const isRecepcionista = profile.role === "recepcionista";
 
   const parsed = WorkSchema.safeParse({
     patient_id: formData.get("patient_id") || null,
@@ -43,6 +46,7 @@ export async function createDoctorWork(
     payment_method: formData.get("payment_method") || null,
     performed_at: formData.get("performed_at"),
     notes: formData.get("notes") || null,
+    doctor_id: formData.get("doctor_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -51,11 +55,7 @@ export async function createDoctorWork(
   if (!d.patient_id && !d.patient_name)
     return { error: "Indica el paciente (registrado o por nombre)." };
 
-  const supabase = await createClient();
-  // commission_amount es columna generada en la DB: no se envía.
-  const { error } = await supabase.from("doctor_works").insert({
-    clinic_id: profile.clinicId,
-    doctor_id: profile.userId,
+  const insertData = {
     patient_id: d.patient_id ?? null,
     patient_name: d.patient_id ? null : d.patient_name,
     description: d.description,
@@ -65,8 +65,35 @@ export async function createDoctorWork(
     payment_method: d.amount_paid > 0 ? d.payment_method ?? "cash" : null,
     performed_at: d.performed_at,
     notes: d.notes ?? null,
-  });
-  if (error) return { error: error.message };
+  };
+
+  if (isRecepcionista) {
+    if (!d.doctor_id) return { error: "Selecciona el doctor que realizó el trabajo." };
+    const admin = createAdminClient();
+    // Verificar que el doctor pertenece a la misma clínica.
+    const { data: doctorProfile } = await admin
+      .from("profiles")
+      .select("clinic_id")
+      .eq("id", d.doctor_id)
+      .single();
+    if (!doctorProfile || doctorProfile.clinic_id !== profile.clinicId)
+      return { error: "Doctor no encontrado en tu clínica." };
+    const { error } = await admin.from("doctor_works").insert({
+      clinic_id: profile.clinicId,
+      doctor_id: d.doctor_id,
+      ...insertData,
+    });
+    if (error) return { error: error.message };
+  } else {
+    // commission_amount es columna generada en la DB: no se envía.
+    const supabase = await createClient();
+    const { error } = await supabase.from("doctor_works").insert({
+      clinic_id: profile.clinicId,
+      doctor_id: profile.userId,
+      ...insertData,
+    });
+    if (error) return { error: error.message };
+  }
 
   revalidatePath("/mis-trabajos");
   return { ok: true };

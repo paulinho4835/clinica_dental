@@ -1,5 +1,6 @@
 import { Briefcase, Banknote, Percent } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
 import { bs, boliviaTodayISO } from "@/lib/format";
@@ -41,16 +42,21 @@ export default async function MisTrabajosPage({
   const supabase = await createClient();
   const profile = await getProfile();
   const isAdmin = profile?.role === "admin";
+  const isRecepcionista = profile?.role === "recepcionista";
+  // Recepcionista y admin pueden ver/filtrar trabajos de todos los doctores.
+  const canPickDoctor = isAdmin || isRecepcionista;
   const today = boliviaTodayISO();
-  // Admin: sin param -> sus propios trabajos; "all" -> todos; UUID -> filtrar por ese doctor.
-  const doctorParam = isAdmin ? ((await searchParams).doctor ?? "") : "";
-  const selectedDoctor = isAdmin
+
+  const doctorParam = canPickDoctor ? ((await searchParams).doctor ?? "") : "";
+  const selectedDoctor = canPickDoctor
     ? doctorParam === "all"
       ? "all"
-      : doctorParam || (profile?.userId ?? "")
+      : doctorParam || (isAdmin ? (profile?.userId ?? "") : "all")
     : "";
 
-  let worksQuery = supabase
+  // Recepcionista necesita admin client para ver los trabajos de toda la clínica.
+  const worksClient = isRecepcionista ? createAdminClient() : supabase;
+  let worksQuery = worksClient
     .from("doctor_works")
     .select(
       "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
@@ -58,13 +64,19 @@ export default async function MisTrabajosPage({
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (isAdmin && selectedDoctor && selectedDoctor !== "all") {
+  if (isRecepcionista && profile) {
+    worksQuery = worksQuery.eq("clinic_id", profile.clinicId);
+  }
+  if (canPickDoctor && selectedDoctor && selectedDoctor !== "all") {
     worksQuery = worksQuery.eq("doctor_id", selectedDoctor);
+  } else if (!canPickDoctor && profile) {
+    // Doctores (odontologo_general, especialista): solo ven sus propios trabajos.
+    worksQuery = worksQuery.eq("doctor_id", profile.userId);
   }
 
-  const platformAdminIds = isAdmin ? await getPlatformAdminIds() : [];
+  const platformAdminIds = canPickDoctor ? await getPlatformAdminIds() : [];
 
-  let doctorsQuery = isAdmin
+  let doctorsQuery = canPickDoctor
     ? supabase
         .from("profiles")
         .select("id, full_name, role")
@@ -86,7 +98,7 @@ export default async function MisTrabajosPage({
   const totalCommission = rows.reduce((s, w) => s + Number(w.commission_amount), 0);
   const totalPaid = rows.reduce((s, w) => s + Number(w.amount_paid), 0);
 
-  // Admin primero, luego resto por nombre.
+  // Para admin: su perfil primero; para recepcionista: sin preferencia propia.
   const sortedDoctors = doctorProfiles
     ? [
         ...(doctorProfiles.filter((d) => d.id === profile?.userId) ?? []),
@@ -103,16 +115,16 @@ export default async function MisTrabajosPage({
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
-          title={isAdmin ? "Trabajos y comisiones" : "Mis trabajos"}
+          title={canPickDoctor ? "Trabajos y comisiones" : "Mis trabajos"}
           subtitle={
-            isAdmin
+            canPickDoctor
               ? selectedName
                 ? `Mostrando trabajos de ${selectedName}.`
                 : "Trabajos registrados por todos los doctores de la clínica."
               : "Registra tus trabajos; la comisión se calcula sola."
           }
         />
-        {isAdmin && sortedDoctors.length > 0 && (
+        {canPickDoctor && sortedDoctors.length > 0 && (
           <DoctorFilter
             doctors={sortedDoctors}
             selected={selectedDoctor}
@@ -121,7 +133,11 @@ export default async function MisTrabajosPage({
         )}
       </div>
 
-      <WorkForm patients={patients ?? []} today={today} />
+      <WorkForm
+        patients={patients ?? []}
+        today={today}
+        doctors={isRecepcionista ? sortedDoctors : undefined}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat
@@ -149,10 +165,10 @@ export default async function MisTrabajosPage({
         </h2>
         <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="min-w-[52rem]">
-            <div className={`${GRID(isAdmin)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
+            <div className={`${GRID(canPickDoctor)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
               <span>Paciente</span>
-              {isAdmin && <span>Doctor</span>}
+              {canPickDoctor && <span>Doctor</span>}
               <span>Trabajo</span>
               <span className="text-right">Costo</span>
               <span className="text-right">Comisión</span>
@@ -162,7 +178,7 @@ export default async function MisTrabajosPage({
             {rows.map((w) => (
               <div
                 key={w.id}
-                className={`${GRID(isAdmin)} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
+                className={`${GRID(canPickDoctor)} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
               >
                 <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
                   {fmtDate(w.performed_at)}
@@ -170,7 +186,7 @@ export default async function MisTrabajosPage({
                 <span className="truncate font-medium">
                   {w.patients?.full_name ?? w.patient_name ?? "—"}
                 </span>
-                {isAdmin && (
+                {canPickDoctor && (
                   <span className="truncate text-slate-600">
                     {w.doctor?.full_name ?? "—"}
                   </span>
@@ -213,7 +229,7 @@ export default async function MisTrabajosPage({
   );
 }
 
-// Columnas: con/sin la de Doctor (visible solo para el admin).
+// Columnas: con/sin la de Doctor (visible para admin y recepcionista).
 const GRID = (admin: boolean) =>
   admin
     ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4"

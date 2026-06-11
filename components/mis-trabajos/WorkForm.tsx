@@ -13,8 +13,17 @@ import { Card } from "@/components/ui/Card";
 const initial: ActionState = {};
 
 type Patient = { id: string; full_name: string; national_id?: string | null };
+type Doctor = { id: string; full_name: string };
 
-export function WorkForm({ patients, today }: { patients: Patient[]; today: string }) {
+export function WorkForm({
+  patients,
+  today,
+  doctors,
+}: {
+  patients: Patient[];
+  today: string;
+  doctors?: Doctor[];
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createDoctorWork, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -25,6 +34,8 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
   const [selectedId, setSelectedId] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
 
   // Cálculo de comisión en vivo.
   const [cost, setCost] = useState("");
@@ -51,6 +62,7 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
       formRef.current?.reset();
       setQuery("");
       setSelectedId("");
+      setSelectedDoctorId("");
       setCost("");
       setPct("");
       setOpen(false);
@@ -121,6 +133,24 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
               </ul>
             )}
           </div>
+
+          {doctors && (
+            <label className="block text-sm sm:col-span-2">
+              <FieldLabel>Doctor *</FieldLabel>
+              <select
+                name="doctor_id"
+                required
+                value={selectedDoctorId}
+                onChange={(e) => setSelectedDoctorId(e.target.value)}
+                className={fieldInputClass}
+              >
+                <option value="">Selecciona un doctor…</option>
+                {doctors.map((d) => (
+                  <option key={d.id} value={d.id}>{d.full_name}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Trabajo realizado *</FieldLabel>
@@ -201,7 +231,7 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
         )}
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={pending || !query.trim()}>
+          <Button type="submit" disabled={pending || !query.trim() || (!!doctors && !selectedDoctorId)}>
             {pending ? "Guardando…" : "Registrar"}
           </Button>
           <Button
@@ -211,6 +241,7 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
               setOpen(false);
               setQuery("");
               setSelectedId("");
+              setSelectedDoctorId("");
               setCost("");
               setPct("");
             }}
