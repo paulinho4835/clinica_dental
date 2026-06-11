@@ -4,16 +4,17 @@ import { can } from "@/lib/rbac";
 import { MovementForm } from "@/components/inventory/MovementForm";
 import { StockTable } from "@/components/inventory/StockTable";
 import { requireNavAccess } from "@/lib/guard";
+import { Badge } from "@/components/ui/Badge";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "Entrada",
   out: "Salida",
   adjust: "Ajuste",
 };
-const MOVE_COLOR: Record<string, string> = {
-  in: "bg-emerald-100 text-emerald-700",
-  out: "bg-red-100 text-red-700",
-  adjust: "bg-amber-100 text-amber-700",
+const MOVE_TONE: Record<string, "success" | "danger" | "warning"> = {
+  in: "success",
+  out: "danger",
+  adjust: "warning",
 };
 
 function fmtDate(s: string): string {
@@ -124,13 +125,9 @@ export default async function InventoryPage() {
                     </td>
                     <td className="font-medium">{it?.name ?? "—"}</td>
                     <td>
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          MOVE_COLOR[m.type] ?? "bg-slate-100 text-slate-600"
-                        }`}
-                      >
+                      <Badge tone={MOVE_TONE[m.type] ?? "neutral"}>
                         {MOVE_LABEL[m.type] ?? m.type}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="text-right tabular-nums">
                       {m.quantity} {it?.unit ?? ""}

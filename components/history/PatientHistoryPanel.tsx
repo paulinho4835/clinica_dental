@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addPatientPayment, type ActionState } from "@/app/(dashboard)/pacientes/history-actions";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { DoneToggle, type Work, type Dentist } from "@/components/treatments/TreatmentPlanPanel";
+import { Badge } from "@/components/ui/Badge";
 import { bs } from "@/lib/format";
 
 export type PaymentRow = {
@@ -53,10 +54,10 @@ export function VisitasPanel({ appointments }: { appointments: ApptRow[] }) {
         {appointments.map((a) => {
           const statusLabel =
             a.status === "finished"
-              ? { text: "Atendido", cls: "bg-emerald-100 text-emerald-700" }
+              ? { text: "Atendido", tone: "success" as const }
               : a.status === "no_show"
-                ? { text: "No vino", cls: "bg-red-100 text-red-700" }
-                : { text: "Programada", cls: "bg-slate-100 text-slate-600" };
+                ? { text: "No vino", tone: "danger" as const }
+                : { text: "Programada", tone: "neutral" as const };
           return (
             <div key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
               <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
@@ -68,9 +69,7 @@ export function VisitasPanel({ appointments }: { appointments: ApptRow[] }) {
               <span className="min-w-0 flex-1 truncate text-slate-500">
                 {a.reason ?? <span className="text-slate-400">—</span>}
               </span>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusLabel.cls}`}>
-                {statusLabel.text}
-              </span>
+              <Badge tone={statusLabel.tone}>{statusLabel.text}</Badge>
             </div>
           );
         })}

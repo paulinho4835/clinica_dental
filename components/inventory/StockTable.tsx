@@ -64,7 +64,7 @@ export function StockTable({ items, canWrite }: { items: InvItem[]; canWrite: bo
           {rows.map((it) => {
             const low = Number(it.current_stock) <= Number(it.min_stock);
             return (
-              <tr key={it.id} className={low ? "bg-red-50" : ""}>
+              <tr key={it.id} className={low ? "bg-red-50 dark:bg-red-500/10" : ""}>
                 <td className="py-2 font-medium">{it.name}</td>
                 <td className="text-slate-500">{it.category ?? "—"}</td>
                 <td className="text-right tabular-nums">{it.min_stock}</td>

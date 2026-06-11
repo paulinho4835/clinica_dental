@@ -367,14 +367,14 @@ function InsightCard({
   icon: string;
 }) {
   return (
-    <div className={`rounded-lg p-5 shadow-sm ring-1 flex items-start gap-4 transition-all ${alert ? "bg-red-50/50 ring-red-200" : "bg-white ring-slate-200"}`}>
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${alert ? "bg-red-100" : "bg-slate-100"}`}>
+    <div className={`rounded-lg p-5 shadow-sm ring-1 flex items-start gap-4 transition-all ${alert ? "bg-red-50/50 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/30" : "bg-white ring-slate-200"}`}>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${alert ? "bg-red-100 dark:bg-red-500/20" : "bg-slate-100"}`}>
         {icon}
       </div>
       <div>
-        <p className={`text-sm font-medium ${alert ? "text-red-800" : "text-slate-600"}`}>{title}</p>
-        <p className={`mt-0.5 text-2xl font-bold tracking-tight ${alert ? "text-red-900" : "text-slate-800"}`}>{value}</p>
-        <p className={`mt-1 text-xs ${alert ? "text-red-600" : "text-slate-500"}`}>{subtitle}</p>
+        <p className={`text-sm font-medium ${alert ? "text-red-800 dark:text-red-300" : "text-slate-600"}`}>{title}</p>
+        <p className={`mt-0.5 text-2xl font-bold tracking-tight ${alert ? "text-red-900 dark:text-red-200" : "text-slate-800"}`}>{value}</p>
+        <p className={`mt-1 text-xs ${alert ? "text-red-600 dark:text-red-400" : "text-slate-500"}`}>{subtitle}</p>
       </div>
     </div>
   );

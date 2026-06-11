@@ -16,7 +16,7 @@ const buttonVariants = cva(
         danger:
           "border border-red-300 bg-white text-red-600 hover:bg-red-50",
         ghost: "text-slate-600 hover:bg-slate-100",
-        dark: "bg-slate-900 text-white hover:bg-slate-700",
+        dark: "bg-night text-white hover:bg-night-soft",
       },
       size: {
         sm: "px-3 py-1.5 text-xs",

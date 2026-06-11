@@ -9,7 +9,7 @@ const MAX_VISIBLE = 4; // evita que se acumulen infinitos toasts en pantalla
 const STYLES = {
   success: { ring: "ring-emerald-700 bg-emerald-600", Icon: CheckCircle2 },
   error: { ring: "ring-red-700 bg-red-600", Icon: XCircle },
-  info: { ring: "ring-slate-900 bg-slate-800", Icon: Info },
+  info: { ring: "ring-night bg-night-soft", Icon: Info },
 } as const;
 
 export function Toaster() {

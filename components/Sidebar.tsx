@@ -17,6 +17,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ButtonLink } from "@/components/ui/Button";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/cn";
 
 export type NavItem = { href: string; label: string };
@@ -102,7 +103,8 @@ export function Sidebar({
         </div>
       )}
 
-      <div className="mt-auto border-t border-slate-200 pt-4">
+      <div className="mt-auto space-y-1 border-t border-slate-200 pt-4">
+        <ThemeToggle />
         <SignOutButton />
       </div>
     </div>

@@ -51,7 +51,7 @@ export function CashSessionPanel({ session }: { session: OpenSession }) {
               else router.refresh();
             })
           }
-          className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-md bg-night px-4 py-2 text-sm font-medium text-white hover:bg-night-soft disabled:opacity-50"
         >
           {closing ? "Cerrando…" : "Cerrar caja"}
         </button>
