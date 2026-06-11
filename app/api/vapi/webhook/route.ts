@@ -90,6 +90,208 @@ export async function POST(req: NextRequest) {
       return toolResult(toolCall.id, "Cita cancelada.");
     }
 
+    // ── lookup_appointment / get_appointment ───────────────────────────────
+    if (fnName === "lookup_appointment" || fnName === "get_appointment") {
+      const callerNumber: string =
+        (args.phone as string | undefined) ??
+        (args.phoneNumber as string | undefined) ?? "";
+      const identity: string = ((args.identity as string | undefined) ?? "").trim();
+      const normalized = normalizeVapiPhone(callerNumber);
+
+      if (!clinicId) {
+        return toolResult(toolCall.id, "Error interno: clínica no identificada.");
+      }
+
+      let patient: { id: string; full_name: string } | null = null;
+
+      // 1er intento: búsqueda por teléfono
+      if (normalized) {
+        const { data } = await admin
+          .from("patients")
+          .select("id, full_name")
+          .eq("clinic_id", clinicId)
+          .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
+          .maybeSingle();
+        patient = data ?? null;
+      }
+
+      // 2do intento: búsqueda por nombre o CI (campo identity)
+      if (!patient && identity) {
+        const isNumeric = /^\d+$/.test(identity);
+        const { data } = await admin
+          .from("patients")
+          .select("id, full_name")
+          .eq("clinic_id", clinicId)
+          .ilike(isNumeric ? "id_number" : "full_name", `%${identity}%`)
+          .limit(1)
+          .maybeSingle();
+        patient = data ?? null;
+      }
+
+      if (!patient && !identity) {
+        return toolResult(
+          toolCall.id,
+          "No encontré un paciente con ese número. ¿Me puedes decir tu nombre completo o número de carnet?",
+        );
+      }
+
+      if (!patient) {
+        return toolResult(
+          toolCall.id,
+          `No encontré a nadie con "${identity}" en el sistema. ¿Puedes deletrear tu apellido o darme tu número de carnet?`,
+        );
+      }
+
+      // Buscar próxima cita activa
+      const now = new Date().toISOString();
+      const { data: appt } = await admin
+        .from("appointments")
+        .select("id, starts_at, reason, status, dentist_name")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patient.id)
+        .gte("starts_at", now)
+        .not("status", "in", "(cancelled,no_show,finished)")
+        .order("starts_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!appt) {
+        return toolResult(
+          toolCall.id,
+          `Hola ${patient.full_name}, no tienes citas próximas agendadas. ¿Te gustaría agendar una nueva cita?`,
+        );
+      }
+
+      const starts = new Date(appt.starts_at);
+      const dateLabel = starts.toLocaleDateString("es-BO", {
+        timeZone: BOLIVIA_TZ,
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+      });
+      const timeLabel = starts.toLocaleTimeString("es-BO", {
+        timeZone: BOLIVIA_TZ,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+
+      const dentistInfo = appt.dentist_name ? ` con ${appt.dentist_name}` : "";
+      return toolResult(
+        toolCall.id,
+        `Encontré tu cita, ${patient.full_name}: el ${dateLabel} a las ${timeLabel}${dentistInfo}${appt.reason ? ` (${appt.reason})` : ""}. El estado actual es: ${appt.status}. ¿En qué puedo ayudarte con esta cita?`,
+      );
+    }
+
+    // ── update_appointment (confirmar, cancelar o reagendar) ────────────────
+    if (fnName === "update_appointment") {
+      // Acepta tanto los nombres del webhook propio como los que genera el guide de Vapi
+      const rawPhone =
+        (args.phone as string | undefined) ??
+        (args.phoneNumber as string | undefined);
+      const action = args.action as "confirm" | "cancel" | "reschedule" | undefined;
+
+      // newDateTime puede venir como "2026-06-15T10:00" o "2026-06-15 10:00"
+      const rawDT = (args.newDateTime as string | undefined) ?? "";
+      const dtParts = rawDT.replace("T", " ").split(" ");
+      const new_date = (args.new_date as string | undefined) ?? dtParts[0];
+      const new_time = (args.new_time as string | undefined) ?? dtParts[1];
+
+      const phone = rawPhone;
+
+      if (!action) {
+        return toolResult(toolCall.id, "No entendí qué acción realizar. ¿Quieres confirmar, cancelar o reagendar la cita?");
+      }
+
+      const normalized = phone ? normalizeVapiPhone(phone) : null;
+
+      if (!normalized || !clinicId) {
+        return toolResult(toolCall.id, "No pude identificar el número de teléfono para actualizar la cita.");
+      }
+
+      // Buscar paciente y su próxima cita
+      const { data: patient } = await admin
+        .from("patients")
+        .select("id, full_name")
+        .eq("clinic_id", clinicId)
+        .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
+        .maybeSingle();
+
+      if (!patient) {
+        return toolResult(toolCall.id, "No encontré un paciente con ese número para actualizar la cita.");
+      }
+
+      const now = new Date().toISOString();
+      const { data: appt } = await admin
+        .from("appointments")
+        .select("id, starts_at")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patient.id)
+        .gte("starts_at", now)
+        .not("status", "in", "(cancelled,no_show,finished)")
+        .order("starts_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!appt) {
+        return toolResult(toolCall.id, `${patient.full_name} no tiene citas próximas para modificar.`);
+      }
+
+      if (action === "confirm") {
+        await admin.from("appointments").update({ status: "confirmed" }).eq("id", appt.id);
+        return toolResult(toolCall.id, `¡Cita confirmada, ${patient.full_name}! Te esperamos. ¿Hay algo más en que pueda ayudarte?`);
+      }
+
+      if (action === "cancel") {
+        await admin.from("appointments").update({ status: "cancelled" }).eq("id", appt.id);
+        return toolResult(toolCall.id, `Cita cancelada. Cuando quieras reagendar, con gusto te ayudamos. ¿Hay algo más?`);
+      }
+
+      if (action === "reschedule") {
+        if (!new_date || !new_time) {
+          return toolResult(toolCall.id, "Para reagendar necesito la nueva fecha y hora. ¿Cuándo prefieres?");
+        }
+
+        // Verificar disponibilidad del nuevo horario
+        const newStart = new Date(`${new_date}T${new_time}:00-04:00`);
+        const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+        const slotStart = newStart.toISOString();
+        const slotEnd = newEnd.toISOString();
+
+        const { data: conflict } = await admin
+          .from("appointments")
+          .select("id")
+          .eq("clinic_id", clinicId)
+          .neq("id", appt.id)
+          .lt("starts_at", slotEnd)
+          .gt("ends_at", slotStart)
+          .not("status", "in", "(cancelled,no_show)")
+          .maybeSingle();
+
+        if (conflict) {
+          return toolResult(toolCall.id, `El horario ${new_time} del ${new_date} ya está ocupado. ¿Tienes otra opción de horario?`);
+        }
+
+        await admin
+          .from("appointments")
+          .update({ starts_at: slotStart, ends_at: slotEnd, status: "scheduled" })
+          .eq("id", appt.id);
+
+        const dateLabel = newStart.toLocaleDateString("es-BO", {
+          timeZone: BOLIVIA_TZ,
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+        });
+        return toolResult(
+          toolCall.id,
+          `¡Listo, ${patient.full_name}! Tu cita fue reagendada para el ${dateLabel} a las ${new_time}. ¿Hay algo más en que pueda ayudarte?`,
+        );
+      }
+
+      return toolResult(toolCall.id, "Acción no reconocida. ¿Quieres confirmar, cancelar o reagendar?");
+    }
+
     // ── check_availability (recepción inbound) ──────────────────────────────
     if (fnName === "check_availability") {
       const date: string = (args.date as string | undefined) ?? new Date().toISOString().slice(0, 10);
@@ -148,12 +350,44 @@ export async function POST(req: NextRequest) {
         return toolResult(toolCall.id, "Error interno: clínica no identificada.");
       }
 
-      const startsAt = new Date(`${date}T${String(time)}:00-04:00`).toISOString();
-      const endsAt = new Date(new Date(startsAt).getTime() + 60 * 60 * 1000).toISOString();
+      // Normalizar hora: acepta "12:00", "12", "12:00 PM", "12h00", etc.
+      const normalizedTime = normalizeTime(time);
+      if (!normalizedTime) {
+        return toolResult(toolCall.id, `No entendí el horario "${time}". Por favor indícame la hora en formato de 24 horas, por ejemplo "14:00".`);
+      }
+
+      // Normalizar fecha: debe ser YYYY-MM-DD
+      const normalizedDate = normalizeDate(date);
+      if (!normalizedDate) {
+        return toolResult(toolCall.id, `No entendí la fecha "${date}". Por favor indícamela como día/mes/año, por ejemplo "13/06/2026".`);
+      }
+
+      let startsAt: string;
+      let endsAt: string;
+      try {
+        const start = new Date(`${normalizedDate}T${normalizedTime}:00-04:00`);
+        if (isNaN(start.getTime())) throw new Error("fecha inválida");
+        startsAt = start.toISOString();
+        endsAt = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
+      } catch {
+        return toolResult(toolCall.id, `No pude interpretar la fecha y hora. ¿Puedes confirmarme el día y la hora de nuevo?`);
+      }
+
+      // Asignar el primer doctor activo de la clínica para que la cita
+      // aparezca en la agenda (el filtro por defecto filtra por dentist_name).
+      const { data: firstDoctor } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("clinic_id", clinicId)
+        .in("role", ["odontologo_general", "especialista", "admin"])
+        .order("full_name")
+        .limit(1)
+        .maybeSingle();
 
       const { error } = await admin.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: patient_name.trim(),
+        dentist_name: firstDoctor?.full_name ?? null,
         starts_at: startsAt,
         ends_at: endsAt,
         reason: reason ?? "Consulta",
@@ -161,16 +395,16 @@ export async function POST(req: NextRequest) {
       });
 
       if (error) {
-        console.error("[vapi/book_appointment]", error.message);
+        console.error("[vapi/book_appointment]", error.message, { clinicId, normalizedDate, normalizedTime });
         return toolResult(
           toolCall.id,
-          "Hubo un error al agendar. Por favor llama directamente a la clínica.",
+          `Error al guardar: ${error.message}. Por favor llama directamente a la clínica.`,
         );
       }
 
       return toolResult(
         toolCall.id,
-        `¡Cita agendada para ${patient_name} el ${date} a las ${time}! Te esperamos.`,
+        `¡Cita agendada para ${patient_name} el ${normalizedDate} a las ${normalizedTime}! Te esperamos.`,
       );
     }
 
@@ -247,6 +481,62 @@ function buildSlots(): string[] {
   return Array.from({ length: 10 }, (_, i) =>
     `${String(i + 8).padStart(2, "0")}:00`,
   );
+}
+
+// Convierte hora en cualquier formato a "HH:MM" (24h). Devuelve null si no parseable.
+function normalizeTime(raw: string): string | null {
+  const s = raw.trim().toLowerCase();
+  // "12:00", "9:30", "14:00"
+  const hhmm = s.match(/^(\d{1,2}):(\d{2})(?:\s*(am|pm))?$/);
+  if (hhmm) {
+    let h = parseInt(hhmm[1], 10);
+    const m = parseInt(hhmm[2], 10);
+    if (hhmm[3] === "pm" && h < 12) h += 12;
+    if (hhmm[3] === "am" && h === 12) h = 0;
+    if (h > 23 || m > 59) return null;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+  // "12h00", "9h30"
+  const hh = s.match(/^(\d{1,2})h(\d{2})$/);
+  if (hh) return normalizeTime(`${hh[1]}:${hh[2]}`);
+  // "12" (solo hora)
+  const ho = s.match(/^(\d{1,2})(?:\s*(am|pm))?$/);
+  if (ho) return normalizeTime(`${ho[1]}:00${ho[2] ? " " + ho[2] : ""}`);
+  return null;
+}
+
+// Convierte fecha en formatos comunes a "YYYY-MM-DD". Devuelve null si no parseable.
+function normalizeDate(raw: string): string | null {
+  const s = raw.trim();
+  // Ya es YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YYYY o DD-MM-YYYY
+  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const d = dmy[1].padStart(2, "0");
+    const m = dmy[2].padStart(2, "0");
+    return `${dmy[3]}-${m}-${d}`;
+  }
+  // MM/DD/YYYY
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) {
+    const m = mdy[1].padStart(2, "0");
+    const d = mdy[2].padStart(2, "0");
+    return `${mdy[3]}-${m}-${d}`;
+  }
+  return null;
+}
+
+// Normaliza el número de teléfono que envía Vapi ("+59171234567" → "59171234567").
+// También maneja formatos sin código de país para números bolivianos de 8 dígitos.
+function normalizeVapiPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length === 8 && (digits[0] === "6" || digits[0] === "7")) {
+    return `591${digits}`;
+  }
+  if (digits.length >= 10) return digits;
+  return null;
 }
 
 // ── Tipos mínimos del payload de Vapi ────────────────────────────────────────

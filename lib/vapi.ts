@@ -127,7 +127,8 @@ export const REMINDER_TOOLS = [
 
 // ── Asistente de recepción entrante (inbound) ────────────────────────────────
 
-export function buildInboundAssistant(clinicName: string) {
+export function buildInboundAssistant(clinicName: string, todayISO?: string) {
+  const today = todayISO ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
   return {
     model: {
       provider: "openai",
@@ -135,29 +136,89 @@ export function buildInboundAssistant(clinicName: string) {
       messages: [
         {
           role: "system",
-          content: `Eres la recepcionista virtual de ${clinicName}, una clínica dental. Hablas solo en español neutro y eres amable y profesional.
+          content: `Eres la recepcionista virtual de ${clinicName}, una clínica dental. Hablas solo en español neutro, eres amable y profesional.
+Hoy es ${today} (formato YYYY-MM-DD). Usa esta fecha para calcular "mañana", "la próxima semana", etc. Siempre convierte fechas a formato YYYY-MM-DD antes de llamar a cualquier tool.
+
+Al inicio de CADA llamada entrante, llama INMEDIATAMENTE a lookup_appointment con el número del llamante ({{customer.number}}) para ver si tiene una cita.
 
 Puedes ayudar con:
-1. Agendar una nueva cita dental.
-2. Información general de la clínica.
+1. Consultar o gestionar una cita existente (confirmar, cancelar, reagendar).
+2. Agendar una nueva cita.
 
-Flujo para agendar:
-1. Pide el nombre completo del paciente.
-2. Pide el motivo de la consulta (limpieza, dolor, extracción, revisión, etc.).
-3. Pregunta qué día prefiere (responde en formato YYYY-MM-DD) y a qué hora (HH:MM).
+Flujo si el paciente ya tiene cita (lookup_appointment encontró resultado):
+- Informa la cita encontrada y pregunta: "¿En qué puedo ayudarte? ¿Quieres confirmar, cancelar o reagendar?"
+- Según la respuesta, llama a update_appointment con la acción correspondiente.
+- Para reagendar: pregunta fecha y hora nuevas, llama a check_availability y luego a update_appointment.
+
+Flujo para agendar nueva cita (lookup no encontró cita, o el paciente quiere otra):
+1. Pide el nombre completo.
+2. Pide el motivo (limpieza, dolor, extracción, revisión, etc.).
+3. Pregunta qué día y hora prefiere.
 4. Llama a check_availability con esa fecha.
-5. Si hay horarios disponibles, confirma el solicitado; si no, sugiere el más cercano disponible.
-6. Llama a book_appointment con todos los datos recopilados.
-7. Confirma la cita al paciente y despídete.
+5. Confirma el horario disponible y llama a book_appointment.
+6. Confirma y despídete.
 
 Normas:
-- Habla solo en español.
+- Habla solo en español neutro.
 - No inventes precios, tratamientos ni información médica.
-- Si el paciente pregunta algo fuera de tu alcance, pídele que llame directamente a la clínica.
-- Sé breve y profesional.`,
+- Si algo está fuera de tu alcance, pide que llamen directamente a la clínica.
+- Sé breve y profesional. Máximo 6 turnos por gestión.`,
         },
       ],
       tools: [
+        {
+          type: "function",
+          function: {
+            name: "lookup_appointment",
+            description:
+              "Busca la próxima cita del paciente. Llamar al inicio de la conversación con el teléfono del llamante. Si no hay coincidencia, volver a llamar con el campo identity que diga el paciente.",
+            parameters: {
+              type: "object",
+              properties: {
+                phone: {
+                  type: "string",
+                  description: "Número de teléfono del llamante tal como lo provee Vapi (ej. +59171234567)",
+                },
+                identity: {
+                  type: "string",
+                  description: "Nombre completo o número de carnet que el paciente dictó cuando no se encontró por teléfono",
+                },
+              },
+              required: [],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "update_appointment",
+            description:
+              "Confirma, cancela o reagenda la próxima cita del paciente identificado por teléfono.",
+            parameters: {
+              type: "object",
+              properties: {
+                phone: {
+                  type: "string",
+                  description: "Número de teléfono del paciente (ej. +59171234567)",
+                },
+                action: {
+                  type: "string",
+                  enum: ["confirm", "cancel", "reschedule"],
+                  description: "Acción a realizar sobre la cita",
+                },
+                new_date: {
+                  type: "string",
+                  description: "Nueva fecha en formato YYYY-MM-DD (solo si action=reschedule)",
+                },
+                new_time: {
+                  type: "string",
+                  description: "Nueva hora en formato HH:MM (solo si action=reschedule)",
+                },
+              },
+              required: ["phone", "action"],
+            },
+          },
+        },
         {
           type: "function",
           function: {
@@ -176,7 +237,7 @@ Normas:
           type: "function",
           function: {
             name: "book_appointment",
-            description: "Agenda una cita para el paciente en el sistema.",
+            description: "Agenda una cita nueva para un paciente en el sistema.",
             parameters: {
               type: "object",
               properties: {
