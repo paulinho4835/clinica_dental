@@ -32,7 +32,7 @@ const PX_PER_HOUR = 56;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
 const HOURS = Array.from({ length: CLOSE_HOUR - OPEN_HOUR + 1 }, (_, i) => OPEN_HOUR + i);
 const hhmm = (d: Date) =>
-  d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+  d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
 
 function nowFraction(day: string): number | null {
   const now = new Date();

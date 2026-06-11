@@ -18,6 +18,7 @@ const MOVE_COLOR: Record<string, string> = {
 
 function fmtDate(s: string): string {
   return new Date(s).toLocaleString("es-BO", {
+    timeZone: "America/La_Paz",
     day: "2-digit",
     month: "short",
     hour: "2-digit",

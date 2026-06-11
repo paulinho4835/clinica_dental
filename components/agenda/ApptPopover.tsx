@@ -8,7 +8,7 @@ import { MiniStatus } from "./MiniStatus";
 import { Pencil, Link } from "lucide-react";
 
 const hhmm = (d: Date) =>
-  d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+  d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
 
 export type PopoverAppt = {
   appt: MonthAppt;

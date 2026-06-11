@@ -25,7 +25,7 @@ const HOURS = Array.from({ length: CLOSE_HOUR - OPEN_HOUR + 1 }, (_, i) => OPEN_
 const WD = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const hhmm = (d: Date) => d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" });
+const hhmm = (d: Date) => d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
 
 export function WeekView({
   date,

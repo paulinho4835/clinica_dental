@@ -37,7 +37,7 @@ export function CashSessionPanel({ session }: { session: OpenSession }) {
         <div className="text-sm">
           <span className="font-semibold text-green-700">Caja abierta</span>
           <span className="ml-3 text-slate-500">
-            Desde {new Date(session.opened_at).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+            Desde {new Date(session.opened_at).toLocaleString("es-BO", { timeZone: "America/La_Paz", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
             {" · "}Fondo {bs(Number(session.opening_float))}
           </span>
         </div>

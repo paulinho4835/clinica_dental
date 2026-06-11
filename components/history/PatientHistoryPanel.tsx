@@ -38,6 +38,7 @@ const METHOD_LABEL: Record<string, string> = {
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("es-BO", {
+    timeZone: "America/La_Paz",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
