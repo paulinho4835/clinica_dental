@@ -18,7 +18,7 @@ const WorkSchema = z.object({
     .min(0, "El % no puede ser negativo.")
     .max(100, "El % no puede pasar de 100."),
   amount_paid: z.coerce.number().min(0, "El cobro no puede ser negativo."),
-  payment_method: z.enum(["cash", "qr", "card", "transfer"]).optional().nullable(),
+  payment_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
   performed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   notes: z.string().trim().max(300).optional().nullable(),
 });

@@ -29,10 +29,8 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
   // Cálculo de comisión en vivo.
   const [cost, setCost] = useState("");
   const [pct, setPct] = useState("");
-  const [paid, setPaid] = useState("");
   const costN = Number(cost) || 0;
   const pctN = Number(pct) || 0;
-  const paidN = Number(paid) || 0;
   const commission = Math.round(costN * pctN) / 100;
 
   const filtered =
@@ -55,7 +53,6 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
       setSelectedId("");
       setCost("");
       setPct("");
-      setPaid("");
       setOpen(false);
       router.refresh();
       toast("Trabajo registrado", "success");
@@ -177,32 +174,6 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
           </div>
 
           <label className="block text-sm">
-            <FieldLabel>Cobrado al paciente (Bs)</FieldLabel>
-            <input
-              name="amount_paid"
-              type="number"
-              step="0.01"
-              min="0"
-              value={paid}
-              onChange={(e) => setPaid(e.target.value)}
-              placeholder="0.00"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {paidN > 0 && (
-            <label className="block text-sm">
-              <FieldLabel>Método de pago</FieldLabel>
-              <select name="payment_method" defaultValue="cash" className={fieldInputClass}>
-                <option value="cash">Efectivo</option>
-                <option value="qr">QR</option>
-                <option value="card">Tarjeta</option>
-                <option value="transfer">Transferencia</option>
-              </select>
-            </label>
-          )}
-
-          <label className="block text-sm">
             <FieldLabel>Fecha</FieldLabel>
             <input
               name="performed_at"
@@ -242,7 +213,6 @@ export function WorkForm({ patients, today }: { patients: Patient[]; today: stri
               setSelectedId("");
               setCost("");
               setPct("");
-              setPaid("");
             }}
           >
             Cancelar
