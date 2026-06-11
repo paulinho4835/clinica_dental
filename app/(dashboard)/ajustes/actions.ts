@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -115,11 +116,19 @@ export async function createTeamUser(
 
   const admin = createAdminClient();
 
-  // Verificar límite de usuarios antes de crear.
-  const [{ count }, { data: clinicRow }] = await Promise.all([
-    admin.from("profiles").select("id", { count: "exact", head: true }).eq("clinic_id", profile.clinicId),
+  // Verificar límite de usuarios antes de crear (excluye superadmins en vista previa).
+  const [platformAdminIds, { data: clinicRow }] = await Promise.all([
+    getPlatformAdminIds(),
     admin.from("clinics").select("max_users").eq("id", profile.clinicId).single(),
   ]);
+  let countQuery = admin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", profile.clinicId);
+  if (platformAdminIds.length > 0) {
+    countQuery = countQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
+  const { count } = await countQuery;
   const maxUsers = clinicRow?.max_users ?? 10;
   if ((count ?? 0) >= maxUsers) {
     return { error: `Límite de ${maxUsers} usuarios alcanzado. Contacta al administrador de la plataforma.` };

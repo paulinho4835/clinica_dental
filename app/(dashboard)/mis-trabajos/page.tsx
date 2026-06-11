@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
 import { DeleteWorkButton } from "@/components/mis-trabajos/DeleteWorkButton";
 import { DoctorFilter } from "@/components/mis-trabajos/DoctorFilter";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
@@ -61,16 +62,23 @@ export default async function MisTrabajosPage({
     worksQuery = worksQuery.eq("doctor_id", selectedDoctor);
   }
 
+  const platformAdminIds = isAdmin ? await getPlatformAdminIds() : [];
+
+  let doctorsQuery = isAdmin
+    ? supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("role", ["admin", "odontologo_general", "especialista"])
+        .order("full_name")
+    : null;
+  if (doctorsQuery && platformAdminIds.length > 0) {
+    doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
+
   const [{ data: works }, { data: patients }, { data: doctorProfiles }] = await Promise.all([
     worksQuery,
     supabase.from("patients").select("id, full_name, national_id").order("full_name"),
-    isAdmin
-      ? supabase
-          .from("profiles")
-          .select("id, full_name, role")
-          .in("role", ["admin", "odontologo_general", "especialista"])
-          .order("full_name")
-      : Promise.resolve({ data: null }),
+    doctorsQuery ?? Promise.resolve({ data: null }),
   ]);
 
   const rows = (works as WorkRow[] | null) ?? [];

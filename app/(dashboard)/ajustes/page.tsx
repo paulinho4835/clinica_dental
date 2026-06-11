@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -15,24 +16,31 @@ export default async function SettingsPage() {
   // Equipo (cuentas con login): solo lo gestiona el admin de la clínica.
   let team: TeamMember[] = [];
   if (isClinicAdmin && profile) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("clinic_id", profile.clinicId)
-      .order("full_name");
+    const [platformAdminIds, { data: profiles }] = await Promise.all([
+      getPlatformAdminIds(),
+      supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .eq("clinic_id", profile.clinicId)
+        .order("full_name"),
+    ]);
+
+    const platformAdminSet = new Set(platformAdminIds);
 
     // El email vive en auth.users; se resuelve con el cliente service-role.
     const admin = createAdminClient();
     team = await Promise.all(
-      (profiles ?? []).map(async (p) => {
-        const { data } = await admin.auth.admin.getUserById(p.id);
-        return {
-          id: p.id,
-          full_name: p.full_name,
-          role: p.role,
-          email: data.user?.email ?? null,
-        };
-      }),
+      (profiles ?? [])
+        .filter((p) => !platformAdminSet.has(p.id))
+        .map(async (p) => {
+          const { data } = await admin.auth.admin.getUserById(p.id);
+          return {
+            id: p.id,
+            full_name: p.full_name,
+            role: p.role,
+            email: data.user?.email ?? null,
+          };
+        }),
     );
   }
 

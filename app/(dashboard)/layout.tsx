@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
 import { getInitials } from "@/lib/format";
+import { ExitPreviewBanner } from "@/components/superadmin/ExitPreviewBanner";
 
 export default async function DashboardLayout({
   children,
@@ -24,6 +25,10 @@ export default async function DashboardLayout({
     .single();
 
   const superadmin = await isPlatformAdmin();
+
+  // Un superadmin normalmente no tiene perfil. Si lo tiene, está en modo vista previa
+  // de una clínica (enterClinic() insertó un perfil temporal y refrescó el JWT).
+  const isPreview = superadmin && !!profile;
 
   const clinic = profile?.clinics as
     | { name?: string; features?: unknown; active?: boolean }
@@ -46,36 +51,46 @@ export default async function DashboardLayout({
       </main>
     );
   }
-  const clinicName = superadmin ? "Plataforma" : clinic?.name ?? "Clínica";
+  const clinicName = isPreview
+    ? (clinic?.name ?? "Clínica")
+    : superadmin
+    ? "Plataforma"
+    : clinic?.name ?? "Clínica";
 
   // Menú = módulos encendidos de la clínica Y permitidos para el rol del usuario.
   const features = normalizeFeatures(clinic?.features);
   const role = profile?.role as Role | undefined;
-  const nav = superadmin
-    ? []
-    : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key));
+  const nav =
+    superadmin && !isPreview
+      ? []
+      : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key));
 
   const initials =
     !superadmin && profile?.full_name
       ? getInitials(profile.full_name)
       : null;
 
-  const subtitle = superadmin
+  const subtitle = isPreview
+    ? "Vista previa · Superadmin"
+    : superadmin
     ? "Operador de plataforma"
     : `${profile?.full_name} · ${profile?.role}`;
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar
-        clinicName={clinicName}
-        subtitle={subtitle}
-        initials={initials}
-        nav={nav}
-        superadmin={superadmin}
-      />
-      <main className="flex-1 p-4 md:p-8">{children}</main>
-      <Toaster />
-      <ConfirmHost />
+    <div className="flex min-h-screen flex-col">
+      {isPreview && <ExitPreviewBanner clinicName={clinicName} />}
+      <div className="flex flex-1 flex-col md:flex-row">
+        <Sidebar
+          clinicName={clinicName}
+          subtitle={subtitle}
+          initials={initials}
+          nav={nav}
+          superadmin={superadmin}
+        />
+        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <Toaster />
+        <ConfirmHost />
+      </div>
     </div>
   );
 }

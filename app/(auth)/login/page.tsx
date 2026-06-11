@@ -18,12 +18,20 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       setError(error.message);
       setPassword(""); // limpia solo la contraseña; el correo se conserva
       return;
+    }
+    // Revoca todas las sesiones previas del mismo usuario (sesión única por cuenta).
+    if (data.session?.access_token) {
+      await fetch("/api/auth/single-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: data.session.access_token }),
+      });
     }
     router.push("/agenda");
     router.refresh();

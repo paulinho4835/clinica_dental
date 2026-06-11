@@ -7,6 +7,7 @@ import { requireFeature } from "@/lib/guard";
 import { getClinicFeatures } from "@/lib/superadmin";
 import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 const isView = (v: string | undefined): v is AgendaView =>
   v === "day" || v === "week" || v === "month" || v === "overview";
@@ -26,7 +27,11 @@ export default async function AgendaPage({
   const { start, end } = gridRange(new Date(date + "T00:00:00"));
 
   const supabase = await createClient();
-  const [profile, features] = await Promise.all([getProfile(), getClinicFeatures()]);
+  const [profile, features, platformAdminIds] = await Promise.all([
+    getProfile(),
+    getClinicFeatures(),
+    getPlatformAdminIds(),
+  ]);
   const writable = can(profile?.role, "appointments:write");
   const isAdmin = profile?.role === "admin";
 
@@ -49,18 +54,22 @@ export default async function AgendaPage({
     apptsQuery = apptsQuery.eq("dentist_name", myName);
   }
 
+  // Query de odontólogos (dropdown del admin), excluyendo superadmins en vista previa.
+  let doctorsQuery = isAdmin
+    ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("role", ["odontologo_general", "especialista", "admin"])
+        .order("full_name")
+    : null;
+  if (doctorsQuery && platformAdminIds.length > 0) {
+    doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
+
   const [{ data: appts }, { data: patients }, { data: doctors }] = await Promise.all([
     apptsQuery,
     supabase.from("patients").select("id, full_name, national_id").order("full_name"),
-    // Admin ve todos los odontólogos (incluido él mismo) para el dropdown.
-    // No-admin recibe lista vacía (no usa el dropdown).
-    isAdmin
-      ? supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("role", ["odontologo_general", "especialista", "admin"])
-          .order("full_name")
-      : Promise.resolve({ data: [] }),
+    doctorsQuery ?? Promise.resolve({ data: [] }),
   ]);
 
   return (

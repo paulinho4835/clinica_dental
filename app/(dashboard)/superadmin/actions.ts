@@ -1,8 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
@@ -231,4 +233,57 @@ export async function setPlan(formData: FormData) {
   const admin = createAdminClient();
   await admin.from("clinics").update({ plan }).eq("id", clinicId);
   revalidatePath("/superadmin");
+}
+
+// ── Vista previa de clínica ──────────────────────────────────────────────────
+// Inserta un perfil temporal del superadmin en la clínica objetivo para que el
+// custom_access_token_hook inyecte el clinic_id correcto en el JWT tras el
+// refreshSession(). Así todas las queries RLS del dashboard funcionan sin
+// ninguna modificación adicional.
+export async function enterClinic(clinicId: string) {
+  await assertSuperadmin();
+
+  const serverClient = await createClient();
+  const { data: { user } } = await serverClient.auth.getUser();
+  if (!user) throw new Error("No hay sesión activa");
+
+  const admin = createAdminClient();
+
+  // Verificar que la clínica existe
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("id")
+    .eq("id", clinicId)
+    .single();
+  if (!clinic) throw new Error("Clínica no encontrada");
+
+  // Upsert: si ya tiene perfil (preview de otra clínica) lo actualiza;
+  // si no, lo inserta.
+  await admin.from("profiles").upsert({
+    id: user.id,
+    clinic_id: clinicId,
+    role: "admin",
+    full_name: "Superadmin",
+  });
+
+  // Refrescar JWT — el hook leerá el perfil recién insertado e inyectará clinic_id.
+  await serverClient.auth.refreshSession();
+
+  redirect("/agenda");
+}
+
+// Elimina el perfil temporal del superadmin y restaura el JWT sin clinic_id.
+export async function exitClinic() {
+  await assertSuperadmin();
+
+  const serverClient = await createClient();
+  const { data: { user } } = await serverClient.auth.getUser();
+  if (!user) throw new Error("No hay sesión activa");
+
+  const admin = createAdminClient();
+  await admin.from("profiles").delete().eq("id", user.id);
+
+  await serverClient.auth.refreshSession();
+
+  redirect("/superadmin");
 }

@@ -13,6 +13,7 @@ import { EditClinicName } from "@/components/superadmin/EditClinicName";
 import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
 import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
+import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
 
 const SORTS = [
   { key: "recientes", label: "Más recientes" },
@@ -56,16 +57,18 @@ export default async function SuperadminPage({
     emailMap.set(u.id, u.email ?? "");
   }
 
-  // Agrupar usuarios por clínica
+  // Excluir platform admins en modo vista previa del listado de usuarios de la clínica
+  const { data: platformAdmins } = await admin
+    .from("platform_admins")
+    .select("user_id");
+  const platformAdminIds = new Set((platformAdmins ?? []).map((p) => p.user_id));
+
   const usersByClinic = new Map<string, ClinicUser[]>();
   for (const p of profiles ?? []) {
+    if (platformAdminIds.has(p.id)) continue;
+    const email = emailMap.get(p.id) ?? "";
     const list = usersByClinic.get(p.clinic_id) ?? [];
-    list.push({
-      id: p.id,
-      full_name: p.full_name,
-      role: p.role,
-      email: emailMap.get(p.id) ?? "",
-    });
+    list.push({ id: p.id, full_name: p.full_name, role: p.role, email });
     usersByClinic.set(p.clinic_id, list);
   }
 
@@ -144,6 +147,7 @@ export default async function SuperadminPage({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <EnterClinicButton clinicId={c.id} />
                   <PlanSelect clinicId={c.id} plan={c.plan} />
                   <SuspendClinicButton
                     clinicId={c.id}

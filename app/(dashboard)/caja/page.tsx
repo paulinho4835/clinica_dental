@@ -10,6 +10,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DateFilter } from "@/components/caja/DateFilter";
 import { DoctorFilter } from "@/components/caja/DoctorFilter";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 export default async function CashPage({
   searchParams,
@@ -34,12 +35,19 @@ export default async function CashPage({
   const todayStartUTC = new Date(`${boliviaDate}T04:00:00.000Z`);
   const tomorrowStartUTC = new Date(todayStartUTC.getTime() + 24 * 60 * 60 * 1000);
 
+  const platformAdminIds = await getPlatformAdminIds();
+
+  let doctorsQuery = supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("role", ["odontologo_general", "especialista", "admin"])
+    .order("full_name");
+  if (platformAdminIds.length > 0) {
+    doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
+
   const [{ data: allDoctors }, { data: paymentsToday }, { data: patients }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("role", ["odontologo_general", "especialista", "admin"])
-      .order("full_name"),
+    doctorsQuery,
     supabase
       .from("payments")
       .select("amount, patient_id")

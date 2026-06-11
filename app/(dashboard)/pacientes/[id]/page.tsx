@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
@@ -47,9 +48,19 @@ export default async function PatientPage({
     .eq("patient_id", id)
     .maybeSingle();
 
-  const profile = await getProfile();
+  const [profile, platformAdminIds] = await Promise.all([getProfile(), getPlatformAdminIds()]);
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
+
+  let dentistsQuery = supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("role", ["odontologo_general", "especialista", "admin"])
+    .eq("clinic_id", patient.clinic_id)
+    .order("full_name");
+  if (platformAdminIds.length > 0) {
+    dentistsQuery = dentistsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
 
   const [
     { data: rawPlans },
@@ -77,12 +88,7 @@ export default async function PatientPage({
       .eq("patient_id", id)
       .neq("status", "cancelled")
       .order("starts_at", { ascending: false }),
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("role", ["odontologo_general", "especialista", "admin"])
-      .eq("clinic_id", patient.clinic_id)
-      .order("full_name"),
+    dentistsQuery,
     supabase
       .from("prescriptions")
       .select("id, medications, notes, issued_at, doctor:profiles(full_name)")
