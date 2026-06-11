@@ -243,6 +243,41 @@ export async function setAppointmentStatus(id: string, status: string): Promise<
   return { ok: true };
 }
 
+// Reprograma una cita (drag & drop en la agenda). Solo mueve fecha/hora; no
+// toca paciente, estado ni datos financieros. La hora llega como reloj de pared
+// boliviano (sin zona); Bolivia es UTC-4 fijo, así que le anclamos ese offset
+// antes de guardar en UTC.
+function boliviaNaiveToUTC(s: string): string {
+  const naive = s.replace(/(\.\d+)?Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+  return new Date(`${naive}-04:00`).toISOString();
+}
+
+export async function rescheduleAppointment(
+  id: string,
+  startsAt: string,
+  endsAt: string | null,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
+  if (!id || !startsAt) return { error: "Cita inválida." };
+
+  const startsUTC = boliviaNaiveToUTC(startsAt);
+  const endsUTC = endsAt
+    ? boliviaNaiveToUTC(endsAt)
+    : new Date(new Date(startsUTC).getTime() + DEFAULT_DURATION_MIN * 60_000).toISOString();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ starts_at: startsUTC, ends_at: endsUTC })
+    .eq("id", id); // RLS limita a la clínica del usuario
+  if (error) return { error: error.message };
+
+  revalidatePath("/agenda");
+  return { ok: true };
+}
+
 // Elimina una cita. Los recordatorios asociados caen por FK on delete cascade.
 export async function deleteAppointment(id: string): Promise<ActionState> {
   const profile = await getProfile();

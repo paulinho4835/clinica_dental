@@ -77,47 +77,89 @@ export interface UseDragReturn {
 export function useDrag({ axisH, day, onDrop }: UseDragOptions): UseDragReturn {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [ghostSlot, setGhostSlot] = useState<SlotTarget | null>(null);
+
+  // Estado en refs: los handlers adjuntados imperativamente leen siempre
+  // el valor actual y no una copia "congelada" del render donde se montaron.
   const containerRef = useRef<HTMLElement | null>(null);
+  const blockRef = useRef<HTMLElement | null>(null);
   const offsetYRef = useRef(0);
+  const dragDayRef = useRef(day);
+  const draggingIdRef = useRef<string | null>(null);
+  const ghostSlotRef = useRef<SlotTarget | null>(null);
 
-  const handlePointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const y = e.clientY - rect.top - offsetYRef.current;
-      setGhostSlot(snapToSlot(y, axisH, day));
-    },
-    [axisH, day],
-  );
+  const axisHRef = useRef(axisH);
+  axisHRef.current = axisH;
+  const onDropRef = useRef(onDrop);
+  onDropRef.current = onDrop;
 
-  const handlePointerUp = useCallback(
-    (e: PointerEvent) => {
-      const target = e.currentTarget as HTMLElement | null;
-      target?.removeEventListener("pointermove", handlePointerMove);
-      target?.removeEventListener("pointerup", handlePointerUp as EventListener);
-      target?.releasePointerCapture(e.pointerId);
-      if (draggingId && ghostSlot) {
-        onDrop(draggingId, ghostSlot);
+  // Handlers estables (se crean una sola vez). Toda la data viva sale de refs.
+  const moveRef = useRef<((e: PointerEvent) => void) | undefined>(undefined);
+  const upRef = useRef<((e: PointerEvent) => void) | undefined>(undefined);
+
+  if (!moveRef.current) {
+    moveRef.current = (e: PointerEvent) => {
+      // Columna bajo el cursor → permite arrastrar entre días/columnas.
+      const under = document
+        .elementFromPoint(e.clientX, e.clientY)
+        ?.closest<HTMLElement>("[data-agenda-col]");
+      if (under) {
+        containerRef.current = under;
+        dragDayRef.current = under.dataset.day || dragDayRef.current;
       }
+      const col = containerRef.current;
+      if (!col) return;
+      const rect = col.getBoundingClientRect();
+      const y = e.clientY - rect.top - offsetYRef.current;
+      const slot = snapToSlot(y, axisHRef.current, dragDayRef.current);
+      ghostSlotRef.current = slot;
+      setGhostSlot(slot);
+    };
+  }
+
+  if (!upRef.current) {
+    upRef.current = (e: PointerEvent) => {
+      const b = blockRef.current;
+      if (b) {
+        b.removeEventListener("pointermove", moveRef.current!);
+        b.removeEventListener("pointerup", upRef.current! as EventListener);
+        try {
+          b.releasePointerCapture(e.pointerId);
+        } catch {
+          /* el puntero pudo soltarse fuera del elemento */
+        }
+      }
+      const id = draggingIdRef.current;
+      const slot = ghostSlotRef.current;
+      if (id && slot) onDropRef.current(id, slot);
+      draggingIdRef.current = null;
+      ghostSlotRef.current = null;
+      blockRef.current = null;
+      containerRef.current = null;
       setDraggingId(null);
       setGhostSlot(null);
-    },
-    [draggingId, ghostSlot, handlePointerMove, onDrop],
-  );
+    };
+  }
 
   const dragHandlers = useCallback(
     (apptId: string) => ({
       onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        containerRef.current = e.currentTarget.closest<HTMLElement>("[data-agenda-col]");
+        const el = e.currentTarget;
+        el.setPointerCapture(e.pointerId);
+        const col = el.closest<HTMLElement>("[data-agenda-col]");
+        containerRef.current = col;
+        blockRef.current = el;
+        dragDayRef.current = col?.dataset.day || day;
         offsetYRef.current = e.nativeEvent.offsetY;
+        draggingIdRef.current = apptId;
+        const slot = snapToSlot(e.nativeEvent.offsetY, axisHRef.current, dragDayRef.current);
+        ghostSlotRef.current = slot;
         setDraggingId(apptId);
-        setGhostSlot(snapToSlot(e.nativeEvent.offsetY, axisH, day));
-        e.currentTarget.addEventListener("pointermove", handlePointerMove);
-        e.currentTarget.addEventListener("pointerup", handlePointerUp as EventListener);
+        setGhostSlot(slot);
+        el.addEventListener("pointermove", moveRef.current!);
+        el.addEventListener("pointerup", upRef.current! as EventListener);
       },
     }),
-    [axisH, day, handlePointerMove, handlePointerUp],
+    [day],
   );
 
   const isDragging = useCallback(

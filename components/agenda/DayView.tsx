@@ -26,6 +26,7 @@ import {
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
 import { MiniStatus } from "./MiniStatus";
+import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { X, Pencil, Link } from "lucide-react";
 
 const PX_PER_HOUR = 56;
@@ -111,12 +112,8 @@ export function DayView({
       setLocalAppts(updated);
       try {
         const moved = updated.find((a) => a.id === apptId)!;
-        const res = await fetch(`/api/appointments/${apptId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ starts_at: moved.starts_at, ends_at: moved.ends_at }),
-        });
-        if (!res.ok) throw new Error("patch failed");
+        const res = await rescheduleAppointment(apptId, moved.starts_at, moved.ends_at);
+        if (res.error) throw new Error(res.error);
       } catch {
         setLocalAppts(revertMove(updated, appts));
         setShakingId(apptId);
@@ -221,6 +218,7 @@ export function DayView({
                   {/* Carril de citas — overflow visible para que el anillo de selección no se corte */}
                   <div
                     data-agenda-col
+                    data-day={day}
                     className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
                     style={{ height: AXIS_H }}
                   >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   OPEN_HOUR,
   CLOSE_HOUR,
@@ -18,6 +18,7 @@ import {
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
 import { ApptPopover, type PopoverAppt } from "./ApptPopover";
+import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 
 const PX_PER_HOUR = 48;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -77,12 +78,8 @@ export function WeekView({
       setLocalAppts(updated);
       try {
         const moved = updated.find((a) => a.id === apptId)!;
-        const res = await fetch(`/api/appointments/${apptId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ starts_at: moved.starts_at, ends_at: moved.ends_at }),
-        });
-        if (!res.ok) throw new Error("patch failed");
+        const res = await rescheduleAppointment(apptId, moved.starts_at, moved.ends_at);
+        if (res.error) throw new Error(res.error);
       } catch {
         setLocalAppts(revertMove(updated, allAppts));
         setShakingId(apptId);
@@ -93,25 +90,13 @@ export function WeekView({
   );
 
   // ── Drag hook ─────────────────────────────────────────────────────────────
-  const activeDayRef = useRef<string>("");
-  const { ghostSlot, dragHandlers: rawDragHandlers, isDragging } = useDrag({
+  // El día de origen/destino se infiere del atributo data-day de cada columna,
+  // así que el arrastre funciona entre columnas (días) distintas.
+  const { ghostSlot, dragHandlers, isDragging } = useDrag({
     axisH: AXIS_H,
-    day: activeDayRef.current,
+    day: "",
     onDrop: handleDrop,
   });
-
-  const dragHandlers = useCallback(
-    (apptId: string, dayK: string) => {
-      const handlers = rawDragHandlers(apptId);
-      return {
-        onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
-          activeDayRef.current = dayK;
-          handlers.onPointerDown(e);
-        },
-      };
-    },
-    [rawDragHandlers],
-  );
 
   // ── Merged byDay (optimistic) ─────────────────────────────────────────────
   const mergedByDay = useMemo(() => {
@@ -167,6 +152,7 @@ export function WeekView({
                 </button>
                 <div
                   data-agenda-col
+                  data-day={k}
                   className="relative rounded-md bg-slate-50/60 ring-1 ring-slate-100"
                   style={{ height: AXIS_H, overflow: "visible" }}
                 >
@@ -229,7 +215,7 @@ export function WeekView({
                           zIndex: isOpen ? 50 : 10,
                         }}
                         title={`${hhmm(s)} ${apptName(a)}${a.dentist_name ? " · " + a.dentist_name : ""}`}
-                        {...(canWrite ? dragHandlers(a.id, k) : {})}
+                        {...(canWrite ? dragHandlers(a.id) : {})}
                       >
                         <span
                           className={`block truncate font-medium ${a.status === "no_show" ? "line-through" : ""}`}
