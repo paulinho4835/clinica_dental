@@ -55,8 +55,25 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Tool calls (el asistente necesita datos o ejecutar una acción) ──────
   if (message.type === "tool-calls") {
-    const toolCall = message.toolCallList?.[0];
-    if (!toolCall) return NextResponse.json({ results: [] });
+    // Vapi envía el tool call en distintos formatos según la versión:
+    //  - toolCallList[0] con { function: { name, arguments } } (arguments objeto o string)
+    //  - toolCallList[0] plano { id, name, arguments }
+    //  - toolCalls[0] (formato OpenAI) con { function: { name, arguments } }
+    //  - toolWithToolCallList[0].toolCall
+    // Normalizamos a un { id, function: { name, arguments } } para el resto del código.
+    const rawToolCall =
+      message.toolCallList?.[0] ??
+      message.toolCalls?.[0] ??
+      message.toolWithToolCallList?.[0]?.toolCall;
+    if (!rawToolCall) return NextResponse.json({ results: [] });
+
+    const toolCall = {
+      id: rawToolCall.id,
+      function: {
+        name: rawToolCall.function?.name ?? rawToolCall.name,
+        arguments: rawToolCall.function?.arguments ?? rawToolCall.arguments,
+      },
+    };
 
     const fnName = toolCall.function?.name ?? "";
     const args = parseArgs(toolCall.function?.arguments);
@@ -467,13 +484,18 @@ function toolResult(toolCallId: string, result: string) {
   return NextResponse.json({ results: [{ toolCallId, result }] });
 }
 
-function parseArgs(raw: string | undefined): Record<string, unknown> {
+function parseArgs(raw: unknown): Record<string, unknown> {
   if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
+  // Vapi a veces ya envía los argumentos como objeto parseado.
+  if (typeof raw === "object") return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
   }
+  return {};
 }
 
 // Slots de 08:00 a 17:00 (hora Bolivia) con intervalos de 1 hora.
@@ -549,8 +571,16 @@ type VapiMessage = {
     phoneNumberId?: string;
     metadata?: unknown;
   };
-  toolCallList?: Array<{
-    id: string;
-    function?: { name?: string; arguments?: string };
-  }>;
+  toolCallList?: VapiToolCall[];
+  toolCalls?: VapiToolCall[];
+  toolWithToolCallList?: Array<{ toolCall?: VapiToolCall }>;
+};
+
+// Un tool call de Vapi puede venir con name/arguments anidados en `function`
+// o planos en el item, y `arguments` como string JSON o como objeto.
+type VapiToolCall = {
+  id: string;
+  name?: string;
+  arguments?: unknown;
+  function?: { name?: string; arguments?: unknown };
 };
