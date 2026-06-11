@@ -173,7 +173,7 @@ export function WeekView({
                           key={s.toISOString()}
                           type="button"
                           onClick={() => onPick(s, end)}
-                          aria-label={`Agendar ${WD[idx]} ${hhmm(s)}`}
+                          aria-label={`Agendar ${WD[idx]} ${pad(s.getHours())}:${pad(s.getMinutes())}`}
                           className="absolute inset-x-0 z-0 transition hover:bg-green-100/60"
                           style={{ top: g.top * AXIS_H, height: g.height * AXIS_H }}
                         />

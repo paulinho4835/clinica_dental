@@ -32,6 +32,7 @@ import { X, Pencil, Link } from "lucide-react";
 const PX_PER_HOUR = 56;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
 const HOURS = Array.from({ length: CLOSE_HOUR - OPEN_HOUR + 1 }, (_, i) => OPEN_HOUR + i);
+const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date) =>
   d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
 
@@ -241,7 +242,7 @@ export function DayView({
                             key={s.toISOString()}
                             type="button"
                             onClick={() => onPick(s, end, col ?? undefined)}
-                            aria-label={`Agendar ${hhmm(s)}`}
+                            aria-label={`Agendar ${pad(s.getHours())}:${pad(s.getMinutes())}`}
                             className="absolute inset-x-0 z-0 transition hover:bg-green-100/60"
                             style={{ top: g.top * AXIS_H, height: g.height * AXIS_H }}
                           />
