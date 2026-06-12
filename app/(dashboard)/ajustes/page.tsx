@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
+import { DoctorsPanel, type Doctor } from "@/components/ajustes/DoctorsPanel";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 export default async function SettingsPage() {
@@ -12,6 +13,17 @@ export default async function SettingsPage() {
   const profile = await getProfile();
   const canWrite = can(profile?.role, "settings:write");
   const isClinicAdmin = profile?.role === "admin";
+
+  // Doctores (roster clínico, sin login): accesible para el admin.
+  let doctors: Doctor[] = [];
+  if (isClinicAdmin && profile) {
+    const { data } = await supabase
+      .from("doctors")
+      .select("id, full_name, specialty, active")
+      .eq("clinic_id", profile.clinicId)
+      .order("full_name");
+    doctors = (data ?? []) as Doctor[];
+  }
 
   // Equipo (cuentas con login): solo lo gestiona el admin de la clínica.
   let team: TeamMember[] = [];
@@ -47,6 +59,17 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-bold">Ajustes de la clínica</h1>
+
+      {isClinicAdmin && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Doctores</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Roster clínico. Los doctores registrados aquí aparecen disponibles al
+            agendar citas y en los reportes de la agenda.
+          </p>
+          <DoctorsPanel doctors={doctors} canWrite={canWrite} />
+        </section>
+      )}
 
       {isClinicAdmin && profile && (
         <section>
