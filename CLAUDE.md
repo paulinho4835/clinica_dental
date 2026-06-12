@@ -72,12 +72,65 @@ Pero si el proyecto tiene auto-deploy de GitHub, el push es el camino limpio.
 
 ---
 
-## Estado actual del proyecto (2026-06-10)
+## Estado actual del proyecto (2026-06-11)
 - Branch: `main`
 - Deploy: Vercel (automático con cada push)
 - Stack: Next.js App Router, Supabase, Tailwind CSS, TypeScript
 
 ## Últimos cambios implementados
+
+### Integración Vapi — sesión 2026-06-11 (commits en orden)
+
+#### commit ff37dc4 — Fallback teléfono + normalización fecha/hora en `update_appointment`
+- Agregado `callerNumberFromCall = message.call?.customer?.number ?? ""` para cuando el LLM no pasa `phone`
+- `rawPhone` ahora usa ese fallback: `args.phone ?? args.phoneNumber ?? callerNumberFromCall`
+- `normalizeDate` / `normalizeTime` aplicados antes de construir el `Date` (el LLM manda "2:00" no "14:00", "18/06/2026" no "2026-06-18", etc.)
+- Guard explícito si `normDate` o `normTime` son null → mensaje de error amigable
+- Guard si `isNaN(newStart.getTime())` → mensaje de error
+- Captura de `updateError` con retorno de error al LLM
+
+#### commit 9f57a3e — Fix crítico: `const appt` no se puede reasignar en ESM strict mode
+**Era el bug principal que causaba el TypeError silencioso.**
+- Antes: `const { data: appt }` + luego `(appt as ...) = apptByName` → `TypeError: Assignment to constant variable` en runtime, Next.js devuelve 500, Vapi muestra "Completed successfully" y el LLM inventa confirmación.
+- Después: renombrar primer resultado a `apptByPatientId`, declarar `let appt` limpio, asignar correctamente.
+- Si no hay cita por `patient_id`, buscar por `patient_name` ILIKE y vincular `patient_id` para futuras búsquedas.
+
+#### commit 481db8b — Mensajes DEBUG temporales (ya revertidos en commit siguiente)
+- Para diagnosticar: si paciente no encontrado → hablaba "DEBUG: no paciente...", si cita no encontrada → "DEBUG: no cita..."
+- Sirvió para confirmar que el error ocurría en el flujo cancel→reschedule
+
+#### commit 17b23d5 — Fix definitivo: reagendar tras cancelar en la misma llamada
+**El bug final: el LLM cancela la cita y luego intenta reagendarla; la query de reschedule excluía `status='cancelled'` → encontraba nada → fallaba.**
+- Cuando `action=reschedule` y `appt` es null, ahora hace un segundo intento buscando la cita cancelada más próxima del paciente (por `patient_id` y por nombre ILIKE).
+- Se eliminan los mensajes DEBUG temporales.
+- Mensajes de error amigables con `console.error` para logs de Vercel.
+
+### Configuración manual en Vapi dashboard (hecha por el usuario)
+El asistente estático "Recepcionista Dentica" tiene estas herramientas con Server URL apuntando al webhook:
+- `lookup_appointment` (o `get_appointment`) — busca cita por teléfono o nombre
+- `update_appointment` — confirmar / cancelar / reagendar
+- `check_availability` — horarios libres por fecha y doctor
+- `book_appointment` — nueva cita
+- `get_current_date` — fecha actual en zona horaria Bolivia
+- `get_doctors` — lista de doctores de la clínica
+
+**IMPORTANTE**: El asistente estático de Vapi dashboard ≠ el `buildInboundAssistant()` dinámico de `lib/vapi.ts`.
+El dinámico se usa cuando Vapi hace `assistant-request` (llamadas entrantes vía `phoneNumberId` sin asistente preconfigurado).
+El estático es el configurado manualmente en el dashboard y tiene su propio system prompt.
+
+### Archivo clave: `app/api/vapi/webhook/route.ts`
+Maneja todos los eventos Vapi:
+- `assistant-request` → devuelve `buildInboundAssistant()` con `metadata: { clinicId }`
+- `tool-calls` → ejecuta `lookup_appointment`, `update_appointment`, `check_availability`, `book_appointment`, `get_doctors`, `get_current_date`, `confirm_appointment`, `cancel_appointment`, `reschedule_appointment` (outbound)
+- `end-of-call-report` → marca recordatorio como enviado/fallido
+
+### Diagnóstico pendiente (si `update_appointment` sigue fallando)
+1. Revisar Vercel Function Logs (`vercel logs --follow` o dashboard) para ver `console.error`
+2. En Vapi dashboard → Logs → ver el payload exacto enviado al webhook
+3. Confirmar en Supabase SQL Editor (nube, no local) que la fila cambia
+4. Asegurarse de que `update_appointment` en Vapi tiene Server URL configurada
+
+### Cambios anteriores
 1. **Dark mode** — `darkMode: "class"` en Tailwind, CSS variables para invertir slate/white, token `night` fijo para elementos que no invierten, anti-flash script en `<body>`, `ThemeToggle` en sidebar.
 2. **Inter font** — `next/font/google`, variable `--font-sans`, referenciada en `fontFamily.sans`.
 3. **Brand color ramp** — escala `clinic` en `tailwind.config.ts`, badges migrados en historial e inventario.
