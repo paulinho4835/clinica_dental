@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
     const fnName = toolCall.function?.name ?? "";
     const args = parseArgs(toolCall.function?.arguments);
     const callMeta = (message.call?.metadata ?? {}) as Record<string, string>;
+    // Número del llamante según Vapi (inbound). Sirve de respaldo cuando el LLM
+    // no incluye `phone` en los argumentos de un tool call.
+    const callerNumberFromCall = message.call?.customer?.number ?? "";
 
     // clinicId: viene del metadata (inbound) o del env var (prototipo outbound)
     const clinicId =
@@ -116,7 +119,18 @@ export async function POST(req: NextRequest) {
         return toolResult(toolCall.id, "Necesito la nueva fecha y hora para reagendar.");
       }
 
-      const newStart = new Date(`${new_date}T${new_time}:00-04:00`);
+      const normDate = normalizeDate(new_date);
+      const normTime = normalizeTime(new_time);
+      if (!normDate || !normTime) {
+        console.error("[vapi/reschedule_appointment] fecha/hora no parseable", { new_date, new_time });
+        return toolResult(toolCall.id, `No entendí la nueva fecha y hora ("${new_date}" a las "${new_time}"). ¿Me la repite?`);
+      }
+
+      const newStart = new Date(`${normDate}T${normTime}:00-04:00`);
+      if (isNaN(newStart.getTime())) {
+        console.error("[vapi/reschedule_appointment] Date inválido", { normDate, normTime });
+        return toolResult(toolCall.id, "No pude interpretar la nueva fecha y hora. ¿Me la confirma de nuevo?");
+      }
       const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
 
       if (clinicId) {
@@ -128,17 +142,23 @@ export async function POST(req: NextRequest) {
           .lt("starts_at", newEnd.toISOString())
           .gt("ends_at", newStart.toISOString())
           .not("status", "in", "(cancelled,no_show)")
+          .limit(1)
           .maybeSingle();
 
         if (conflict) {
-          return toolResult(toolCall.id, `El horario ${new_time} del ${new_date} ya está ocupado. ¿Prefiere otro horario?`);
+          return toolResult(toolCall.id, `El horario ${normTime} del ${normDate} ya está ocupado. ¿Prefiere otro horario?`);
         }
       }
 
-      await admin
+      const { error: updateError } = await admin
         .from("appointments")
         .update({ starts_at: newStart.toISOString(), ends_at: newEnd.toISOString(), status: "scheduled" })
         .eq("id", appointmentId);
+
+      if (updateError) {
+        console.error("[vapi/reschedule_appointment] update falló", updateError.message, { appointmentId });
+        return toolResult(toolCall.id, "Hubo un problema al guardar el nuevo horario. Por favor intente de nuevo.");
+      }
 
       const dateLabel = newStart.toLocaleDateString("es-BO", {
         timeZone: BOLIVIA_TZ,
@@ -146,7 +166,7 @@ export async function POST(req: NextRequest) {
         day: "2-digit",
         month: "long",
       });
-      return toolResult(toolCall.id, `Cita reagendada para el ${dateLabel} a las ${new_time}.`);
+      return toolResult(toolCall.id, `Cita reagendada para el ${dateLabel} a las ${normTime}.`);
     }
 
     // ── lookup_appointment / get_appointment ───────────────────────────────
@@ -244,10 +264,12 @@ export async function POST(req: NextRequest) {
 
     // ── update_appointment (confirmar, cancelar o reagendar) ────────────────
     if (fnName === "update_appointment") {
-      // Acepta tanto los nombres del webhook propio como los que genera el guide de Vapi
+      // Acepta tanto los nombres del webhook propio como los que genera el guide de Vapi.
+      // Si el LLM no incluye el teléfono, usamos el número real del llamante.
       const rawPhone =
         (args.phone as string | undefined) ??
-        (args.phoneNumber as string | undefined);
+        (args.phoneNumber as string | undefined) ??
+        callerNumberFromCall;
       const action = args.action as "confirm" | "cancel" | "reschedule" | undefined;
 
       // newDateTime puede venir como "2026-06-15T10:00" o "2026-06-15 10:00"
@@ -265,6 +287,7 @@ export async function POST(req: NextRequest) {
       const normalized = phone ? normalizeVapiPhone(phone) : null;
 
       if (!normalized || !clinicId) {
+        console.error("[vapi/update_appointment] sin teléfono", { args, callerNumberFromCall, clinicId });
         return toolResult(toolCall.id, "No pude identificar el número de teléfono para actualizar la cita.");
       }
 
@@ -335,8 +358,20 @@ export async function POST(req: NextRequest) {
           return toolResult(toolCall.id, "Para reagendar necesito la nueva fecha y hora. ¿Cuándo prefieres?");
         }
 
+        // Normalizar fecha/hora: el LLM puede mandar "2:00", "2 pm", "18/06/2026", etc.
+        const normDate = normalizeDate(new_date);
+        const normTime = normalizeTime(new_time);
+        if (!normDate || !normTime) {
+          console.error("[vapi/update_appointment] fecha/hora no parseable", { new_date, new_time, normDate, normTime });
+          return toolResult(toolCall.id, `No entendí la nueva fecha y hora ("${new_date}" a las "${new_time}"). ¿Me la repites? Por ejemplo: 18 de junio a las 14:00.`);
+        }
+
         // Verificar disponibilidad del nuevo horario
-        const newStart = new Date(`${new_date}T${new_time}:00-04:00`);
+        const newStart = new Date(`${normDate}T${normTime}:00-04:00`);
+        if (isNaN(newStart.getTime())) {
+          console.error("[vapi/update_appointment] Date inválido tras normalizar", { normDate, normTime });
+          return toolResult(toolCall.id, "No pude interpretar la nueva fecha y hora. ¿Me la confirmas de nuevo?");
+        }
         const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
         const slotStart = newStart.toISOString();
         const slotEnd = newEnd.toISOString();
@@ -349,16 +384,22 @@ export async function POST(req: NextRequest) {
           .lt("starts_at", slotEnd)
           .gt("ends_at", slotStart)
           .not("status", "in", "(cancelled,no_show)")
+          .limit(1)
           .maybeSingle();
 
         if (conflict) {
-          return toolResult(toolCall.id, `El horario ${new_time} del ${new_date} ya está ocupado. ¿Tienes otra opción de horario?`);
+          return toolResult(toolCall.id, `El horario ${normTime} del ${normDate} ya está ocupado. ¿Tienes otra opción de horario?`);
         }
 
-        await admin
+        const { error: updateError } = await admin
           .from("appointments")
           .update({ starts_at: slotStart, ends_at: slotEnd, status: "scheduled" })
           .eq("id", appt.id);
+
+        if (updateError) {
+          console.error("[vapi/update_appointment] update falló", updateError.message, { apptId: appt.id, slotStart });
+          return toolResult(toolCall.id, "Hubo un problema al guardar el nuevo horario. Por favor llama directamente a la clínica.");
+        }
 
         const dateLabel = newStart.toLocaleDateString("es-BO", {
           timeZone: BOLIVIA_TZ,
@@ -368,7 +409,7 @@ export async function POST(req: NextRequest) {
         });
         return toolResult(
           toolCall.id,
-          `¡Listo, ${patient.full_name}! Tu cita fue reagendada para el ${dateLabel} a las ${new_time}. ¿Hay algo más en que pueda ayudarte?`,
+          `¡Listo, ${patient.full_name}! Tu cita fue reagendada para el ${dateLabel} a las ${normTime}. ¿Hay algo más en que pueda ayudarte?`,
         );
       }
 
@@ -711,6 +752,7 @@ type VapiMessage = {
     id?: string;
     phoneNumberId?: string;
     metadata?: unknown;
+    customer?: { number?: string };
   };
   toolCallList?: VapiToolCall[];
   toolCalls?: VapiToolCall[];
