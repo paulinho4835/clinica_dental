@@ -107,6 +107,48 @@ export async function POST(req: NextRequest) {
       return toolResult(toolCall.id, "Cita cancelada.");
     }
 
+    // ── reschedule_appointment (recordatorio outbound — reagendar tras cancelar) ─
+    if (fnName === "reschedule_appointment" && appointmentId) {
+      const new_date = args.new_date as string | undefined;
+      const new_time = args.new_time as string | undefined;
+
+      if (!new_date || !new_time) {
+        return toolResult(toolCall.id, "Necesito la nueva fecha y hora para reagendar.");
+      }
+
+      const newStart = new Date(`${new_date}T${new_time}:00-04:00`);
+      const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+
+      if (clinicId) {
+        const { data: conflict } = await admin
+          .from("appointments")
+          .select("id")
+          .eq("clinic_id", clinicId)
+          .neq("id", appointmentId)
+          .lt("starts_at", newEnd.toISOString())
+          .gt("ends_at", newStart.toISOString())
+          .not("status", "in", "(cancelled,no_show)")
+          .maybeSingle();
+
+        if (conflict) {
+          return toolResult(toolCall.id, `El horario ${new_time} del ${new_date} ya está ocupado. ¿Prefiere otro horario?`);
+        }
+      }
+
+      await admin
+        .from("appointments")
+        .update({ starts_at: newStart.toISOString(), ends_at: newEnd.toISOString(), status: "scheduled" })
+        .eq("id", appointmentId);
+
+      const dateLabel = newStart.toLocaleDateString("es-BO", {
+        timeZone: BOLIVIA_TZ,
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+      });
+      return toolResult(toolCall.id, `Cita reagendada para el ${dateLabel} a las ${new_time}.`);
+    }
+
     // ── lookup_appointment / get_appointment ───────────────────────────────
     if (fnName === "lookup_appointment" || fnName === "get_appointment") {
       const callerNumber: string =
@@ -139,7 +181,7 @@ export async function POST(req: NextRequest) {
           .from("patients")
           .select("id, full_name")
           .eq("clinic_id", clinicId)
-          .ilike(isNumeric ? "id_number" : "full_name", `%${identity}%`)
+          .ilike(isNumeric ? "national_id" : "full_name", `%${identity}%`)
           .limit(1)
           .maybeSingle();
         patient = data ?? null;
@@ -261,7 +303,7 @@ export async function POST(req: NextRequest) {
 
       if (action === "cancel") {
         await admin.from("appointments").update({ status: "cancelled" }).eq("id", appt.id);
-        return toolResult(toolCall.id, `Cita cancelada. Cuando quieras reagendar, con gusto te ayudamos. ¿Hay algo más?`);
+        return toolResult(toolCall.id, `Cita cancelada, ${patient.full_name}. ¿Te gustaría reagendar para otra fecha? Puedo buscarte un horario disponible ahora mismo.`);
       }
 
       if (action === "reschedule") {
@@ -313,7 +355,7 @@ export async function POST(req: NextRequest) {
     if (fnName === "check_availability") {
       const date: string = (args.date as string | undefined) ?? new Date().toISOString().slice(0, 10);
 
-      const allSlots = buildSlots(); // 08:00 – 17:00, intervalos de 1h
+      const allSlots = buildSlots(date);
 
       if (clinicId) {
         const dayStart = `${date}T00:00:00-04:00`;
@@ -352,11 +394,12 @@ export async function POST(req: NextRequest) {
 
     // ── book_appointment (recepción inbound) ────────────────────────────────
     if (fnName === "book_appointment") {
-      const { patient_name, date, time, reason } = args as {
+      const { patient_name, date, time, reason, doctor_name } = args as {
         patient_name?: string;
         date?: string;
         time?: string;
         reason?: string;
+        doctor_name?: string;
       };
 
       if (!patient_name || !date || !time) {
@@ -390,21 +433,36 @@ export async function POST(req: NextRequest) {
         return toolResult(toolCall.id, `No pude interpretar la fecha y hora. ¿Puedes confirmarme el día y la hora de nuevo?`);
       }
 
-      // Asignar el primer doctor activo de la clínica para que la cita
-      // aparezca en la agenda (el filtro por defecto filtra por dentist_name).
-      const { data: firstDoctor } = await admin
-        .from("profiles")
-        .select("full_name")
-        .eq("clinic_id", clinicId)
-        .in("role", ["odontologo_general", "especialista", "admin"])
-        .order("full_name")
-        .limit(1)
-        .maybeSingle();
+      // Buscar doctor por nombre si el paciente indicó preferencia.
+      // Si no hay coincidencia, asignar el primero disponible.
+      let assignedDoctor: string | null = null;
+      if (doctor_name?.trim()) {
+        const { data: named } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("clinic_id", clinicId)
+          .in("role", ["odontologo_general", "especialista", "admin"])
+          .ilike("full_name", `%${doctor_name.trim()}%`)
+          .limit(1)
+          .maybeSingle();
+        assignedDoctor = named?.full_name ?? null;
+      }
+      if (!assignedDoctor) {
+        const { data: first } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("clinic_id", clinicId)
+          .in("role", ["odontologo_general", "especialista", "admin"])
+          .order("full_name")
+          .limit(1)
+          .maybeSingle();
+        assignedDoctor = first?.full_name ?? null;
+      }
 
       const { error } = await admin.from("appointments").insert({
         clinic_id: clinicId,
         patient_name: patient_name.trim(),
-        dentist_name: firstDoctor?.full_name ?? null,
+        dentist_name: assignedDoctor,
         starts_at: startsAt,
         ends_at: endsAt,
         reason: reason ?? "Consulta",
@@ -419,9 +477,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const doctorConfirm = assignedDoctor ? ` con ${assignedDoctor}` : "";
       return toolResult(
         toolCall.id,
-        `¡Cita agendada para ${patient_name} el ${normalizedDate} a las ${normalizedTime}! Te esperamos.`,
+        `¡Cita agendada para ${patient_name} el ${normalizedDate} a las ${normalizedTime}${doctorConfirm}! Te esperamos.`,
       );
     }
 
@@ -498,10 +557,23 @@ function parseArgs(raw: unknown): Record<string, unknown> {
   return {};
 }
 
-// Slots de 08:00 a 17:00 (hora Bolivia) con intervalos de 1 hora.
-function buildSlots(): string[] {
-  return Array.from({ length: 10 }, (_, i) =>
-    `${String(i + 8).padStart(2, "0")}:00`,
+// Slots horarios según el día de la semana (hora Bolivia).
+// Lun-Sáb: 09:00 – 20:00 (último slot a las 19:00).
+// Dom: 09:00 – 12:00 (último slot a las 11:00).
+function buildSlots(date: string): string[] {
+  // Usamos mediodía para evitar ambigüedades de DST al calcular el día.
+  const local = new Date(
+    new Date(`${date}T12:00:00Z`).toLocaleString("en-US", { timeZone: BOLIVIA_TZ }),
+  );
+  const dow = local.getDay(); // 0=Dom, 1=Lun … 6=Sáb
+
+  if (dow === 0) {
+    // Domingo: 09:00, 10:00, 11:00
+    return ["09:00", "10:00", "11:00"];
+  }
+  // Lunes a Sábado: 09:00 – 19:00 (11 slots de 1h)
+  return Array.from({ length: 11 }, (_, i) =>
+    `${String(i + 9).padStart(2, "0")}:00`,
   );
 }
 

@@ -85,7 +85,7 @@ export async function triggerReminderCall(p: ReminderCallParams): Promise<VapiCa
 
 export const REMINDER_ASSISTANT_PROMPT = `
 Eres un asistente telefónico amable de {{clinicName}}.
-Tu único objetivo es recordar la cita de {{patientName}} y saber si asistirá.
+Tu objetivo es recordar la cita de {{patientName}} y gestionar su respuesta.
 
 Flujo obligatorio:
 1. Saluda: "¡Hola! ¿Hablo con {{patientName}}?"
@@ -95,14 +95,19 @@ Flujo obligatorio:
 3. Pregunta: "¿Confirma que asistirá?"
    - Si CONFIRMA (sí, claro, ahí estaré, etc.) → llama a confirm_appointment
      y despídete: "¡Perfecto! Le esperamos. Que tenga buen día."
-   - Si CANCELA (no puedo, cancela, no voy) → llama a cancel_appointment
-     y despídete: "Entendido, la cita queda cancelada. Que tenga buen día."
+   - Si CANCELA (no puedo, cancela, no voy) → llama a cancel_appointment.
+     Luego pregunta: "¿Le gustaría que le buscara otro horario disponible?"
+     · Si dice SÍ → pregunta qué fecha prefiere, llama a check_availability con esa fecha,
+       ofrece los horarios disponibles, y cuando el paciente elija uno llama a
+       reschedule_appointment con la nueva fecha y hora.
+       Despídete: "¡Listo! Nueva cita agendada. Que tenga buen día."
+     · Si dice NO → despídete: "Entendido. Cuando quiera reagendar, llámenos. Que tenga buen día."
    - Si duda o no sabe → despídete: "Sin problema, si necesita reagendar llámenos. Hasta luego."
 4. Si detectas buzón de voz o grabación automática → termina la llamada sin dejar mensaje.
 
 Normas:
 - Habla solo en español neutro.
-- Sé breve y cordial. Máximo 4 turnos de conversación.
+- Sé breve y cordial. Máximo 6 turnos de conversación.
 - No ofrezcas ni expliques nada fuera de este guion.
 `.trim();
 
@@ -121,6 +126,35 @@ export const REMINDER_TOOLS = [
       name: "cancel_appointment",
       description: "Cancela la cita cuando el paciente no podrá asistir.",
       parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_availability",
+      description: "Consulta horarios disponibles para una fecha. Usar después de cancelar si el paciente quiere reagendar.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "Fecha en formato YYYY-MM-DD" },
+        },
+        required: ["date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reschedule_appointment",
+      description: "Reagenda la cita a una nueva fecha y hora elegida por el paciente.",
+      parameters: {
+        type: "object",
+        properties: {
+          new_date: { type: "string", description: "Nueva fecha en formato YYYY-MM-DD" },
+          new_time: { type: "string", description: "Nueva hora en formato HH:MM" },
+        },
+        required: ["new_date", "new_time"],
+      },
     },
   },
 ];
@@ -146,17 +180,21 @@ Puedes ayudar con:
 2. Agendar una nueva cita.
 
 Flujo si el paciente ya tiene cita (lookup_appointment encontró resultado):
-- Informa la cita encontrada y pregunta: "¿En qué puedo ayudarte? ¿Quieres confirmar, cancelar o reagendar?"
+- Informa la cita encontrada (incluyendo el nombre del doctor si está disponible) y pregunta: "¿En qué puedo ayudarte? ¿Quieres confirmar, cancelar o reagendar?"
 - Según la respuesta, llama a update_appointment con la acción correspondiente.
 - Para reagendar: pregunta fecha y hora nuevas, llama a check_availability y luego a update_appointment.
+- Si cancela: después de confirmar la cancelación, pregunta "¿Te gustaría reagendar para otra fecha?".
+  · Si dice sí: pregunta la fecha preferida, llama a check_availability y luego a update_appointment con action=reschedule.
+  · Si dice no: despídete cordialmente.
 
 Flujo para agendar nueva cita (lookup no encontró cita, o el paciente quiere otra):
 1. Pide el nombre completo.
 2. Pide el motivo (limpieza, dolor, extracción, revisión, etc.).
-3. Pregunta qué día y hora prefiere.
-4. Llama a check_availability con esa fecha.
-5. Confirma el horario disponible y llama a book_appointment.
-6. Confirma y despídete.
+3. Pregunta si tiene preferencia de doctor. Si menciona un nombre, recuérdalo para pasarlo a book_appointment.
+4. Pregunta qué día y hora prefiere.
+5. Llama a check_availability con esa fecha.
+6. Confirma el horario disponible y llama a book_appointment (incluyendo doctor_name si el paciente lo indicó).
+7. Confirma y despídete mencionando el nombre del doctor asignado.
 
 Normas:
 - Habla solo en español neutro.
@@ -245,6 +283,7 @@ Normas:
                 date: { type: "string", description: "Fecha en formato YYYY-MM-DD" },
                 time: { type: "string", description: "Hora en formato HH:MM" },
                 reason: { type: "string", description: "Motivo de la consulta" },
+                doctor_name: { type: "string", description: "Nombre del doctor preferido por el paciente (opcional)" },
               },
               required: ["patient_name", "date", "time"],
             },
