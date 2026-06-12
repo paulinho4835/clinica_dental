@@ -24,6 +24,10 @@ export async function GET(req: Request) {
   // Seguridad: Vercel Cron incluye 'Authorization: Bearer ${CRON_SECRET}'.
   // Si CRON_SECRET está definido, exigimos que coincida (bloquea curiosos).
   const secret = process.env.CRON_SECRET;
+  // En producción el secret es obligatorio — Vercel Cron lo inyecta automáticamente.
+  if (!secret && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 500 });
+  }
   if (secret) {
     const auth = req.headers.get("authorization");
     if (auth !== `Bearer ${secret}`) {

@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.VAPI_WEBHOOK_SECRET;
-  if (!secret) return true;
+  if (!secret) return true; // sin secret configurado, se permite todo
   return req.headers.get("x-vapi-secret") === secret;
 }
 

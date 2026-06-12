@@ -34,6 +34,9 @@ export default async function AgendaPage({
   ]);
   const writable = can(profile?.role, "appointments:write");
   const isAdmin = profile?.role === "admin";
+  const isRecepcionista = profile?.role === "recepcionista";
+  // Admin y recepcionista pueden ver y filtrar la agenda de todos los doctores.
+  const canViewAll = isAdmin || isRecepcionista;
 
   // Nombre del usuario logueado (para preseleccionar "Mi Agenda" en el dropdown).
   const myName = profile?.fullName ?? "";
@@ -49,13 +52,13 @@ export default async function AgendaPage({
     .neq("status", "cancelled")
     .order("starts_at", { ascending: true });
 
-  // No-admin: solo ve SUS citas (filtrado en servidor, no puede cambiarlo).
-  if (!isAdmin && myName) {
+  // Solo doctores ven únicamente sus citas; admin y recepcionista ven todas.
+  if (!canViewAll && myName) {
     apptsQuery = apptsQuery.eq("dentist_name", myName);
   }
 
-  // Query de odontólogos (dropdown del admin), excluyendo superadmins en vista previa.
-  let doctorsQuery = isAdmin
+  // Query de odontólogos (dropdown de admin y recepcionista), excluyendo superadmins.
+  let doctorsQuery = canViewAll
     ? supabase
         .from("profiles")
         .select("id, full_name")
@@ -66,9 +69,41 @@ export default async function AgendaPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
+  // Odontólogos y especialistas solo ven sus propios pacientes en el picker.
+  const isDoctor =
+    profile?.role === "odontologo_general" || profile?.role === "especialista";
+  let patientsQuery = supabase
+    .from("patients")
+    .select("id, full_name, national_id")
+    .order("full_name");
+  if (isDoctor && profile) {
+    const [{ data: apptP }, { data: workP }] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("patient_id")
+        .eq("dentist_name", profile.fullName)
+        .not("patient_id", "is", null),
+      supabase
+        .from("doctor_works")
+        .select("patient_id")
+        .eq("doctor_id", profile.userId)
+        .not("patient_id", "is", null),
+    ]);
+    const ids = [
+      ...new Set([
+        ...(apptP ?? []).map((r) => r.patient_id as string),
+        ...(workP ?? []).map((r) => r.patient_id as string),
+      ]),
+    ];
+    patientsQuery =
+      ids.length > 0
+        ? patientsQuery.in("id", ids)
+        : patientsQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+  }
+
   const [{ data: appts }, { data: patients }, { data: doctors }] = await Promise.all([
     apptsQuery,
-    supabase.from("patients").select("id, full_name, national_id").order("full_name"),
+    patientsQuery,
     doctorsQuery ?? Promise.resolve({ data: [] }),
   ]);
 
@@ -83,7 +118,7 @@ export default async function AgendaPage({
         view={view}
         canWrite={writable}
         doctors={doctors ?? []}
-        isAdmin={isAdmin ?? false}
+        isAdmin={canViewAll}
         myName={myName}
         whatsappEnabled={features.whatsapp}
       />

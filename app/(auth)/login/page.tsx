@@ -17,22 +17,42 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      setPassword(""); // limpia solo la contraseña; el correo se conserva
+
+    // Pasar por nuestro endpoint para aplicar rate limiting antes de llegar a Supabase.
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setLoading(false);
+      setError(body.error ?? "Error al iniciar sesión.");
+      setPassword("");
       return;
     }
+
+    const data = await res.json();
+
     // Revoca todas las sesiones previas del mismo usuario (sesión única por cuenta).
-    if (data.session?.access_token) {
+    if (data.access_token) {
       await fetch("/api/auth/single-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: data.session.access_token }),
+        body: JSON.stringify({ access_token: data.access_token }),
       });
     }
+
+    // Supabase necesita que el browser tenga la cookie de sesión.
+    // Usamos el cliente del browser para establecerla a partir del token obtenido.
+    const supabase = createClient();
+    await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+
+    setLoading(false);
     router.push("/agenda");
     router.refresh();
   }

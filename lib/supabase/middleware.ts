@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Refresca la sesión Supabase en cada request y protege rutas del panel.
+// Rutas que NO requieren sesión. Todo lo demás exige estar autenticado.
+const PUBLIC_PATHS = ["/login", "/signup"];
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -31,13 +33,22 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Rutas del panel exigen sesión.
-  const PROTECTED = ["/agenda", "/pacientes", "/tratamientos", "/caja", "/inventario", "/ajustes", "/superadmin"];
-  const needsAuth = PROTECTED.some((p) => request.nextUrl.pathname.startsWith(p));
+  const { pathname } = request.nextUrl;
 
-  if (needsAuth && !user) {
+  const isPublic =
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
+    pathname.startsWith("/api/"); // Las API routes manejan su propio auth.
+
+  if (!isPublic && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Si ya tiene sesión y va a /login o /signup, redirigir al panel.
+  if (user && PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
