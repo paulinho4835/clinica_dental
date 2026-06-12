@@ -373,19 +373,28 @@ export async function POST(req: NextRequest) {
     // ── check_availability (recepción inbound) ──────────────────────────────
     if (fnName === "check_availability") {
       const date: string = (args.date as string | undefined) ?? new Date().toISOString().slice(0, 10);
+      const doctorFilter = (args.doctor_name as string | undefined)?.trim() ?? null;
 
       const allSlots = buildSlots(date);
 
       if (clinicId) {
         const dayStart = `${date}T00:00:00-04:00`;
         const dayEnd = `${date}T23:59:59-04:00`;
-        const { data: booked } = await admin
+
+        let query = admin
           .from("appointments")
-          .select("starts_at")
+          .select("starts_at, dentist_name")
           .eq("clinic_id", clinicId)
           .gte("starts_at", dayStart)
           .lte("starts_at", dayEnd)
           .not("status", "in", "(cancelled,no_show)");
+
+        // Si se pide un doctor específico, filtrar solo sus citas ocupadas
+        if (doctorFilter) {
+          query = query.ilike("dentist_name", `%${doctorFilter}%`);
+        }
+
+        const { data: booked } = await query;
 
         const bookedSet = new Set(
           (booked ?? []).map((a) =>
@@ -399,9 +408,10 @@ export async function POST(req: NextRequest) {
         );
 
         const available = allSlots.filter((s) => !bookedSet.has(s));
+        const doctorLabel = doctorFilter ? ` para ${doctorFilter}` : "";
         const msg = available.length
-          ? `Horarios disponibles el ${date}: ${available.join(", ")}.`
-          : `No hay horarios disponibles el ${date}. Por favor elige otra fecha.`;
+          ? `Horarios disponibles el ${date}${doctorLabel}: ${available.join(", ")}.`
+          : `No hay horarios disponibles el ${date}${doctorLabel}. Por favor elige otra fecha.`;
         return toolResult(toolCall.id, msg);
       }
 

@@ -137,6 +137,7 @@ export const REMINDER_TOOLS = [
         type: "object",
         properties: {
           date: { type: "string", description: "Fecha en formato YYYY-MM-DD" },
+          doctor_name: { type: "string", description: "Nombre del doctor para filtrar su disponibilidad (opcional)" },
         },
         required: ["date"],
       },
@@ -191,8 +192,8 @@ Flujo para agendar nueva cita (lookup no encontró cita, o el paciente quiere ot
 1. Pide el nombre completo.
 2. Pide el motivo (limpieza, dolor, extracción, revisión, etc.).
 3. Llama a get_doctors para obtener la lista de doctores y pregunta: "¿Con cuál de nuestros doctores prefiere ser atendido: [lista]? O si no tiene preferencia, le asignamos el primero disponible."
-4. Pregunta qué día y hora prefiere.
-5. Llama a check_availability con esa fecha.
+4. Pregunta qué día prefiere.
+5. Llama a check_availability con esa fecha y el doctor_name elegido (si indicó uno) para mostrar sus horarios libres.
 6. Confirma el horario disponible y llama a book_appointment (incluyendo doctor_name si el paciente lo indicó).
 7. Confirma y despídete mencionando el nombre del doctor asignado.
 
@@ -269,11 +270,12 @@ Normas:
           type: "function",
           function: {
             name: "check_availability",
-            description: "Consulta los horarios disponibles para una fecha específica.",
+            description: "Consulta los horarios disponibles para una fecha. Si el paciente eligió un doctor, pasar doctor_name para ver solo los slots libres de ese doctor.",
             parameters: {
               type: "object",
               properties: {
                 date: { type: "string", description: "Fecha en formato YYYY-MM-DD" },
+                doctor_name: { type: "string", description: "Nombre del doctor para filtrar su disponibilidad (opcional)" },
               },
               required: ["date"],
             },
