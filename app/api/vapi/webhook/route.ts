@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       }
 
       const now = new Date().toISOString();
-      const { data: appt } = await admin
+      const { data: apptByPatientId } = await admin
         .from("appointments")
         .select("id, starts_at")
         .eq("clinic_id", clinicId)
@@ -316,6 +316,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       // Fallback: citas agendadas por Vapi sin patient_id — buscar por nombre
+      let appt: { id: string; starts_at: string } | null = apptByPatientId ?? null;
       if (!appt) {
         const { data: apptByName } = await admin
           .from("appointments")
@@ -328,15 +329,13 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .maybeSingle();
         if (apptByName) {
-          // Actualizar en paralelo: vincular patient_id ahora que lo tenemos
+          // Vincular patient_id para futuras búsquedas
           await admin
             .from("appointments")
             .update({ patient_id: patient.id })
             .eq("id", apptByName.id);
+          appt = apptByName;
         }
-        // Reasignar para que el resto del handler lo procese normalmente
-        // (TypeScript: recast para reutilizar la variable `appt`)
-        (appt as typeof apptByName) = apptByName ?? null;
       }
 
       if (!appt) {
