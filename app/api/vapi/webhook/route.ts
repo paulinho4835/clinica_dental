@@ -351,6 +351,25 @@ export async function POST(req: NextRequest) {
       return toolResult(toolCall.id, "Acción no reconocida. ¿Quieres confirmar, cancelar o reagendar?");
     }
 
+    // ── get_doctors (recepción inbound) ────────────────────────────────────
+    if (fnName === "get_doctors") {
+      if (!clinicId) {
+        return toolResult(toolCall.id, "Error interno: clínica no identificada.");
+      }
+      const { data: doctors } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("clinic_id", clinicId)
+        .in("role", ["odontologo_general", "especialista", "admin"])
+        .order("full_name");
+
+      if (!doctors || doctors.length === 0) {
+        return toolResult(toolCall.id, "No encontré doctores registrados en la clínica.");
+      }
+      const names = doctors.map((d) => d.full_name).join(", ");
+      return toolResult(toolCall.id, `Los doctores disponibles son: ${names}.`);
+    }
+
     // ── check_availability (recepción inbound) ──────────────────────────────
     if (fnName === "check_availability") {
       const date: string = (args.date as string | undefined) ?? new Date().toISOString().slice(0, 10);

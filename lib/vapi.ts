@@ -190,7 +190,7 @@ Flujo si el paciente ya tiene cita (lookup_appointment encontró resultado):
 Flujo para agendar nueva cita (lookup no encontró cita, o el paciente quiere otra):
 1. Pide el nombre completo.
 2. Pide el motivo (limpieza, dolor, extracción, revisión, etc.).
-3. Pregunta si tiene preferencia de doctor. Si menciona un nombre, recuérdalo para pasarlo a book_appointment.
+3. Llama a get_doctors para obtener la lista de doctores y pregunta: "¿Con cuál de nuestros doctores prefiere ser atendido: [lista]? O si no tiene preferencia, le asignamos el primero disponible."
 4. Pregunta qué día y hora prefiere.
 5. Llama a check_availability con esa fecha.
 6. Confirma el horario disponible y llama a book_appointment (incluyendo doctor_name si el paciente lo indicó).
@@ -204,6 +204,14 @@ Normas:
         },
       ],
       tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_doctors",
+            description: "Obtiene la lista de doctores disponibles en la clínica. Llamar antes de preguntar preferencia de doctor al agendar una cita.",
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        },
         {
           type: "function",
           function: {
