@@ -34,7 +34,7 @@ export const FEATURES: FeatureMeta[] = [
   // /tratamientos y la tabla procedure_catalog siguen intactos.
   // Para reactivar: descomentar esta línea.
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
-  { key: "pagos", label: "Pagos a personal", href: "/pagos" },
+  { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
   { key: "caja", label: "Caja y finanzas", href: "/caja" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
   { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
