@@ -205,6 +205,53 @@ export async function updateTeamUserRole(
   return { ok: true };
 }
 
+// ============================================================================
+// Perfil público de la clínica (addon "perfil").
+// ============================================================================
+
+const ClinicProfileSchema = z.object({
+  name:     z.string().trim().min(1, "El nombre de la clínica es requerido"),
+  address:  z.string().trim().optional().nullable(),
+  phone:    z.string().trim().optional().nullable(),
+  nit:      z.string().trim().optional().nullable(),
+  logo_url: z.string().trim().url("URL de logo inválida").optional().nullable().or(z.literal("")),
+});
+
+export async function updateClinicProfile(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { profile } = auth;
+
+  const parsed = ClinicProfileSchema.safeParse({
+    name:     formData.get("name"),
+    address:  formData.get("address") || null,
+    phone:    formData.get("phone") || null,
+    nit:      formData.get("nit") || null,
+    logo_url: formData.get("logo_url") || null,
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("clinics")
+    .update({
+      name:     parsed.data.name,
+      address:  parsed.data.address ?? null,
+      phone:    parsed.data.phone ?? null,
+      nit:      parsed.data.nit ?? null,
+      logo_url: parsed.data.logo_url || null,
+    })
+    .eq("id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/ajustes");
+  return { ok: true };
+}
+
 export async function removeTeamUser(formData: FormData): Promise<ActionState> {
   const auth = await assertClinicAdmin();
   if ("error" in auth) return { error: auth.error };

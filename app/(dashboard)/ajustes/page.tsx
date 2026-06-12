@@ -5,7 +5,9 @@ import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
 import { DoctorsPanel, type Doctor } from "@/components/ajustes/DoctorsPanel";
+import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
+import { getClinicFeatures } from "@/lib/superadmin";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -13,6 +15,19 @@ export default async function SettingsPage() {
   const profile = await getProfile();
   const canWrite = can(profile?.role, "settings:write");
   const isClinicAdmin = profile?.role === "admin";
+
+  const features = await getClinicFeatures();
+
+  // Perfil público de la clínica (addon "perfil").
+  let clinicProfile: ClinicProfile | null = null;
+  if (isClinicAdmin && features.perfil && profile) {
+    const { data } = await supabase
+      .from("clinics")
+      .select("name, address, phone, nit, logo_url")
+      .eq("id", profile.clinicId)
+      .single();
+    clinicProfile = data as ClinicProfile | null;
+  }
 
   // Doctores (roster clínico, sin login): accesible para el admin.
   let doctors: Doctor[] = [];
@@ -59,6 +74,17 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-bold">Ajustes de la clínica</h1>
+
+      {clinicProfile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Perfil de la clínica</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Datos que aparecerán en documentos impresos: encabezados de recetas,
+            presupuestos y reportes.
+          </p>
+          <ClinicProfilePanel profile={clinicProfile} canWrite={canWrite} />
+        </section>
+      )}
 
       {isClinicAdmin && profile && (
         <section>
