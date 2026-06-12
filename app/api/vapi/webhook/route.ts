@@ -300,7 +300,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!patient) {
-        return toolResult(toolCall.id, "No encontré un paciente con ese número para actualizar la cita.");
+        return toolResult(toolCall.id, `DEBUG: no paciente. normalized=${normalized} clinicId=${clinicId}`);
       }
 
       const now = new Date().toISOString();
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (!appt) {
-        return toolResult(toolCall.id, `${patient.full_name} no tiene citas próximas para modificar.`);
+        return toolResult(toolCall.id, `DEBUG: no cita. patient=${patient.full_name} id=${patient.id} byId=${!!apptByPatientId}`);
       }
 
       if (action === "confirm") {
@@ -397,7 +397,7 @@ export async function POST(req: NextRequest) {
 
         if (updateError) {
           console.error("[vapi/update_appointment] update falló", updateError.message, { apptId: appt.id, slotStart });
-          return toolResult(toolCall.id, "Hubo un problema al guardar el nuevo horario. Por favor llama directamente a la clínica.");
+          return toolResult(toolCall.id, `DEBUG: update error: ${updateError.message}. apptId=${appt.id} slot=${slotStart}`);
         }
 
         const dateLabel = newStart.toLocaleDateString("es-BO", {
