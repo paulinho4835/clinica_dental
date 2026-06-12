@@ -207,7 +207,11 @@ export async function deleteWork(itemId: string, patientId: string): Promise<Act
   if (!can(profile.role, "clinical:write")) return { error: "Sin permiso clínico." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("treatment_items").delete().eq("id", itemId);
+  const { error } = await supabase
+    .from("treatment_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("clinic_id", profile.clinicId);
   if (error) return { error: error.message };
 
   revalidatePath(`/pacientes/${patientId}`);

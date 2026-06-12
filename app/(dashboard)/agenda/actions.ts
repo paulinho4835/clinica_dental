@@ -285,7 +285,11 @@ export async function deleteAppointment(id: string): Promise<ActionState> {
   if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("appointments").delete().eq("id", id);
+  const { error } = await supabase
+    .from("appointments")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinicId);
   if (error) return { error: error.message };
 
   revalidatePath("/agenda");

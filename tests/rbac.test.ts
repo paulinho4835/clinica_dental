@@ -8,10 +8,10 @@ describe("can (permisos por rol)", () => {
     expect(can("admin", "patients:delete")).toBe(true);
   });
 
-  it("recepcionista cobra y gestiona pacientes, pero no toca clínica/ajustes", () => {
+  it("recepcionista cobra, gestiona pacientes y puede editar lo clínico, pero no ajustes", () => {
     expect(can("recepcionista", "billing:write")).toBe(true);
     expect(can("recepcionista", "patients:write")).toBe(true);
-    expect(can("recepcionista", "clinical:write")).toBe(false);
+    expect(can("recepcionista", "clinical:write")).toBe(true);
     expect(can("recepcionista", "settings:write")).toBe(false);
   });
 

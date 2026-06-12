@@ -55,7 +55,11 @@ export async function deleteStaffPayment(id: string): Promise<ActionState> {
   if (profile.role !== "admin") return { error: "Sin permiso." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("staff_payments").delete().eq("id", id);
+  const { error } = await supabase
+    .from("staff_payments")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinicId);
   if (error) return { error: error.message };
 
   revalidatePath("/pagos");

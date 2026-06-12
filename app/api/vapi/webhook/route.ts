@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildInboundAssistant } from "@/lib/vapi";
 import { BOLIVIA_TZ } from "@/lib/format";
+import { parseArgs, normalizeTime, normalizeDate, normalizeVapiPhone, buildSlots } from "@/lib/vapi-helpers";
 
 // Vapi envía todos los eventos de llamada a esta URL:
 //   - assistant-request  → devuelve el asistente dinámico para llamadas entrantes
@@ -92,20 +93,28 @@ export async function POST(req: NextRequest) {
 
     // ── confirm_appointment (recordatorio outbound) ─────────────────────────
     if (fnName === "confirm_appointment" && appointmentId) {
-      await admin
+      const { error: confirmErr } = await admin
         .from("appointments")
         .update({ status: "confirmed" })
         .eq("id", appointmentId);
+      if (confirmErr) {
+        console.error("[vapi/confirm_appointment] update falló", confirmErr.message, { appointmentId });
+        return toolResult(toolCall.id, "ERROR: la cita NO fue confirmada. Hubo un problema al guardar. Por favor llama directamente a la clínica.");
+      }
       if (reminderId) await markReminderSent(admin, reminderId);
       return toolResult(toolCall.id, "Cita confirmada.");
     }
 
     // ── cancel_appointment (recordatorio outbound) ──────────────────────────
     if (fnName === "cancel_appointment" && appointmentId) {
-      await admin
+      const { error: cancelErr } = await admin
         .from("appointments")
         .update({ status: "cancelled" })
         .eq("id", appointmentId);
+      if (cancelErr) {
+        console.error("[vapi/cancel_appointment] update falló", cancelErr.message, { appointmentId });
+        return toolResult(toolCall.id, "ERROR: la cita NO fue cancelada. Hubo un problema al guardar. Por favor llama directamente a la clínica.");
+      }
       if (reminderId) await markReminderSent(admin, reminderId);
       return toolResult(toolCall.id, "Cita cancelada.");
     }
@@ -409,12 +418,20 @@ export async function POST(req: NextRequest) {
       }
 
       if (action === "confirm") {
-        await admin.from("appointments").update({ status: "confirmed" }).eq("id", appt.id);
+        const { error: confirmErr } = await admin.from("appointments").update({ status: "confirmed" }).eq("id", appt.id);
+        if (confirmErr) {
+          console.error("[vapi/update_appointment/confirm] update falló", confirmErr.message, { apptId: appt.id });
+          return toolResult(toolCall.id, "ERROR: la cita NO fue confirmada. Hubo un problema al guardar. Por favor llama directamente a la clínica.");
+        }
         return toolResult(toolCall.id, `¡Cita confirmada, ${patient.full_name}! Te esperamos. ¿Hay algo más en que pueda ayudarte?`);
       }
 
       if (action === "cancel") {
-        await admin.from("appointments").update({ status: "cancelled" }).eq("id", appt.id);
+        const { error: cancelErr } = await admin.from("appointments").update({ status: "cancelled" }).eq("id", appt.id);
+        if (cancelErr) {
+          console.error("[vapi/update_appointment/cancel] update falló", cancelErr.message, { apptId: appt.id });
+          return toolResult(toolCall.id, "ERROR: la cita NO fue cancelada. Hubo un problema al guardar. Por favor llama directamente a la clínica.");
+        }
         return toolResult(toolCall.id, `Cita cancelada, ${patient.full_name}. ¿Te gustaría reagendar para otra fecha? Puedo buscarte un horario disponible ahora mismo.`);
       }
 
@@ -718,95 +735,6 @@ function toolResult(toolCallId: string, result: string) {
   return NextResponse.json({ results: [{ toolCallId, result }] });
 }
 
-function parseArgs(raw: unknown): Record<string, unknown> {
-  if (!raw) return {};
-  // Vapi a veces ya envía los argumentos como objeto parseado.
-  if (typeof raw === "object") return raw as Record<string, unknown>;
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
-
-// Slots horarios según el día de la semana (hora Bolivia).
-// Lun-Sáb: 09:00 – 20:00 (último slot a las 19:00).
-// Dom: 09:00 – 12:00 (último slot a las 11:00).
-function buildSlots(date: string): string[] {
-  // Usamos mediodía para evitar ambigüedades de DST al calcular el día.
-  const local = new Date(
-    new Date(`${date}T12:00:00Z`).toLocaleString("en-US", { timeZone: BOLIVIA_TZ }),
-  );
-  const dow = local.getDay(); // 0=Dom, 1=Lun … 6=Sáb
-
-  if (dow === 0) {
-    // Domingo: 09:00, 10:00, 11:00
-    return ["09:00", "10:00", "11:00"];
-  }
-  // Lunes a Sábado: 09:00 – 19:00 (11 slots de 1h)
-  return Array.from({ length: 11 }, (_, i) =>
-    `${String(i + 9).padStart(2, "0")}:00`,
-  );
-}
-
-// Convierte hora en cualquier formato a "HH:MM" (24h). Devuelve null si no parseable.
-function normalizeTime(raw: string): string | null {
-  const s = raw.trim().toLowerCase();
-  // "12:00", "9:30", "14:00"
-  const hhmm = s.match(/^(\d{1,2}):(\d{2})(?:\s*(am|pm))?$/);
-  if (hhmm) {
-    let h = parseInt(hhmm[1], 10);
-    const m = parseInt(hhmm[2], 10);
-    if (hhmm[3] === "pm" && h < 12) h += 12;
-    if (hhmm[3] === "am" && h === 12) h = 0;
-    if (h > 23 || m > 59) return null;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  }
-  // "12h00", "9h30"
-  const hh = s.match(/^(\d{1,2})h(\d{2})$/);
-  if (hh) return normalizeTime(`${hh[1]}:${hh[2]}`);
-  // "12" (solo hora)
-  const ho = s.match(/^(\d{1,2})(?:\s*(am|pm))?$/);
-  if (ho) return normalizeTime(`${ho[1]}:00${ho[2] ? " " + ho[2] : ""}`);
-  return null;
-}
-
-// Convierte fecha en formatos comunes a "YYYY-MM-DD". Devuelve null si no parseable.
-function normalizeDate(raw: string): string | null {
-  const s = raw.trim();
-  // Ya es YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // DD/MM/YYYY o DD-MM-YYYY
-  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (dmy) {
-    const d = dmy[1].padStart(2, "0");
-    const m = dmy[2].padStart(2, "0");
-    return `${dmy[3]}-${m}-${d}`;
-  }
-  // MM/DD/YYYY
-  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) {
-    const m = mdy[1].padStart(2, "0");
-    const d = mdy[2].padStart(2, "0");
-    return `${mdy[3]}-${m}-${d}`;
-  }
-  return null;
-}
-
-// Normaliza el número de teléfono que envía Vapi ("+59171234567" → "59171234567").
-// También maneja formatos sin código de país para números bolivianos de 8 dígitos.
-function normalizeVapiPhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.length === 8 && (digits[0] === "6" || digits[0] === "7")) {
-    return `591${digits}`;
-  }
-  if (digits.length >= 10) return digits;
-  return null;
-}
 
 // ── Tipos mínimos del payload de Vapi ────────────────────────────────────────
 
