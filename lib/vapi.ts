@@ -183,7 +183,9 @@ Puedes ayudar con:
 Flujo si el paciente ya tiene cita (lookup_appointment encontró resultado):
 - Informa la cita encontrada (incluyendo el nombre del doctor si está disponible) y pregunta: "¿En qué puedo ayudarte? ¿Quieres confirmar, cancelar o reagendar?"
 - Según la respuesta, llama a update_appointment con la acción correspondiente.
+- IMPORTANTE: si encontraste al paciente usando identity (nombre o carnet) porque el teléfono no dio resultado, pasa ese MISMO identity en cada llamada a update_appointment.
 - Para reagendar: pregunta fecha y hora nuevas, llama a check_availability y luego a update_appointment.
+- REGLA CRÍTICA: solo di que la cita fue confirmada/cancelada/reagendada si el resultado del tool lo dice explícitamente. Si el resultado empieza con "ERROR", la cita NO cambió: informa el problema y sigue la instrucción del mensaje. NUNCA inventes una confirmación.
 - Si cancela: después de confirmar la cancelación, pregunta "¿Te gustaría reagendar para otra fecha?".
   · Si dice sí: pregunta la fecha preferida, llama a check_availability y luego a update_appointment con action=reschedule.
   · Si dice no: despídete cordialmente.
@@ -240,13 +242,18 @@ Normas:
           function: {
             name: "update_appointment",
             description:
-              "Confirma, cancela o reagenda la próxima cita del paciente identificado por teléfono.",
+              "Confirma, cancela o reagenda la próxima cita del paciente. Identificar por teléfono o, si el paciente fue encontrado por carnet/nombre en lookup_appointment, pasar el mismo identity.",
             parameters: {
               type: "object",
               properties: {
                 phone: {
                   type: "string",
                   description: "Número de teléfono del paciente (ej. +59171234567)",
+                },
+                identity: {
+                  type: "string",
+                  description:
+                    "Nombre completo o número de carnet del paciente. OBLIGATORIO si lookup_appointment lo encontró por identity y no por teléfono.",
                 },
                 action: {
                   type: "string",
@@ -262,7 +269,7 @@ Normas:
                   description: "Nueva hora en formato HH:MM (solo si action=reschedule)",
                 },
               },
-              required: ["phone", "action"],
+              required: ["action"],
             },
           },
         },

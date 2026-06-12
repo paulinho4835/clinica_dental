@@ -194,14 +194,16 @@ export async function POST(req: NextRequest) {
         patient = data ?? null;
       }
 
-      // 2do intento: búsqueda por nombre o CI (campo identity)
+      // 2do intento: búsqueda por nombre o CI (campo identity).
+      // El carnet puede venir dictado con espacios/puntos ("48 35 94 6") → limpiar.
       if (!patient && identity) {
-        const isNumeric = /^\d+$/.test(identity);
+        const digitsOnly = identity.replace(/[\s.\-]/g, "");
+        const isNumeric = /^\d+$/.test(digitsOnly);
         const { data } = await admin
           .from("patients")
           .select("id, full_name")
           .eq("clinic_id", clinicId)
-          .ilike(isNumeric ? "national_id" : "full_name", `%${identity}%`)
+          .ilike(isNumeric ? "national_id" : "full_name", `%${isNumeric ? digitsOnly : identity}%`)
           .limit(1)
           .maybeSingle();
         patient = data ?? null;
@@ -279,31 +281,55 @@ export async function POST(req: NextRequest) {
       const new_time = (args.new_time as string | undefined) ?? dtParts[1];
 
       const phone = rawPhone;
+      // identity = carnet o nombre completo, igual que en lookup_appointment.
+      // Crítico: si el paciente fue encontrado por carnet (su teléfono en la ficha
+      // no coincide con el número del llamante), el update DEBE poder encontrarlo
+      // por la misma vía o falla con "paciente no encontrado".
+      const identity = (
+        (args.identity as string | undefined) ??
+        (args.patient_name as string | undefined) ??
+        ""
+      ).trim();
 
       if (!action) {
         return toolResult(toolCall.id, "No entendí qué acción realizar. ¿Quieres confirmar, cancelar o reagendar la cita?");
       }
 
-      const normalized = phone ? normalizeVapiPhone(phone) : null;
-
-      if (!normalized || !clinicId) {
-        console.error("[vapi/update_appointment] sin teléfono", { args, callerNumberFromCall, clinicId });
-        return toolResult(toolCall.id, "No pude identificar el número de teléfono para actualizar la cita.");
+      if (!clinicId) {
+        return toolResult(toolCall.id, "ERROR: clínica no identificada. La cita NO fue modificada.");
       }
 
-      // Buscar paciente y su próxima cita
-      const { data: patient } = await admin
-        .from("patients")
-        .select("id, full_name")
-        .eq("clinic_id", clinicId)
-        .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
-        .maybeSingle();
+      const normalized = phone ? normalizeVapiPhone(phone) : null;
+
+      // Buscar paciente: 1º por teléfono, 2º por carnet/nombre (identity)
+      let patient: { id: string; full_name: string } | null = null;
+      if (normalized) {
+        const { data } = await admin
+          .from("patients")
+          .select("id, full_name")
+          .eq("clinic_id", clinicId)
+          .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
+          .maybeSingle();
+        patient = data ?? null;
+      }
+      if (!patient && identity) {
+        const digitsOnly = identity.replace(/[\s.\-]/g, "");
+        const isNumeric = /^\d+$/.test(digitsOnly);
+        const { data } = await admin
+          .from("patients")
+          .select("id, full_name")
+          .eq("clinic_id", clinicId)
+          .ilike(isNumeric ? "national_id" : "full_name", `%${isNumeric ? digitsOnly : identity}%`)
+          .limit(1)
+          .maybeSingle();
+        patient = data ?? null;
+      }
 
       if (!patient) {
-        console.error("[vapi/update_appointment] paciente no encontrado", { normalized, clinicId });
+        console.error("[vapi/update_appointment] paciente no encontrado", { normalized, identity, clinicId });
         return toolResult(
           toolCall.id,
-          "No encontré un paciente con ese número en el sistema. ¿Puedes confirmarme tu nombre completo?",
+          "ERROR: la cita NO fue modificada porque no encontré al paciente. Pide al paciente su nombre completo o número de carnet y vuelve a llamar update_appointment incluyendo el campo identity.",
         );
       }
 
@@ -377,8 +403,8 @@ export async function POST(req: NextRequest) {
         return toolResult(
           toolCall.id,
           action === "reschedule"
-            ? `No encontré ninguna cita para reagendar a nombre de ${patient.full_name}. ¿Te gustaría agendar una cita nueva?`
-            : `No encontré citas próximas para ${patient.full_name}.`,
+            ? `ERROR: ninguna cita fue modificada. No encontré citas para reagendar a nombre de ${patient.full_name}. Ofrece agendar una cita nueva con book_appointment.`
+            : `ERROR: ninguna cita fue modificada. No encontré citas próximas para ${patient.full_name}.`,
         );
       }
 
@@ -394,7 +420,7 @@ export async function POST(req: NextRequest) {
 
       if (action === "reschedule") {
         if (!new_date || !new_time) {
-          return toolResult(toolCall.id, "Para reagendar necesito la nueva fecha y hora. ¿Cuándo prefieres?");
+          return toolResult(toolCall.id, "ERROR: la cita NO fue modificada. Falta la nueva fecha y hora (new_date, new_time). Pregunta al paciente cuándo prefiere.");
         }
 
         // Normalizar fecha/hora: el LLM puede mandar "2:00", "2 pm", "18/06/2026", etc.
@@ -402,14 +428,14 @@ export async function POST(req: NextRequest) {
         const normTime = normalizeTime(new_time);
         if (!normDate || !normTime) {
           console.error("[vapi/update_appointment] fecha/hora no parseable", { new_date, new_time, normDate, normTime });
-          return toolResult(toolCall.id, `No entendí la nueva fecha y hora ("${new_date}" a las "${new_time}"). ¿Me la repites? Por ejemplo: 18 de junio a las 14:00.`);
+          return toolResult(toolCall.id, `ERROR: la cita NO fue modificada. No entendí la fecha/hora ("${new_date}" a las "${new_time}"). Pide al paciente que la repita y envía new_date como YYYY-MM-DD y new_time como HH:MM.`);
         }
 
         // Verificar disponibilidad del nuevo horario
         const newStart = new Date(`${normDate}T${normTime}:00-04:00`);
         if (isNaN(newStart.getTime())) {
           console.error("[vapi/update_appointment] Date inválido tras normalizar", { normDate, normTime });
-          return toolResult(toolCall.id, "No pude interpretar la nueva fecha y hora. ¿Me la confirmas de nuevo?");
+          return toolResult(toolCall.id, "ERROR: la cita NO fue modificada. No pude interpretar la fecha y hora. Pide al paciente que la confirme de nuevo.");
         }
         const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
         const slotStart = newStart.toISOString();
@@ -427,7 +453,7 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (conflict) {
-          return toolResult(toolCall.id, `El horario ${normTime} del ${normDate} ya está ocupado. ¿Tienes otra opción de horario?`);
+          return toolResult(toolCall.id, `ERROR: la cita NO fue modificada. El horario ${normTime} del ${normDate} ya está ocupado. Ofrece otro horario al paciente.`);
         }
 
         const { error: updateError } = await admin
@@ -437,7 +463,7 @@ export async function POST(req: NextRequest) {
 
         if (updateError) {
           console.error("[vapi/update_appointment] update falló", updateError.message, { apptId: appt.id, slotStart });
-          return toolResult(toolCall.id, "Hubo un problema al guardar el nuevo horario. Por favor intenta de nuevo o llama directamente a la clínica.");
+          return toolResult(toolCall.id, "ERROR: la cita NO fue modificada. Hubo un problema al guardar. Pide al paciente que llame directamente a la clínica.");
         }
 
         const dateLabel = newStart.toLocaleDateString("es-BO", {
