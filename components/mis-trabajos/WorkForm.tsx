@@ -14,15 +14,24 @@ const initial: ActionState = {};
 
 type Patient = { id: string; full_name: string; national_id?: string | null };
 type Doctor = { id: string; full_name: string };
+type Recepcionista = { id: string; full_name: string };
+
+const PAYMENT_METHODS = [
+  { value: "cash",     label: "Efectivo" },
+  { value: "qr",       label: "QR" },
+  { value: "card",     label: "Tarjeta" },
+];
 
 export function WorkForm({
   patients,
   today,
   doctors,
+  recepcionistas,
 }: {
   patients: Patient[];
   today: string;
   doctors?: Doctor[];
+  recepcionistas?: Recepcionista[];
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createDoctorWork, initial);
@@ -36,6 +45,7 @@ export function WorkForm({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedCollectedById, setSelectedCollectedById] = useState("");
 
   // Cálculo de comisión en vivo.
   const [cost, setCost] = useState("");
@@ -43,6 +53,10 @@ export function WorkForm({
   const costN = Number(cost) || 0;
   const pctN = Number(pct) || 0;
   const commission = Math.round(costN * pctN) / 100;
+
+  // Pago al momento del registro.
+  const [amountPaid, setAmountPaid] = useState("");
+  const amountPaidN = Number(amountPaid) || 0;
 
   const filtered =
     query.length >= 1
@@ -57,18 +71,25 @@ export function WorkForm({
           .slice(0, 8)
       : [];
 
+  function resetForm() {
+    formRef.current?.reset();
+    setQuery("");
+    setSelectedId("");
+    setSelectedDoctorId("");
+    setSelectedCollectedById("");
+    setCost("");
+    setPct("");
+    setAmountPaid("");
+    setOpen(false);
+  }
+
   useEffect(() => {
     if (state.ok) {
-      formRef.current?.reset();
-      setQuery("");
-      setSelectedId("");
-      setSelectedDoctorId("");
-      setCost("");
-      setPct("");
-      setOpen(false);
+      resetForm();
       router.refresh();
       toast("Trabajo registrado", "success");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, router]);
 
   useEffect(() => {
@@ -80,6 +101,13 @@ export function WorkForm({
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
+
+  const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;
+  const canSubmit =
+    !pending &&
+    query.trim() &&
+    (!doctors || selectedDoctorId) &&
+    (!hasRecepcionistas || selectedCollectedById);
 
   if (!open) {
     return (
@@ -196,12 +224,60 @@ export function WorkForm({
           {/* Comisión calculada automáticamente */}
           <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20 sm:col-span-2">
             <span className="text-slate-600">
-              Tu comisión {pctN > 0 && <span className="text-slate-400">({pctN}% de {bs(costN)})</span>}
+              Comisión del doctor{pctN > 0 && <span className="text-slate-400"> ({pctN}% de {bs(costN)})</span>}
             </span>
             <span className="tabular-nums text-base font-semibold text-clinic">
               {bs(commission)}
             </span>
           </div>
+
+          {/* ── Cobro al paciente ── */}
+          <label className="block text-sm">
+            <FieldLabel>Cobrado al paciente (Bs)</FieldLabel>
+            <input
+              name="amount_paid"
+              type="number"
+              step="0.01"
+              min="0"
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(e.target.value)}
+              placeholder="0.00"
+              className={fieldInputClass}
+            />
+          </label>
+
+          <label className="block text-sm">
+            <FieldLabel>Método de pago</FieldLabel>
+            <select
+              name="payment_method"
+              disabled={amountPaidN <= 0}
+              className={fieldInputClass}
+            >
+              <option value="">— ninguno —</option>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {/* Cobrado por: solo visible cuando hay recepcionistas */}
+          {hasRecepcionistas && (
+            <label className="block text-sm sm:col-span-2">
+              <FieldLabel>Cobrado por *</FieldLabel>
+              <select
+                name="collected_by_id"
+                required
+                value={selectedCollectedById}
+                onChange={(e) => setSelectedCollectedById(e.target.value)}
+                className={fieldInputClass}
+              >
+                <option value="">Selecciona recepcionista…</option>
+                {recepcionistas!.map((r) => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="block text-sm">
             <FieldLabel>Fecha</FieldLabel>
@@ -231,21 +307,10 @@ export function WorkForm({
         )}
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={pending || !query.trim() || (!!doctors && !selectedDoctorId)}>
+          <Button type="submit" disabled={!canSubmit}>
             {pending ? "Guardando…" : "Registrar"}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setOpen(false);
-              setQuery("");
-              setSelectedId("");
-              setSelectedDoctorId("");
-              setCost("");
-              setPct("");
-            }}
-          >
+          <Button type="button" variant="ghost" onClick={resetForm}>
             Cancelar
           </Button>
         </div>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useActionState, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ export type PaymentRow = {
   note?: string | null;
   receivedAt: string; // ISO
   doctorName?: string | null;
+  collectedByName?: string | null;
 };
 
 export type ApptRow = {
@@ -25,9 +26,11 @@ export type ApptRow = {
   status: string; // scheduled | finished | no_show
 };
 
+type Recepcionista = { id: string; full_name: string };
+
 const initial: ActionState = {};
 
-const PAY_GRID = "grid grid-cols-[10rem_minmax(0,1.2fr)_minmax(0,1fr)_6rem_7rem] items-center gap-x-3";
+const PAY_GRID = "grid grid-cols-[10rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_7rem] items-center gap-x-3";
 
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
@@ -109,6 +112,7 @@ export function PatientHistoryPanel({
   canBilling,
   payments,
   doctors,
+  recepcionistas,
   totalQuoted,
   totalPaid,
 }: {
@@ -116,6 +120,7 @@ export function PatientHistoryPanel({
   canBilling: boolean;
   payments: PaymentRow[];
   doctors: Dentist[];
+  recepcionistas?: Recepcionista[];
   totalQuoted: number;
   totalPaid: number;
 }) {
@@ -133,14 +138,21 @@ export function PatientHistoryPanel({
       {/* Pagos */}
       <div>
         <div className="mb-2 text-xs font-medium uppercase text-slate-400">Pagos</div>
-        {canBilling && <PaymentForm patientId={patientId} doctors={doctors} />}
+        {canBilling && (
+          <PaymentForm
+            patientId={patientId}
+            doctors={doctors}
+            recepcionistas={recepcionistas}
+          />
+        )}
         <div className="mt-2 overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="overflow-x-auto">
-            <div className="min-w-[36rem]">
+            <div className="min-w-[44rem]">
               <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
                 <span>Fecha</span>
                 <span>Motivo de pago</span>
                 <span>Doctor</span>
+                <span>Cobrado por</span>
                 <span>Método</span>
                 <span className="text-right">Monto</span>
               </div>
@@ -150,6 +162,7 @@ export function PatientHistoryPanel({
                     <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">{fmtDate(p.receivedAt)}</span>
                     <span className="truncate text-slate-600">{p.note ?? <span className="text-slate-400">—</span>}</span>
                     <span className="truncate text-slate-600">{p.doctorName ?? <span className="text-slate-400">—</span>}</span>
+                    <span className="truncate text-slate-500">{p.collectedByName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="text-slate-500 whitespace-nowrap">{METHOD_LABEL[p.method] ?? p.method}</span>
                     <span className="text-right tabular-nums font-medium text-emerald-600 whitespace-nowrap">{bs(p.amount)}</span>
                   </div>
@@ -223,7 +236,15 @@ function WorkStatusRow({
   );
 }
 
-function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Dentist[] }) {
+function PaymentForm({
+  patientId,
+  doctors,
+  recepcionistas,
+}: {
+  patientId: string;
+  doctors: Dentist[];
+  recepcionistas?: Recepcionista[];
+}) {
   const [state, formAction, pending] = useActionState(addPatientPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
@@ -232,10 +253,13 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
   const [amount, setAmount] = useState("");
   const [pct, setPct] = useState("");
   const [doctorId, setDoctorId] = useState("");
+  const [collectedById, setCollectedById] = useState("");
 
   const amountN = Number(amount) || 0;
   const pctN = Number(pct) || 0;
   const commission = Math.round(amountN * pctN) / 100;
+
+  const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;
 
   useEffect(() => {
     if (state.ok) {
@@ -243,6 +267,7 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
       setAmount("");
       setPct("");
       setDoctorId("");
+      setCollectedById("");
       router.refresh();
     }
   }, [state, router]);
@@ -281,7 +306,7 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
           </select>
         </label>
         <label className="text-xs">
-          <span className="mb-1 block text-slate-500">Doctor</span>
+          <span className="mb-1 block text-slate-500">Doctor que realizó el trabajo</span>
           <select
             name="doctor_id"
             value={doctorId}
@@ -311,6 +336,25 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
           </label>
         )}
         {!doctorId && <input type="hidden" name="commission_pct" value="0" />}
+
+        {hasRecepcionistas && (
+          <label className="text-xs">
+            <span className="mb-1 block text-slate-500">Cobrado por *</span>
+            <select
+              name="collected_by_id"
+              required
+              value={collectedById}
+              onChange={(e) => setCollectedById(e.target.value)}
+              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            >
+              <option value="">— Selecciona recepcionista —</option>
+              {recepcionistas!.map((r) => (
+                <option key={r.id} value={r.id}>{r.full_name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <label className="flex-1 text-xs">
           <span className="mb-1 block text-slate-500">Motivo de pago</span>
           <input
@@ -333,7 +377,7 @@ function PaymentForm({ patientId, doctors }: { patientId: string; doctors: Denti
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || (hasRecepcionistas && !collectedById)}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
           {pending ? "…" : "Registrar pago"}

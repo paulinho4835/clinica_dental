@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 
@@ -15,6 +16,7 @@ const PaymentSchema = z.object({
   doctor_id: z.string().uuid().optional().nullable(),
   commission_pct: z.coerce.number().min(0).max(100).default(0),
   note: z.string().max(120).optional().nullable(),
+  collected_by_id: z.string().uuid().optional().nullable(),
 });
 
 // Registra un pago/adelanto del paciente desde la ficha.
@@ -28,6 +30,8 @@ export async function addPatientPayment(
   if (!can(profile.role, "billing:write"))
     return { error: "Sin permiso para registrar pagos." };
 
+  const isRecepcionista = profile.role === "recepcionista";
+
   const parsed = PaymentSchema.safeParse({
     patient_id: formData.get("patient_id"),
     amount: formData.get("amount"),
@@ -35,11 +39,17 @@ export async function addPatientPayment(
     doctor_id: formData.get("doctor_id") || null,
     commission_pct: formData.get("commission_pct") || 0,
     note: formData.get("note") || null,
+    collected_by_id: formData.get("collected_by_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   const d = parsed.data;
+
+  // Recepcionista debe indicar quién cobró.
+  if (isRecepcionista && !d.collected_by_id)
+    return { error: "Selecciona la recepcionista que realizó el cobro." };
+
   const supabase = await createClient();
 
   const { error } = await supabase.from("payments").insert({
@@ -51,12 +61,15 @@ export async function addPatientPayment(
     doctor_id: d.doctor_id ?? null,
     commission_pct: d.commission_pct,
     note: d.note ?? null,
+    collected_by_id: d.collected_by_id ?? null,
   });
   if (error) return { error: error.message };
 
   // Si hay doctor, registrar automáticamente en Mis trabajos.
+  // Recepcionistas usan admin client (RLS del doctor_works_own solo permite admin o el propio doctor).
   if (d.doctor_id) {
-    await supabase.from("doctor_works").insert({
+    const worksClient = isRecepcionista ? createAdminClient() : supabase;
+    await worksClient.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
       patient_id: d.patient_id,
@@ -66,6 +79,7 @@ export async function addPatientPayment(
       amount_paid: d.amount,
       payment_method: d.method,
       performed_at: new Date().toISOString().split("T")[0],
+      collected_by_id: d.collected_by_id ?? null,
     });
   }
 

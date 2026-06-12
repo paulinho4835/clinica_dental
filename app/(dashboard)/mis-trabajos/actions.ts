@@ -23,6 +23,7 @@ const WorkSchema = z.object({
   performed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   notes: z.string().trim().max(300).optional().nullable(),
   doctor_id: z.string().uuid().optional().nullable(),
+  collected_by_id: z.string().uuid().optional().nullable(),
 });
 
 export async function createDoctorWork(
@@ -47,6 +48,7 @@ export async function createDoctorWork(
     performed_at: formData.get("performed_at"),
     notes: formData.get("notes") || null,
     doctor_id: formData.get("doctor_id") || null,
+    collected_by_id: formData.get("collected_by_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -81,6 +83,7 @@ export async function createDoctorWork(
     const { error } = await admin.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
+      collected_by_id: d.collected_by_id ?? null,
       ...insertData,
     });
     if (error) return { error: error.message };
@@ -102,8 +105,8 @@ export async function createDoctorWork(
 export async function deleteDoctorWork(id: string): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  if (!canSeeNav(profile.role, "mis_trabajos"))
-    return { error: "Sin permiso." };
+  if (profile.role !== "admin")
+    return { error: "Solo el administrador puede eliminar trabajos." };
 
   const supabase = await createClient();
   // RLS garantiza que un doctor solo borre lo suyo (admin puede borrar todo).

@@ -42,15 +42,19 @@ export default async function PatientPage({
 
   if (!patient) notFound();
 
+  const profile = await getProfile();
+
   const { data: odo } = await supabase
     .from("odontograms")
     .select("teeth")
     .eq("patient_id", id)
     .maybeSingle();
 
-  const [profile, platformAdminIds] = await Promise.all([getProfile(), getPlatformAdminIds()]);
+  const platformAdminIds = await getPlatformAdminIds();
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
+
+  const isRecepcionista = profile?.role === "recepcionista";
 
   let dentistsQuery = supabase
     .from("profiles")
@@ -62,6 +66,16 @@ export default async function PatientPage({
     dentistsQuery = dentistsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
+  // Recepcionistas de la clínica (para el campo "Cobrado por" en el formulario de pagos).
+  const recepcionistasQuery = isRecepcionista
+    ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "recepcionista")
+        .eq("clinic_id", patient.clinic_id)
+        .order("full_name")
+    : null;
+
   const [
     { data: rawPlans },
     { data: payments },
@@ -69,6 +83,7 @@ export default async function PatientPage({
     { data: dentists },
     { data: rawPrescriptions },
     { data: clinicRow },
+    { data: recepData },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -79,7 +94,7 @@ export default async function PatientPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, method, note, received_at, commission_pct, doctor:profiles(full_name)")
+      .select("id, amount, method, note, received_at, commission_pct, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:profiles!payments_collected_by_id_fkey(full_name)")
       .eq("patient_id", id)
       .order("received_at", { ascending: false }),
     supabase
@@ -99,6 +114,7 @@ export default async function PatientPage({
       .select("features")
       .eq("id", patient.clinic_id)
       .single(),
+    recepcionistasQuery ?? Promise.resolve({ data: null }),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -132,6 +148,7 @@ export default async function PatientPage({
     note: p.note as string | null,
     receivedAt: p.received_at as string,
     doctorName: ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
+    collectedByName: ((p.collected_by as { full_name?: string } | null)?.full_name) ?? null,
   }));
 
   const prescriptionRows: PrescriptionRow[] = (rawPrescriptions ?? []).map((rx) => ({
@@ -200,6 +217,7 @@ export default async function PatientPage({
           canBilling={canBilling}
           payments={paymentRows}
           doctors={dentists ?? []}
+          recepcionistas={isRecepcionista ? (recepData ?? []) : undefined}
           totalQuoted={totalQuoted}
           totalPaid={totalPaid}
         />

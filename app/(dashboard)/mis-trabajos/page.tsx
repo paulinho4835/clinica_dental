@@ -31,6 +31,7 @@ type WorkRow = {
   patient_name: string | null;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
+  collected_by: { full_name?: string } | null;
 };
 
 export default async function MisTrabajosPage({
@@ -43,6 +44,7 @@ export default async function MisTrabajosPage({
   const profile = await getProfile();
   const isAdmin = profile?.role === "admin";
   const isRecepcionista = profile?.role === "recepcionista";
+  const isDoctor = profile?.role === "odontologo_general" || profile?.role === "especialista";
   // Recepcionista y admin pueden ver/filtrar trabajos de todos los doctores.
   const canPickDoctor = isAdmin || isRecepcionista;
   const today = boliviaTodayISO();
@@ -59,7 +61,7 @@ export default async function MisTrabajosPage({
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -76,6 +78,16 @@ export default async function MisTrabajosPage({
 
   const platformAdminIds = canPickDoctor ? await getPlatformAdminIds() : [];
 
+  // Recepcionistas de la clínica (para el campo "Cobrado por" en WorkForm).
+  let recepcionistasQuery = isRecepcionista
+    ? supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "recepcionista")
+        .eq("clinic_id", profile!.clinicId)
+        .order("full_name")
+    : null;
+
   let doctorsQuery = canPickDoctor
     ? supabase
         .from("profiles")
@@ -87,16 +99,54 @@ export default async function MisTrabajosPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
-  const [{ data: works }, { data: patients }, { data: doctorProfiles }] = await Promise.all([
-    worksQuery,
-    supabase.from("patients").select("id, full_name, national_id").order("full_name"),
-    doctorsQuery ?? Promise.resolve({ data: null }),
-  ]);
+  // Odontólogos y especialistas solo ven sus propios pacientes en el picker.
+  let patientsQuery = supabase
+    .from("patients")
+    .select("id, full_name, national_id")
+    .order("full_name");
+  if (!canPickDoctor && profile) {
+    const [{ data: apptP }, { data: workP }] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("patient_id")
+        .eq("dentist_name", profile.fullName)
+        .not("patient_id", "is", null),
+      supabase
+        .from("doctor_works")
+        .select("patient_id")
+        .eq("doctor_id", profile.userId)
+        .not("patient_id", "is", null),
+    ]);
+    const ids = [
+      ...new Set([
+        ...(apptP ?? []).map((r) => r.patient_id as string),
+        ...(workP ?? []).map((r) => r.patient_id as string),
+      ]),
+    ];
+    patientsQuery =
+      ids.length > 0
+        ? patientsQuery.in("id", ids)
+        : patientsQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+  }
+
+  const [{ data: works }, { data: patients }, { data: doctorProfiles }, { data: recepData }] =
+    await Promise.all([
+      worksQuery,
+      patientsQuery,
+      doctorsQuery ?? Promise.resolve({ data: null }),
+      recepcionistasQuery ?? Promise.resolve({ data: null }),
+    ]);
 
   const rows = (works as WorkRow[] | null) ?? [];
   const totalCost = rows.reduce((s, w) => s + Number(w.cost), 0);
   const totalCommission = rows.reduce((s, w) => s + Number(w.commission_amount), 0);
   const totalPaid = rows.reduce((s, w) => s + Number(w.amount_paid), 0);
+  // Recepcionistas solo ven el cobrado del día (no el acumulado global).
+  const todayPaid = isRecepcionista
+    ? rows
+        .filter((w) => w.performed_at === today)
+        .reduce((s, w) => s + Number(w.amount_paid), 0)
+    : totalPaid;
 
   // Para admin: su perfil primero; para recepcionista: sin preferencia propia.
   const sortedDoctors = doctorProfiles
@@ -133,27 +183,34 @@ export default async function MisTrabajosPage({
         )}
       </div>
 
-      <WorkForm
-        patients={patients ?? []}
-        today={today}
-        doctors={isRecepcionista ? sortedDoctors : undefined}
-      />
+      {!isDoctor && (
+        <WorkForm
+          patients={patients ?? []}
+          today={today}
+          doctors={isRecepcionista ? sortedDoctors : undefined}
+          recepcionistas={isRecepcionista ? (recepData ?? []) : undefined}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {!isRecepcionista && (
+          <Stat
+            label="Trabajos facturados"
+            value={bs(totalCost)}
+            icon={<Briefcase className="h-5 w-5" />}
+          />
+        )}
+        {!isRecepcionista && (
+          <Stat
+            label="Comisión acumulada"
+            value={bs(totalCommission)}
+            icon={<Percent className="h-5 w-5" />}
+            valueClassName="text-clinic"
+          />
+        )}
         <Stat
-          label="Trabajos facturados"
-          value={bs(totalCost)}
-          icon={<Briefcase className="h-5 w-5" />}
-        />
-        <Stat
-          label="Comisión acumulada"
-          value={bs(totalCommission)}
-          icon={<Percent className="h-5 w-5" />}
-          valueClassName="text-clinic"
-        />
-        <Stat
-          label="Cobrado a pacientes"
-          value={bs(totalPaid)}
+          label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
+          value={bs(isRecepcionista ? todayPaid : totalPaid)}
           icon={<Banknote className="h-5 w-5" />}
           valueClassName="text-emerald-600"
         />
@@ -164,11 +221,12 @@ export default async function MisTrabajosPage({
           {rows.length} trabajo{rows.length !== 1 ? "s" : ""}
         </h2>
         <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="min-w-[52rem]">
+          <div className="min-w-[60rem]">
             <div className={`${GRID(canPickDoctor)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
               <span>Paciente</span>
               {canPickDoctor && <span>Doctor</span>}
+              <span>Cobrado por</span>
               <span>Trabajo</span>
               <span className="text-right">Costo</span>
               <span className="text-right">Comisión</span>
@@ -191,6 +249,9 @@ export default async function MisTrabajosPage({
                     {w.doctor?.full_name ?? "—"}
                   </span>
                 )}
+                <span className="truncate text-slate-500">
+                  {w.collected_by?.full_name ?? <span className="text-slate-300">—</span>}
+                </span>
                 <span className="truncate text-slate-600">
                   {w.description}
                   {w.notes && (
@@ -213,7 +274,7 @@ export default async function MisTrabajosPage({
                   )}
                 </div>
                 <div className="flex justify-end">
-                  <DeleteWorkButton id={w.id} />
+                  {isAdmin && <DeleteWorkButton id={w.id} />}
                 </div>
               </div>
             ))}
@@ -230,10 +291,11 @@ export default async function MisTrabajosPage({
 }
 
 // Columnas: con/sin la de Doctor (visible para admin y recepcionista).
+// Ambas variantes incluyen "Cobrado por" entre Doctor/Paciente y Trabajo.
 const GRID = (admin: boolean) =>
   admin
-    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4"
-    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
+    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4"
+    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {

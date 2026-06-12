@@ -12,6 +12,7 @@ import {
   Shield,
   Menu,
   X,
+  Banknote,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -27,6 +28,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/pacientes": Users,
   "/mis-trabajos": ClipboardList,
   "/inventario": Package,
+  "/pagos": Banknote,
   "/caja": Wallet,
   "/ajustes": Stethoscope,
 };
