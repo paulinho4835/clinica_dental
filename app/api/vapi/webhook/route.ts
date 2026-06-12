@@ -351,6 +351,12 @@ export async function POST(req: NextRequest) {
       return toolResult(toolCall.id, "Acción no reconocida. ¿Quieres confirmar, cancelar o reagendar?");
     }
 
+    // ── get_current_date ────────────────────────────────────────────────────
+    if (fnName === "get_current_date") {
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
+      return toolResult(toolCall.id, `Hoy es ${today} (formato YYYY-MM-DD).`);
+    }
+
     // ── get_doctors (recepción inbound) ────────────────────────────────────
     if (fnName === "get_doctors") {
       if (!clinicId) {
