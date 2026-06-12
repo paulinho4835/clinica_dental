@@ -4,6 +4,10 @@
 - **NUNCA hacer push sin autorización explícita del usuario.**
 - Español neutro en toda la UI (sin voseo argentino: "haz" no "hacé", "puedes" no "podés", etc.)
 
+> 📓 **Diario de depuración completo del bug "reagendar":** ver
+> [`docs/VAPI-DEPURACION-REAGENDAR.md`](docs/VAPI-DEPURACION-REAGENDAR.md) —
+> registro cronológico capa por capa de cada error y su solución.
+
 ## Lecciones aprendidas: integración Vapi (2026-06-11)
 
 ### Bugs reales que perdieron horas y cómo evitarlos
