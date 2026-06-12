@@ -47,17 +47,23 @@ export function WorkForm({
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedCollectedById, setSelectedCollectedById] = useState("");
 
-  // Cálculo de comisión en vivo.
+  // Comisión trabajo.
   const [cost, setCost] = useState("");
   const [pct, setPct] = useState("");
   const costN = Number(cost) || 0;
   const pctN = Number(pct) || 0;
   const commission = Math.round(costN * pctN) / 100;
 
+  // Comisión laboratorio.
+  const [labCost, setLabCost] = useState("");
+  const [labPct, setLabPct] = useState("");
+  const labCostN = Number(labCost) || 0;
+  const labPctN = Number(labPct) || 0;
+  const labCommission = Math.round(labCostN * labPctN) / 100;
+
   // Pago al momento del registro.
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
-  const [labCost, setLabCost] = useState("");
 
   const filtered =
     query.length >= 1
@@ -80,8 +86,9 @@ export function WorkForm({
     setSelectedCollectedById("");
     setCost("");
     setPct("");
-    setAmountPaid("");
     setLabCost("");
+    setLabPct("");
+    setAmountPaid("");
     setOpen(false);
   }
 
@@ -119,11 +126,13 @@ export function WorkForm({
     );
   }
 
+  const totalCommission = commission + labCommission;
+
   return (
     <Card className="p-4">
-      <form ref={formRef} action={formAction} className="space-y-3">
+      <form ref={formRef} action={formAction} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* Paciente: registrado (autocomplete) o nombre suelto */}
+          {/* Paciente */}
           <div ref={containerRef} className="relative block text-sm sm:col-span-2">
             <FieldLabel>Paciente *</FieldLabel>
             <input
@@ -139,7 +148,6 @@ export function WorkForm({
               onFocus={() => setShowSuggestions(true)}
               className={fieldInputClass}
             />
-            {/* Si eligió uno registrado viaja patient_id; si no, patient_name. */}
             <input type="hidden" name="patient_id" value={selectedId} />
             <input type="hidden" name="patient_name" value={selectedId ? "" : query} />
             {showSuggestions && filtered.length > 0 && (
@@ -164,6 +172,7 @@ export function WorkForm({
             )}
           </div>
 
+          {/* Doctor (solo recepcionista) */}
           {doctors && (
             <label className="block text-sm sm:col-span-2">
               <FieldLabel>Doctor *</FieldLabel>
@@ -182,6 +191,7 @@ export function WorkForm({
             </label>
           )}
 
+          {/* Trabajo realizado */}
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Trabajo realizado *</FieldLabel>
             <input
@@ -194,6 +204,47 @@ export function WorkForm({
             />
           </label>
 
+          {/* ── Costo del trabajo ── */}
+          <label className="block text-sm">
+            <FieldLabel>Costo del trabajo (Bs)</FieldLabel>
+            <input
+              name="cost"
+              type="number"
+              step="0.01"
+              min="0"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="0.00"
+              className={fieldInputClass}
+            />
+          </label>
+
+          <label className="block text-sm">
+            <FieldLabel>Comisión trabajo (%)</FieldLabel>
+            <input
+              name="commission_pct"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={pct}
+              onChange={(e) => setPct(e.target.value)}
+              placeholder="ej. 40"
+              className={fieldInputClass}
+            />
+          </label>
+
+          {/* Comisión trabajo calculada */}
+          <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20 sm:col-span-2">
+            <span className="text-slate-600">
+              Comisión del trabajo{pctN > 0 && <span className="text-slate-400"> ({pctN}% de {bs(costN)})</span>}
+            </span>
+            <span className="tabular-nums text-base font-semibold text-clinic">
+              {bs(commission)}
+            </span>
+          </div>
+
+          {/* ── Laboratorio ── */}
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Trabajo de laboratorio (opcional)</FieldLabel>
             <input
@@ -220,43 +271,39 @@ export function WorkForm({
           </label>
 
           <label className="block text-sm">
-            <FieldLabel>Costo del trabajo (Bs)</FieldLabel>
+            <FieldLabel>Comisión laboratorio (%)</FieldLabel>
             <input
-              name="cost"
-              type="number"
-              step="0.01"
-              min="0"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="0.00"
-              className={fieldInputClass}
-            />
-          </label>
-
-          <label className="block text-sm">
-            <FieldLabel>Comisión (%)</FieldLabel>
-            <input
-              name="commission_pct"
+              name="lab_commission_pct"
               type="number"
               step="0.1"
               min="0"
               max="100"
-              value={pct}
-              onChange={(e) => setPct(e.target.value)}
-              placeholder="ej. 40"
+              value={labPct}
+              onChange={(e) => setLabPct(e.target.value)}
+              placeholder="ej. 20"
               className={fieldInputClass}
             />
           </label>
 
-          {/* Comisión calculada automáticamente */}
-          <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20 sm:col-span-2">
+          {/* Comisión laboratorio calculada */}
+          <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-sm ring-1 ring-amber-200 sm:col-span-2">
             <span className="text-slate-600">
-              Comisión del doctor{pctN > 0 && <span className="text-slate-400"> ({pctN}% de {bs(costN)})</span>}
+              Comisión de laboratorio{labPctN > 0 && <span className="text-slate-400"> ({labPctN}% de {bs(labCostN)})</span>}
             </span>
-            <span className="tabular-nums text-base font-semibold text-clinic">
-              {bs(commission)}
+            <span className="tabular-nums text-base font-semibold text-amber-700">
+              {bs(labCommission)}
             </span>
           </div>
+
+          {/* Total comisión (si hay laboratorio) */}
+          {labCostN > 0 && (
+            <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 sm:col-span-2">
+              <span className="font-medium text-slate-700">Total comisión</span>
+              <span className="tabular-nums text-base font-bold text-slate-800">
+                {bs(totalCommission)}
+              </span>
+            </div>
+          )}
 
           {/* ── Cobro al paciente ── */}
           <label className="block text-sm">

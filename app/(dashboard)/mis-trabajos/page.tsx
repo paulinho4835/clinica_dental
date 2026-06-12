@@ -30,6 +30,8 @@ type WorkRow = {
   notes: string | null;
   lab_work: string | null;
   lab_cost: number;
+  lab_commission_pct: number;
+  lab_commission_amount: number;
   patient_name: string | null;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
@@ -63,7 +65,7 @@ export default async function MisTrabajosPage({
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -141,7 +143,10 @@ export default async function MisTrabajosPage({
 
   const rows = (works as WorkRow[] | null) ?? [];
   const totalCost = rows.reduce((s, w) => s + Number(w.cost), 0);
-  const totalCommission = rows.reduce((s, w) => s + Number(w.commission_amount), 0);
+  const totalCommission = rows.reduce(
+    (s, w) => s + Number(w.commission_amount) + Number(w.lab_commission_amount),
+    0,
+  );
   const totalPaid = rows.reduce((s, w) => s + Number(w.amount_paid), 0);
   // Recepcionistas solo ven el cobrado del día (no el acumulado global).
   const todayPaid = isRecepcionista
@@ -273,12 +278,19 @@ export default async function MisTrabajosPage({
                     <span className="block text-xs text-amber-600">+{bs(Number(w.lab_cost))} lab</span>
                   )}
                 </div>
-                <span className="text-right tabular-nums font-medium text-clinic">
-                  {bs(Number(w.commission_amount))}
-                  <span className="block text-xs font-normal text-slate-400">
-                    {Number(w.commission_pct)}%
+                <div className="text-right tabular-nums leading-tight">
+                  <span className="font-medium text-clinic">
+                    {bs(Number(w.commission_amount) + Number(w.lab_commission_amount))}
                   </span>
-                </span>
+                  <span className="block text-xs text-slate-400">
+                    Trab: {bs(Number(w.commission_amount))} ({Number(w.commission_pct)}%)
+                  </span>
+                  {Number(w.lab_commission_amount) > 0 && (
+                    <span className="block text-xs text-amber-600">
+                      Lab: {bs(Number(w.lab_commission_amount))} ({Number(w.lab_commission_pct)}%)
+                    </span>
+                  )}
+                </div>
                 <div className="flex flex-col items-end leading-tight">
                   <span className="tabular-nums">{bs(Number(w.amount_paid))}</span>
                   {w.payment_method && (
