@@ -300,7 +300,11 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!patient) {
-        return toolResult(toolCall.id, `DEBUG: no paciente. normalized=${normalized} clinicId=${clinicId}`);
+        console.error("[vapi/update_appointment] paciente no encontrado", { normalized, clinicId });
+        return toolResult(
+          toolCall.id,
+          "No encontré un paciente con ese número en el sistema. ¿Puedes confirmarme tu nombre completo?",
+        );
       }
 
       const now = new Date().toISOString();
@@ -338,8 +342,44 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Fallback especial para reagendar: el LLM puede haber cancelado la cita
+      // en este mismo turno y luego pedir reagendar. Buscar la cancelada más próxima.
+      if (!appt && action === "reschedule") {
+        const { data: cancelledByPatientId } = await admin
+          .from("appointments")
+          .select("id, starts_at")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patient.id)
+          .eq("status", "cancelled")
+          .gte("starts_at", now)
+          .order("starts_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (cancelledByPatientId) {
+          appt = cancelledByPatientId;
+        } else {
+          const { data: cancelledByName } = await admin
+            .from("appointments")
+            .select("id, starts_at")
+            .eq("clinic_id", clinicId)
+            .ilike("patient_name", `%${patient.full_name}%`)
+            .eq("status", "cancelled")
+            .gte("starts_at", now)
+            .order("starts_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (cancelledByName) appt = cancelledByName;
+        }
+      }
+
       if (!appt) {
-        return toolResult(toolCall.id, `DEBUG: no cita. patient=${patient.full_name} id=${patient.id} byId=${!!apptByPatientId}`);
+        console.error("[vapi/update_appointment] no cita", { patient: patient.full_name, action, clinicId });
+        return toolResult(
+          toolCall.id,
+          action === "reschedule"
+            ? `No encontré ninguna cita para reagendar a nombre de ${patient.full_name}. ¿Te gustaría agendar una cita nueva?`
+            : `No encontré citas próximas para ${patient.full_name}.`,
+        );
       }
 
       if (action === "confirm") {
@@ -397,7 +437,7 @@ export async function POST(req: NextRequest) {
 
         if (updateError) {
           console.error("[vapi/update_appointment] update falló", updateError.message, { apptId: appt.id, slotStart });
-          return toolResult(toolCall.id, `DEBUG: update error: ${updateError.message}. apptId=${appt.id} slot=${slotStart}`);
+          return toolResult(toolCall.id, "Hubo un problema al guardar el nuevo horario. Por favor intenta de nuevo o llama directamente a la clínica.");
         }
 
         const dateLabel = newStart.toLocaleDateString("es-BO", {
