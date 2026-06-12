@@ -63,6 +63,12 @@ export async function createDoctorWork(
   if (!d.patient_id && !d.patient_name)
     return { error: "Indica el paciente (registrado o por nombre)." };
 
+  // Admin se asigna a sí mismo como "cobrado por" si no se indicó otro.
+  const resolvedCollectedById =
+    d.collected_by_id ?? (profile.role === "admin" ? profile.userId : null);
+
+  const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
+
   const insertData = {
     patient_id: d.patient_id ?? null,
     patient_name: d.patient_id ? null : d.patient_name,
@@ -70,13 +76,16 @@ export async function createDoctorWork(
     cost: d.cost,
     commission_pct: d.commission_pct,
     amount_paid: d.amount_paid,
-    payment_method: d.amount_paid > 0 ? d.payment_method ?? "cash" : null,
+    payment_method: paymentMethod,
     performed_at: d.performed_at,
     notes: d.notes ?? null,
     lab_work: d.lab_work ?? null,
     lab_cost: d.lab_cost ?? 0,
     lab_commission_pct: d.lab_commission_pct ?? 0,
+    collected_by_id: resolvedCollectedById,
   };
+
+  let actualDoctorId: string;
 
   if (isRecepcionista) {
     if (!d.doctor_id) return { error: "Selecciona el doctor que realizó el trabajo." };
@@ -89,15 +98,15 @@ export async function createDoctorWork(
       .single();
     if (!doctorProfile || doctorProfile.clinic_id !== profile.clinicId)
       return { error: "Doctor no encontrado en tu clínica." };
+    actualDoctorId = d.doctor_id;
     const { error } = await admin.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
-      collected_by_id: d.collected_by_id ?? null,
       ...insertData,
     });
     if (error) return { error: error.message };
   } else {
-    // commission_amount es columna generada en la DB: no se envía.
+    actualDoctorId = profile.userId;
     const supabase = await createClient();
     const { error } = await supabase.from("doctor_works").insert({
       clinic_id: profile.clinicId,
@@ -107,7 +116,25 @@ export async function createDoctorWork(
     if (error) return { error: error.message };
   }
 
+  // Si se cobró algo a un paciente registrado, reflejar también en payments
+  // para que aparezca en el historial de pagos del paciente.
+  if (d.amount_paid > 0 && d.patient_id && paymentMethod) {
+    const supabase = await createClient();
+    await supabase.from("payments").insert({
+      clinic_id: profile.clinicId,
+      patient_id: d.patient_id,
+      amount: d.amount_paid,
+      method: paymentMethod,
+      kind: "payment",
+      doctor_id: actualDoctorId,
+      commission_pct: d.commission_pct,
+      note: d.description,
+      collected_by_id: resolvedCollectedById,
+    });
+  }
+
   revalidatePath("/mis-trabajos");
+  if (d.patient_id) revalidatePath(`/pacientes/${d.patient_id}`);
   return { ok: true };
 }
 
