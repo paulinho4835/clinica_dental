@@ -292,6 +292,30 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
+      // Fallback: citas agendadas por Vapi sin patient_id — buscar por nombre
+      if (!appt) {
+        const { data: apptByName } = await admin
+          .from("appointments")
+          .select("id, starts_at")
+          .eq("clinic_id", clinicId)
+          .ilike("patient_name", `%${patient.full_name}%`)
+          .gte("starts_at", now)
+          .not("status", "in", "(cancelled,no_show,finished)")
+          .order("starts_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (apptByName) {
+          // Actualizar en paralelo: vincular patient_id ahora que lo tenemos
+          await admin
+            .from("appointments")
+            .update({ patient_id: patient.id })
+            .eq("id", apptByName.id);
+        }
+        // Reasignar para que el resto del handler lo procese normalmente
+        // (TypeScript: recast para reutilizar la variable `appt`)
+        (appt as typeof apptByName) = apptByName ?? null;
+      }
+
       if (!appt) {
         return toolResult(toolCall.id, `${patient.full_name} no tiene citas próximas para modificar.`);
       }
@@ -494,8 +518,18 @@ export async function POST(req: NextRequest) {
         assignedDoctor = first?.full_name ?? null;
       }
 
+      // Vincular patient_id si el paciente ya existe en el sistema (por nombre).
+      const { data: existingPatient } = await admin
+        .from("patients")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .ilike("full_name", `%${patient_name.trim()}%`)
+        .limit(1)
+        .maybeSingle();
+
       const { error } = await admin.from("appointments").insert({
         clinic_id: clinicId,
+        patient_id: existingPatient?.id ?? null,
         patient_name: patient_name.trim(),
         dentist_name: assignedDoctor,
         starts_at: startsAt,
