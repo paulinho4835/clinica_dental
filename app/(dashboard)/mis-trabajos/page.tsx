@@ -28,6 +28,8 @@ type WorkRow = {
   payment_method: string | null;
   performed_at: string;
   notes: string | null;
+  lab_work: string | null;
+  lab_cost: number;
   patient_name: string | null;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
@@ -61,7 +63,7 @@ export default async function MisTrabajosPage({
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -254,11 +256,23 @@ export default async function MisTrabajosPage({
                 </span>
                 <span className="truncate text-slate-600">
                   {w.description}
+                  {w.lab_work && (
+                    <span className="mt-0.5 flex items-center gap-1">
+                      <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                        Lab: {w.lab_work}
+                      </span>
+                    </span>
+                  )}
                   {w.notes && (
                     <span className="block truncate text-xs text-slate-400">{w.notes}</span>
                   )}
                 </span>
-                <span className="text-right tabular-nums">{bs(Number(w.cost))}</span>
+                <div className="text-right tabular-nums leading-tight">
+                  <span>{bs(Number(w.cost))}</span>
+                  {Number(w.lab_cost) > 0 && (
+                    <span className="block text-xs text-amber-600">+{bs(Number(w.lab_cost))} lab</span>
+                  )}
+                </div>
                 <span className="text-right tabular-nums font-medium text-clinic">
                   {bs(Number(w.commission_amount))}
                   <span className="block text-xs font-normal text-slate-400">

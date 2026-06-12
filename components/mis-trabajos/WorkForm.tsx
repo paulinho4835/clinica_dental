@@ -57,6 +57,7 @@ export function WorkForm({
   // Pago al momento del registro.
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
+  const [labCost, setLabCost] = useState("");
 
   const filtered =
     query.length >= 1
@@ -80,6 +81,7 @@ export function WorkForm({
     setCost("");
     setPct("");
     setAmountPaid("");
+    setLabCost("");
     setOpen(false);
   }
 
@@ -188,6 +190,31 @@ export function WorkForm({
               required
               maxLength={120}
               placeholder="ej. Cirugía, Endodoncia, Limpieza…"
+              className={fieldInputClass}
+            />
+          </label>
+
+          <label className="block text-sm sm:col-span-2">
+            <FieldLabel>Trabajo de laboratorio (opcional)</FieldLabel>
+            <input
+              name="lab_work"
+              type="text"
+              maxLength={200}
+              placeholder="ej. Corona, Prótesis parcial, Retenedor…"
+              className={fieldInputClass}
+            />
+          </label>
+
+          <label className="block text-sm">
+            <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
+            <input
+              name="lab_cost"
+              type="number"
+              step="0.01"
+              min="0"
+              value={labCost}
+              onChange={(e) => setLabCost(e.target.value)}
+              placeholder="0.00"
               className={fieldInputClass}
             />
           </label>

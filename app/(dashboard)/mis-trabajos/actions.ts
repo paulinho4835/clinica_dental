@@ -22,6 +22,8 @@ const WorkSchema = z.object({
   payment_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
   performed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   notes: z.string().trim().max(300).optional().nullable(),
+  lab_work: z.string().trim().max(200).optional().nullable(),
+  lab_cost: z.coerce.number().min(0, "El costo de laboratorio no puede ser negativo.").default(0),
   doctor_id: z.string().uuid().optional().nullable(),
   collected_by_id: z.string().uuid().optional().nullable(),
 });
@@ -47,6 +49,8 @@ export async function createDoctorWork(
     payment_method: formData.get("payment_method") || null,
     performed_at: formData.get("performed_at"),
     notes: formData.get("notes") || null,
+    lab_work: formData.get("lab_work") || null,
+    lab_cost: formData.get("lab_cost") || 0,
     doctor_id: formData.get("doctor_id") || null,
     collected_by_id: formData.get("collected_by_id") || null,
   });
@@ -67,6 +71,8 @@ export async function createDoctorWork(
     payment_method: d.amount_paid > 0 ? d.payment_method ?? "cash" : null,
     performed_at: d.performed_at,
     notes: d.notes ?? null,
+    lab_work: d.lab_work ?? null,
+    lab_cost: d.lab_cost ?? 0,
   };
 
   if (isRecepcionista) {
