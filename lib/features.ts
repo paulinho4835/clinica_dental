@@ -13,7 +13,8 @@ export type FeatureKey =
   | "whatsapp"
   | "recetas"
   | "pagos"
-  | "perfil";
+  | "perfil"
+  | "consentimientos";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -41,6 +42,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },
   { key: "perfil", label: "Perfil de clínica", href: "/ajustes", optIn: true },
+  { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;

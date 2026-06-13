@@ -7,6 +7,7 @@ import type { FeatureKey } from "@/lib/features";
 const ICONS: Partial<Record<FeatureKey, string>> = {
   whatsapp: "💬",
   recetas: "📄",
+  consentimientos: "📝",
 };
 
 export function AddonToggle({
