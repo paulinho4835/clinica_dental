@@ -5,6 +5,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { normalizeFeatures } from "@/lib/features";
+import { buildReminderRows, cancelPendingReminders } from "@/lib/reminders";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -102,16 +104,22 @@ export async function createAppointment(
     .single();
   if (error || !appt) return { error: error?.message ?? "No se pudo agendar." };
 
-  // Recordatorio automático 24h antes (lo despacha la Edge Function vía pg_cron).
-  // Si la cita es en menos de 24h, se programa de inmediato.
-  const remindAt = new Date(starts.getTime() - 24 * 60 * 60 * 1000);
-  const scheduledFor = remindAt > new Date() ? remindAt : new Date();
-  await supabase.from("appointment_reminders").insert({
-    clinic_id: profile.clinicId,
-    appointment_id: appt.id,
-    channel: "whatsapp",
-    scheduled_for: scheduledFor.toISOString(),
-  });
+  // Recordatorios automáticos: solo si el addon está activo y hay paciente registrado.
+  if (parsed.data.patient_id) {
+    const { data: clinicRow } = await supabase
+      .from("clinics")
+      .select("features, settings")
+      .eq("id", profile.clinicId)
+      .single();
+
+    if (normalizeFeatures(clinicRow?.features).recordatorios) {
+      const settings = (clinicRow?.settings ?? {}) as Record<string, unknown>;
+      const rows = buildReminderRows(profile.clinicId, appt.id, starts, settings);
+      if (rows.length > 0) {
+        await supabase.from("appointment_reminders").insert(rows);
+      }
+    }
+  }
 
   revalidatePath("/agenda");
   return { ok: true };
@@ -193,6 +201,24 @@ export async function updateAppointment(
     .eq("id", appointmentId); // RLS limita a la clínica del usuario
   if (error) return { error: error.message };
 
+  // Si el paciente está registrado y el addon activo, reinsertar reminders con la nueva hora.
+  if (parsed.data.patient_id) {
+    const { data: clinicRow } = await supabase
+      .from("clinics")
+      .select("features, settings")
+      .eq("id", profile.clinicId)
+      .single();
+
+    if (normalizeFeatures(clinicRow?.features).recordatorios) {
+      await cancelPendingReminders(supabase, appointmentId);
+      const settings = (clinicRow?.settings ?? {}) as Record<string, unknown>;
+      const rows = buildReminderRows(profile.clinicId, appointmentId, starts, settings);
+      if (rows.length > 0) {
+        await supabase.from("appointment_reminders").insert(rows);
+      }
+    }
+  }
+
   revalidatePath("/agenda");
   return { ok: true };
 }
@@ -210,6 +236,8 @@ export async function cancelAppointment(id: string): Promise<ActionState> {
     .update({ status: "cancelled" })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  await cancelPendingReminders(supabase, id);
 
   revalidatePath("/agenda");
   return { ok: true };
@@ -273,6 +301,25 @@ export async function rescheduleAppointment(
     .update({ starts_at: startsUTC, ends_at: endsUTC })
     .eq("id", id); // RLS limita a la clínica del usuario
   if (error) return { error: error.message };
+
+  // Reinsertar reminders con la nueva hora si el addon está activo.
+  const { data: apptRow } = await supabase
+    .from("appointments")
+    .select("patient_id, clinics(features, settings)")
+    .eq("id", id)
+    .single();
+
+  const patientId = apptRow?.patient_id;
+  const clinicData = apptRow?.clinics as { features?: unknown; settings?: unknown } | null;
+
+  if (patientId && normalizeFeatures(clinicData?.features).recordatorios) {
+    await cancelPendingReminders(supabase, id);
+    const settings = (clinicData?.settings ?? {}) as Record<string, unknown>;
+    const rows = buildReminderRows(profile.clinicId, id, new Date(startsUTC), settings);
+    if (rows.length > 0) {
+      await supabase.from("appointment_reminders").insert(rows);
+    }
+  }
 
   revalidatePath("/agenda");
   return { ok: true };
