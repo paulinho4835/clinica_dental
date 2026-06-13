@@ -11,6 +11,7 @@ import {
 } from "@/components/ajustes/ConsentTemplatesPanel";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getClinicFeatures } from "@/lib/superadmin";
+import { RemindersPanel, type ReminderRow } from "@/components/ajustes/RemindersPanel";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -30,6 +31,37 @@ export default async function SettingsPage() {
       .eq("id", profile.clinicId)
       .single();
     clinicProfile = data as ClinicProfile | null;
+  }
+
+  // Recordatorios WhatsApp (addon "recordatorios").
+  let remindersConfig = { h24: true, h2: false };
+  let recentReminders: ReminderRow[] = [];
+
+  if (isClinicAdmin && features.recordatorios && profile) {
+    const { data: clinicData } = await supabase
+      .from("clinics")
+      .select("settings")
+      .eq("id", profile.clinicId)
+      .single();
+
+    const s = (clinicData?.settings ?? {}) as Record<string, unknown>;
+    remindersConfig = {
+      h24: s.reminders_h24 !== false,
+      h2:  s.reminders_h2  === true,
+    };
+
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("appointment_reminders")
+      .select(
+        "id, hours_before, status, scheduled_for, sent_at, appointments(starts_at, patient_name, patients(full_name))",
+      )
+      .eq("clinic_id", profile.clinicId)
+      .gte("scheduled_for", since)
+      .order("scheduled_for", { ascending: false })
+      .limit(20);
+
+    recentReminders = (recent ?? []) as unknown as ReminderRow[];
   }
 
   let systemTemplates: TemplateRow[] = [];
@@ -105,6 +137,23 @@ export default async function SettingsPage() {
             presupuestos y reportes.
           </p>
           <ClinicProfilePanel profile={clinicProfile} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.recordatorios && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Recordatorios automáticos de WhatsApp
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Envía recordatorios automáticos a tus pacientes por WhatsApp antes de su cita.
+            Solo aplica a pacientes registrados con número de teléfono.
+          </p>
+          <RemindersPanel
+            config={remindersConfig}
+            recentReminders={recentReminders}
+            canWrite={canWrite}
+          />
         </section>
       )}
 
