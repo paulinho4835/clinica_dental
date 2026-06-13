@@ -48,7 +48,7 @@ export async function updateSession(request: NextRequest) {
   // Si ya tiene sesión y va a /login o /signup, redirigir al panel.
   if (user && PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/agenda";
     return NextResponse.redirect(url);
   }
 

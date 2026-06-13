@@ -4,7 +4,6 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
-import { DoctorsPanel, type Doctor } from "@/components/ajustes/DoctorsPanel";
 import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
 import {
   ConsentTemplatesPanel,
@@ -35,17 +34,6 @@ export default async function SettingsPage() {
 
   let systemTemplates: TemplateRow[] = [];
   let clinicTemplates: TemplateRow[] = [];
-
-  // Doctores (roster clínico, sin login): accesible para el admin.
-  let doctors: Doctor[] = [];
-  if (isClinicAdmin && profile) {
-    const { data } = await supabase
-      .from("doctors")
-      .select("id, full_name, specialty, active")
-      .eq("clinic_id", profile.clinicId)
-      .order("full_name");
-    doctors = (data ?? []) as Doctor[];
-  }
 
   if (isClinicAdmin && features.consentimientos && profile) {
     const { data: allTemplates } = await supabase
@@ -120,22 +108,9 @@ export default async function SettingsPage() {
         </section>
       )}
 
-      {isClinicAdmin && profile && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800">Doctores</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Roster clínico. Los doctores registrados aquí aparecen disponibles al
-            agendar citas y en los reportes de la agenda.
-          </p>
-          <DoctorsPanel doctors={doctors} canWrite={canWrite} />
-        </section>
-      )}
-
       {isClinicAdmin && features.consentimientos && profile && (
         <section>
-          <h2 className="text-lg font-semibold text-slate-800">
-            Plantillas de consentimiento
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-800">Plantillas de consentimiento</h2>
           <p className="mb-3 text-sm text-slate-500">
             Gestiona las plantillas de consentimiento informado de tu clínica.
             Puedes usar las plantillas del sistema como base o crear las tuyas propias.

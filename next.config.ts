@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+
 // CSP: permite solo orígenes explícitos. 'unsafe-inline' en style-src es necesario
 // para Tailwind + emotion. 'unsafe-inline' en script-src es necesario para el
 // script anti-flash de dark mode en el layout; el resto de JS viene como módulos.
+// 'unsafe-eval' solo en desarrollo: Next.js HMR (React Refresh) lo requiere.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",               // anti-flash script inline en layout
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,  // anti-flash inline + HMR en dev
   "style-src 'self' 'unsafe-inline'",                // Tailwind utility classes
   "img-src 'self' data: blob:",
   "font-src 'self'",

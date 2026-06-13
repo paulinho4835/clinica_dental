@@ -152,6 +152,7 @@ export async function updateClinicName(_prev: unknown, formData: FormData) {
   const admin = createAdminClient();
   await admin.from("clinics").update({ name }).eq("id", clinicId);
   revalidatePath("/superadmin");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -209,6 +210,7 @@ export async function toggleFeature(formData: FormData) {
 
   await admin.from("clinics").update({ features }).eq("id", clinicId);
   revalidatePath("/superadmin");
+  revalidatePath("/", "layout");
 }
 
 // ── Límite de usuarios por clínica ───────────────────────────────────────────
