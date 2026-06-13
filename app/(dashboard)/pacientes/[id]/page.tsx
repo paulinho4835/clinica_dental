@@ -25,6 +25,14 @@ import type {
   PrescriptionRow,
   Medication,
 } from "@/app/(dashboard)/pacientes/prescription-actions";
+import {
+  ConsentsPanel,
+  type ConsentRow,
+} from "@/components/consents/ConsentsPanel";
+import type {
+  ConsentTemplate,
+  ConsentAppointment,
+} from "@/components/consents/ConsentModal";
 
 export default async function PatientPage({
   params,
@@ -84,6 +92,8 @@ export default async function PatientPage({
     { data: rawPrescriptions },
     { data: clinicRow },
     { data: recepData },
+    { data: rawConsents },
+    { data: consentTemplates },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -111,10 +121,19 @@ export default async function PatientPage({
       .order("issued_at", { ascending: false }),
     supabase
       .from("clinics")
-      .select("features")
+      .select("features, name")
       .eq("id", patient.clinic_id)
       .single(),
     recepcionistasQuery ?? Promise.resolve({ data: null }),
+    supabase
+      .from("consents")
+      .select("id, title, status, created_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("consent_templates")
+      .select("id, title, body")
+      .order("sort_order"),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -162,6 +181,28 @@ export default async function PatientPage({
 
   const features = normalizeFeatures(clinicRow?.features);
   const recetasEnabled = features.recetas;
+  const consentimientosEnabled = features.consentimientos;
+
+  const consentRows: ConsentRow[] = (rawConsents ?? []).map((c) => ({
+    id: c.id as string,
+    title: c.title as string,
+    status: c.status as "pendiente" | "firmado",
+    createdAt: c.created_at as string,
+  }));
+
+  const consentTemplateList: ConsentTemplate[] = (consentTemplates ?? []).map((t) => ({
+    id: t.id as string,
+    title: t.title as string,
+    body: t.body as string,
+  }));
+
+  const consentAppts: ConsentAppointment[] = apptRows.map((a) => ({
+    id: a.id,
+    startsAt: a.startsAt,
+    reason: a.reason,
+  }));
+
+  const clinicName = (clinicRow as { name?: string; features?: unknown } | null)?.name ?? "";
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
   const totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
@@ -229,6 +270,22 @@ export default async function PatientPage({
           <PrescriptionsPanel
             patientId={patient.id}
             prescriptions={prescriptionRows}
+            canWrite={canClinical}
+          />
+        </section>
+      )}
+
+      {consentimientosEnabled && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Consentimientos</h2>
+          <ConsentsPanel
+            patientId={patient.id}
+            patientName={patient.full_name}
+            doctorName={profile?.fullName ?? ""}
+            clinicName={clinicName}
+            consents={consentRows}
+            templates={consentTemplateList}
+            appointments={consentAppts}
             canWrite={canClinical}
           />
         </section>
