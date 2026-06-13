@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fillPlaceholders } from "../lib/consent-utils";
+import { fillPlaceholders } from "../consent-utils";
 
 describe("fillPlaceholders", () => {
   const vars = {
