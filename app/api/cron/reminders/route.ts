@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
 import { BOLIVIA_TZ } from "@/lib/format";
+import { normalizeFeatures } from "@/lib/features";
 
 // Endpoint llamado por Vercel Cron (ver vercel.json). Recorre los recordatorios
 // pendientes cuya hora ya llegó y envía el WhatsApp al paciente.
@@ -16,7 +17,7 @@ type ReminderRow = {
     status: string;
     dentist_name: string | null;
     patients: { full_name: string | null; phone: string | null } | null;
-    clinics: { name: string | null } | null;
+    clinics: { name: string | null; features: unknown } | null;
   } | null;
 };
 
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
   const { data, error } = await supabase
     .from("appointment_reminders")
     .select(
-      "id, appointment_id, appointments(starts_at, status, dentist_name, patients(full_name, phone), clinics(name))",
+      "id, appointment_id, appointments(starts_at, status, dentist_name, patients(full_name, phone), clinics(name, features))",
     )
     .eq("status", "pending")
     .lte("scheduled_for", now)
@@ -66,6 +67,14 @@ export async function GET(req: Request) {
     // Cita inexistente o cancelada: no se envía y no se reintenta.
     if (!appt || appt.status === "cancelled") {
       await markFailed(supabase, r.id);
+      skipped++;
+      continue;
+    }
+
+    // Guard: clínica sin addon recordatorios activo → saltar sin marcar fallido.
+    // (el addon puede haberse desactivado después de que se programó el reminder)
+    const clinicFeatures = normalizeFeatures(appt.clinics?.features);
+    if (!clinicFeatures.recordatorios) {
       skipped++;
       continue;
     }
