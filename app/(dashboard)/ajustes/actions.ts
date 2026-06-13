@@ -281,3 +281,37 @@ export async function removeTeamUser(formData: FormData): Promise<ActionState> {
   revalidatePath("/ajustes");
   return { ok: true };
 }
+
+// ============================================================================
+// Recordatorios WhatsApp (addon "recordatorios").
+// ============================================================================
+
+export async function saveRemindersConfig(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { profile } = auth;
+
+  const h24 = formData.get("reminders_h24") === "on";
+  const h2  = formData.get("reminders_h2")  === "on";
+
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("settings")
+    .eq("id", profile.clinicId)
+    .single();
+
+  const existing = (clinic?.settings ?? {}) as Record<string, unknown>;
+  const { error } = await admin
+    .from("clinics")
+    .update({ settings: { ...existing, reminders_h24: h24, reminders_h2: h2 } })
+    .eq("id", profile.clinicId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/ajustes");
+  return { ok: true };
+}
