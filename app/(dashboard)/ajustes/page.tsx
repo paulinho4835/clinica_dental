@@ -6,6 +6,10 @@ import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
 import { DoctorsPanel, type Doctor } from "@/components/ajustes/DoctorsPanel";
 import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
+import {
+  ConsentTemplatesPanel,
+  type TemplateRow,
+} from "@/components/ajustes/ConsentTemplatesPanel";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getClinicFeatures } from "@/lib/superadmin";
 
@@ -29,6 +33,9 @@ export default async function SettingsPage() {
     clinicProfile = data as ClinicProfile | null;
   }
 
+  let systemTemplates: TemplateRow[] = [];
+  let clinicTemplates: TemplateRow[] = [];
+
   // Doctores (roster clínico, sin login): accesible para el admin.
   let doctors: Doctor[] = [];
   if (isClinicAdmin && profile) {
@@ -38,6 +45,33 @@ export default async function SettingsPage() {
       .eq("clinic_id", profile.clinicId)
       .order("full_name");
     doctors = (data ?? []) as Doctor[];
+  }
+
+  if (isClinicAdmin && features.consentimientos && profile) {
+    const { data: allTemplates } = await supabase
+      .from("consent_templates")
+      .select("id, title, body, is_system, clinic_id")
+      .order("sort_order");
+
+    systemTemplates = (allTemplates ?? [])
+      .filter((t) => t.is_system && t.clinic_id === null)
+      .map((t) => ({
+        id: t.id as string,
+        title: t.title as string,
+        body: t.body as string,
+        isSystem: true,
+        clinicId: null,
+      }));
+
+    clinicTemplates = (allTemplates ?? [])
+      .filter((t) => !t.is_system && t.clinic_id !== null)
+      .map((t) => ({
+        id: t.id as string,
+        title: t.title as string,
+        body: t.body as string,
+        isSystem: false,
+        clinicId: t.clinic_id as string,
+      }));
   }
 
   // Equipo (cuentas con login): solo lo gestiona el admin de la clínica.
@@ -94,6 +128,22 @@ export default async function SettingsPage() {
             agendar citas y en los reportes de la agenda.
           </p>
           <DoctorsPanel doctors={doctors} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.consentimientos && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Plantillas de consentimiento
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Gestiona las plantillas de consentimiento informado de tu clínica.
+            Puedes usar las plantillas del sistema como base o crear las tuyas propias.
+          </p>
+          <ConsentTemplatesPanel
+            systemTemplates={systemTemplates}
+            clinicTemplates={clinicTemplates}
+          />
         </section>
       )}
 
