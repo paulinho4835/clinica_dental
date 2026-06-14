@@ -292,6 +292,7 @@ export function ApptModal({
               >
                 <option value="cash">Efectivo</option>
                 <option value="qr">QR</option>
+                <option value="card">Tarjeta</option>
               </select>
             </label>
           )}

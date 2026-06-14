@@ -10,7 +10,7 @@ export type Role =
 
 // Módulos del menú lateral visibles por rol.
 const NAV_WHITELIST: Record<Role, FeatureKey[]> = {
-  admin:              ["agenda", "pacientes", "mis_trabajos", "tratamientos", "inventario", "caja", "pagos", "ajustes"],
+  admin:              ["agenda", "pacientes", "mis_trabajos", "tratamientos", "inventario", "caja", "cuentas", "pagos", "ajustes"],
   recepcionista:      ["agenda", "pacientes", "mis_trabajos"],
   odontologo_general: ["agenda", "pacientes", "mis_trabajos"],
   especialista:       ["agenda", "pacientes", "mis_trabajos"],
@@ -40,8 +40,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "patients:read", "patients:write", "patients:delete", "appointments:write",
     "clinical:write", "billing:write",
   ],
-  odontologo_general: ["patients:read", "appointments:write", "clinical:write"],
-  especialista: ["patients:read", "appointments:write", "clinical:write"],
+  odontologo_general: ["patients:read", "patients:write", "appointments:write", "clinical:write"],
+  especialista: ["patients:read", "patients:write", "appointments:write", "clinical:write"],
   asistente: ["patients:read", "inventory:write"],
 };
 

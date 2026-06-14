@@ -9,10 +9,12 @@ import { Banknote, Receipt } from "lucide-react";
 import { StaffPaymentForm } from "@/components/pagos/StaffPaymentForm";
 import { PagosFilter } from "@/components/pagos/PagosFilter";
 import { DeletePaymentButton } from "@/components/pagos/DeletePaymentButton";
+import { DisbursedToggle } from "@/components/pagos/DisbursedToggle";
 
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
   qr: "QR",
+  card: "Tarjeta",
   transfer: "Transferencia",
 };
 
@@ -25,7 +27,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 const GRID =
-  "grid grid-cols-[7rem_minmax(0,1fr)_7rem_minmax(0,1.2fr)_7rem_8rem_2.5rem] items-center gap-x-4";
+  "grid grid-cols-[7rem_minmax(0,1fr)_7rem_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
 
 type PaymentRow = {
   id: string;
@@ -33,6 +35,7 @@ type PaymentRow = {
   method: string;
   concept: string | null;
   paid_at: string;
+  disbursed: boolean;
   employee: { id: string; full_name: string; role: string } | null;
 };
 
@@ -59,10 +62,12 @@ export default async function PagosPage({
   const selectedMonth = params.month ?? currentMonth;
   const selectedEmployee = params.employee ?? "all";
 
-  // Rango de fechas del mes seleccionado.
-  const [year, month] = selectedMonth.split("-").map(Number);
-  const monthStart = `${selectedMonth}-01`;
-  const nextMonthStart = new Date(year, month, 1).toISOString().slice(0, 10);
+  const isAllMonths = selectedMonth === "all";
+
+  // Rango de fechas del mes seleccionado (solo si no es "todos").
+  const [year, month] = isAllMonths ? [0, 0] : selectedMonth.split("-").map(Number);
+  const monthStart = isAllMonths ? "" : `${selectedMonth}-01`;
+  const nextMonthStart = isAllMonths ? "" : new Date(year, month, 1).toISOString().slice(0, 10);
 
   const platformAdminIds = await getPlatformAdminIds();
   let empQuery = supabase
@@ -77,12 +82,14 @@ export default async function PagosPage({
   let paymentsQuery = supabase
     .from("staff_payments")
     .select(
-      "id, amount, method, concept, paid_at, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role)",
+      "id, amount, method, concept, paid_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role)",
     )
-    .gte("paid_at", monthStart)
-    .lt("paid_at", nextMonthStart)
     .order("paid_at", { ascending: false })
     .order("created_at", { ascending: false });
+
+  if (!isAllMonths) {
+    paymentsQuery = paymentsQuery.gte("paid_at", monthStart).lt("paid_at", nextMonthStart);
+  }
 
   if (selectedEmployee !== "all") {
     paymentsQuery = paymentsQuery.eq("employee_id", selectedEmployee);
@@ -99,6 +106,7 @@ export default async function PagosPage({
     method: p.method as string,
     concept: p.concept as string | null,
     paid_at: p.paid_at as string,
+    disbursed: Boolean(p.disbursed),
     employee: (Array.isArray(p.employee) ? p.employee[0] : p.employee) as { id: string; full_name: string; role: string } | null,
   }));
 
@@ -124,10 +132,12 @@ export default async function PagosPage({
   );
   const employeeSummary = Object.values(byEmployee).sort((a, b) => b.total - a.total);
 
-  const monthLabel = new Date(monthStart + "T12:00:00").toLocaleDateString("es-BO", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = isAllMonths
+    ? "Todos los meses"
+    : new Date(monthStart + "T12:00:00").toLocaleDateString("es-BO", {
+        month: "long",
+        year: "numeric",
+      });
 
   return (
     <div className="space-y-8">
@@ -156,7 +166,7 @@ export default async function PagosPage({
       {employeeSummary.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-medium text-slate-500 uppercase tracking-wide">
-            Resumen por empleado — {monthLabel}
+            Resumen — {monthLabel}
           </h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {employeeSummary.map((e) => (
@@ -194,6 +204,7 @@ export default async function PagosPage({
               <span>Concepto</span>
               <span>Método</span>
               <span className="text-right">Monto</span>
+              <span>Desembolso</span>
               <span />
             </div>
             <div className="divide-y divide-slate-100">
@@ -220,6 +231,9 @@ export default async function PagosPage({
                   <span className="text-right tabular-nums font-semibold text-emerald-600 whitespace-nowrap">
                     {bs(p.amount)}
                   </span>
+                  <div>
+                    <DisbursedToggle id={p.id} disbursed={p.disbursed} />
+                  </div>
                   <div className="flex justify-end">
                     <DeletePaymentButton id={p.id} />
                   </div>

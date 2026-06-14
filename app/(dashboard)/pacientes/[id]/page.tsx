@@ -2,14 +2,12 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, canSeeNav } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import {
-  PatientHistoryPanel,
   WorkStatusPanel,
   VisitasPanel,
-  type PaymentRow,
   type ApptRow,
 } from "@/components/history/PatientHistoryPanel";
 import {
@@ -19,6 +17,7 @@ import {
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
+import Link from "next/link";
 import { normalizeFeatures } from "@/lib/features";
 import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
 import type {
@@ -29,6 +28,7 @@ import {
   ConsentsPanel,
   type ConsentRow,
 } from "@/components/consents/ConsentsPanel";
+import { EvolutionPanel } from "@/components/patients/EvolutionPanel";
 import type {
   ConsentTemplate,
   ConsentAppointment,
@@ -44,7 +44,7 @@ export default async function PatientPage({
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis")
+    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis, evolution")
     .eq("id", id)
     .single();
 
@@ -61,8 +61,7 @@ export default async function PatientPage({
   const platformAdminIds = await getPlatformAdminIds();
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
-
-  const isRecepcionista = profile?.role === "recepcionista";
+  const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
 
   let dentistsQuery = supabase
     .from("profiles")
@@ -74,16 +73,6 @@ export default async function PatientPage({
     dentistsQuery = dentistsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
-  // Recepcionistas de la clínica (para el campo "Cobrado por" en el formulario de pagos).
-  const recepcionistasQuery = isRecepcionista
-    ? supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("role", "recepcionista")
-        .eq("clinic_id", patient.clinic_id)
-        .order("full_name")
-    : null;
-
   const [
     { data: rawPlans },
     { data: payments },
@@ -91,7 +80,6 @@ export default async function PatientPage({
     { data: dentists },
     { data: rawPrescriptions },
     { data: clinicRow },
-    { data: recepData },
     { data: rawConsents },
     { data: consentTemplates },
   ] = await Promise.all([
@@ -104,9 +92,8 @@ export default async function PatientPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
-      .select("id, amount, method, note, received_at, commission_pct, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:profiles!payments_collected_by_id_fkey(full_name)")
-      .eq("patient_id", id)
-      .order("received_at", { ascending: false }),
+      .select("id, amount")
+      .eq("patient_id", id),
     supabase
       .from("appointments")
       .select("id, starts_at, dentist_name, reason, status")
@@ -124,7 +111,6 @@ export default async function PatientPage({
       .select("features, name")
       .eq("id", patient.clinic_id)
       .single(),
-    recepcionistasQuery ?? Promise.resolve({ data: null }),
     supabase
       .from("consents")
       .select("id, title, status, created_at")
@@ -160,15 +146,7 @@ export default async function PatientPage({
     status: a.status as string,
   }));
 
-  const paymentRows: PaymentRow[] = (payments ?? []).map((p) => ({
-    id: p.id as string,
-    amount: Number(p.amount),
-    method: p.method as string,
-    note: p.note as string | null,
-    receivedAt: p.received_at as string,
-    doctorName: ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
-    collectedByName: ((p.collected_by as { full_name?: string } | null)?.full_name) ?? null,
-  }));
+  const totalPaidRaw = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
 
   const prescriptionRows: PrescriptionRow[] = (rawPrescriptions ?? []).map((rx) => ({
     id: rx.id as string,
@@ -205,7 +183,7 @@ export default async function PatientPage({
   const clinicName = (clinicRow as { name?: string; features?: unknown } | null)?.name ?? "";
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
-  const totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
+  const totalPaid = totalPaidRaw;
 
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
@@ -219,7 +197,7 @@ export default async function PatientPage({
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && <span>Tel.: {patient.phone}</span>}
-          <span>Saldo: {bs(totalQuoted - totalPaid)}</span>
+          {canBilling && <span>Saldo: {bs(totalQuoted - totalPaid)}</span>}
         </div>
         {patient.medical_alerts?.length > 0 && (
           <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -247,22 +225,50 @@ export default async function PatientPage({
       </section>
 
       <section>
+        <h2 className="mb-3 text-lg font-semibold">Evolución del paciente</h2>
+        <EvolutionPanel
+          patientId={patient.id}
+          evolution={(patient as { evolution?: string | null }).evolution ?? null}
+          canWrite={canClinical}
+        />
+      </section>
+
+      <section>
         <h2 className="mb-3 text-lg font-semibold">Visitas</h2>
         <VisitasPanel appointments={apptRows} />
       </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Historial de pagos del paciente</h2>
-        <PatientHistoryPanel
-          patientId={patient.id}
-          canBilling={canBilling}
-          payments={paymentRows}
-          doctors={dentists ?? []}
-          recepcionistas={isRecepcionista ? (recepData ?? []) : undefined}
-          totalQuoted={totalQuoted}
-          totalPaid={totalPaid}
-        />
-      </section>
+      {canBilling && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Cuenta del paciente</h2>
+          <div className="flex items-center justify-between rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
+            <div className="flex gap-8 text-sm">
+              <div>
+                <div className="text-xs text-slate-500">Total tratamiento</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{bs(totalQuoted)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Total pagado</div>
+                <div className="mt-0.5 font-semibold tabular-nums text-emerald-600">{bs(totalPaid)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Saldo pendiente</div>
+                <div className={`mt-0.5 font-semibold tabular-nums ${totalQuoted - totalPaid > 0 ? "text-red-600" : "text-slate-800"}`}>
+                  {bs(totalQuoted - totalPaid)}
+                </div>
+              </div>
+            </div>
+            {canSeeCuentas && (
+              <Link
+                href={`/cuentas?p=${patient.id}`}
+                className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg transition-colors"
+              >
+                Gestionar cuenta →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {recetasEnabled && (
         <section>

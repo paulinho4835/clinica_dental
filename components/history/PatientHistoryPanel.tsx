@@ -107,6 +107,13 @@ export function WorkStatusPanel({
   );
 }
 
+const METHOD_FILTERS = [
+  { value: "", label: "Todos" },
+  { value: "cash", label: "Efectivo" },
+  { value: "qr", label: "QR" },
+  { value: "card", label: "Tarjeta" },
+];
+
 export function PatientHistoryPanel({
   patientId,
   canBilling,
@@ -125,6 +132,11 @@ export function PatientHistoryPanel({
   totalPaid: number;
 }) {
   const saldo = totalQuoted - totalPaid;
+  const [methodFilter, setMethodFilter] = useState<string>("");
+
+  const visiblePayments = methodFilter
+    ? payments.filter((p) => p.method === methodFilter)
+    : payments;
 
   return (
     <div className="space-y-5">
@@ -137,7 +149,25 @@ export function PatientHistoryPanel({
 
       {/* Pagos */}
       <div>
-        <div className="mb-2 text-xs font-medium uppercase text-slate-400">Pagos</div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-medium uppercase text-slate-400">Pagos</span>
+          <div className="flex gap-1">
+            {METHOD_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setMethodFilter(f.value)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  methodFilter === f.value
+                    ? "bg-clinic text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {canBilling && (
           <PaymentForm
             patientId={patientId}
@@ -157,7 +187,7 @@ export function PatientHistoryPanel({
                 <span className="text-right">Monto</span>
               </div>
               <div className="divide-y divide-slate-100">
-                {payments.map((p) => (
+                {visiblePayments.map((p) => (
                   <div key={p.id} className={`${PAY_GRID} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}>
                     <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">{fmtDate(p.receivedAt)}</span>
                     <span className="truncate text-slate-600">{p.note ?? <span className="text-slate-400">—</span>}</span>
@@ -167,8 +197,10 @@ export function PatientHistoryPanel({
                     <span className="text-right tabular-nums font-medium text-emerald-600 whitespace-nowrap">{bs(p.amount)}</span>
                   </div>
                 ))}
-                {payments.length === 0 && (
-                  <p className="px-4 py-3 text-sm text-slate-500">Sin pagos registrados.</p>
+                {visiblePayments.length === 0 && (
+                  <p className="px-4 py-3 text-sm text-slate-500">
+                    {methodFilter ? `Sin pagos con ${METHOD_LABEL[methodFilter]}.` : "Sin pagos registrados."}
+                  </p>
                 )}
               </div>
             </div>
@@ -303,6 +335,7 @@ function PaymentForm({
           >
             <option value="cash">Efectivo</option>
             <option value="qr">QR</option>
+            <option value="card">Tarjeta</option>
           </select>
         </label>
         <label className="text-xs">

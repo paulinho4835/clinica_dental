@@ -8,13 +8,15 @@ export type FeatureKey =
   | "mis_trabajos"
   | "tratamientos"
   | "caja"
+  | "cuentas"
   | "inventario"
   | "ajustes"
   | "whatsapp"
   | "recetas"
   | "pagos"
   | "perfil"
-  | "consentimientos";
+  | "consentimientos"
+  | "recordatorios";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -37,12 +39,14 @@ export const FEATURES: FeatureMeta[] = [
   // Para reactivar: descomentar esta línea.
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
-  { key: "caja", label: "Caja y finanzas", href: "/caja" },
+  { key: "caja", label: "Dashboard financiero", href: "/caja" },
+  { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas", optIn: true },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
   { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },
   { key: "perfil", label: "Perfil de clínica", href: "/ajustes", optIn: true },
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
+  { key: "recordatorios", label: "Recordatorios WhatsApp", href: "/ajustes", optIn: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;

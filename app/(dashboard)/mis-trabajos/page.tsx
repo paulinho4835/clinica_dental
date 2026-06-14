@@ -1,4 +1,4 @@
-import { Briefcase, Banknote, Percent } from "lucide-react";
+import { Briefcase, Banknote, Percent, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
@@ -8,7 +8,12 @@ import { Stat } from "@/components/ui/Stat";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
 import { DeleteWorkButton } from "@/components/mis-trabajos/DeleteWorkButton";
+import { EditWorkButton } from "@/components/mis-trabajos/EditWorkButton";
 import { DoctorFilter } from "@/components/mis-trabajos/DoctorFilter";
+import { MethodFilter } from "@/components/mis-trabajos/MethodFilter";
+import { DateRangeFilter } from "@/components/mis-trabajos/DateRangeFilter";
+import { ExportCsvButton, type CsvWorkRow } from "@/components/mis-trabajos/ExportCsvButton";
+import { PrintPdfButton } from "@/components/mis-trabajos/PrintPdfButton";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -33,15 +38,23 @@ type WorkRow = {
   lab_commission_pct: number;
   lab_commission_amount: number;
   patient_name: string | null;
+  commission_paid: boolean;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
   collected_by: { full_name?: string } | null;
 };
 
+type DoctorSummaryRow = {
+  name: string;
+  count: number;
+  totalComm: number;
+  pendingComm: number;
+};
+
 export default async function MisTrabajosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ doctor?: string }>;
+  searchParams: Promise<{ doctor?: string; method?: string; from?: string; to?: string }>;
 }) {
   await requireNavAccess("mis_trabajos");
   const supabase = await createClient();
@@ -49,23 +62,28 @@ export default async function MisTrabajosPage({
   const isAdmin = profile?.role === "admin";
   const isRecepcionista = profile?.role === "recepcionista";
   const isDoctor = profile?.role === "odontologo_general" || profile?.role === "especialista";
-  // Recepcionista y admin pueden ver/filtrar trabajos de todos los doctores.
   const canPickDoctor = isAdmin || isRecepcionista;
   const today = boliviaTodayISO();
 
-  const doctorParam = canPickDoctor ? ((await searchParams).doctor ?? "") : "";
+  const resolvedParams = await searchParams;
+  const doctorParam = canPickDoctor ? (resolvedParams.doctor ?? "") : "";
+  const methodParam = ["cash", "qr", "card"].includes(resolvedParams.method ?? "")
+    ? (resolvedParams.method ?? "")
+    : "";
+  const fromParam = resolvedParams.from ?? "";
+  const toParam = resolvedParams.to ?? "";
+
   const selectedDoctor = canPickDoctor
     ? doctorParam === "all"
       ? "all"
       : doctorParam || (isAdmin ? (profile?.userId ?? "") : "all")
     : "";
 
-  // Recepcionista necesita admin client para ver los trabajos de toda la clínica.
   const worksClient = isRecepcionista ? createAdminClient() : supabase;
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -76,13 +94,20 @@ export default async function MisTrabajosPage({
   if (canPickDoctor && selectedDoctor && selectedDoctor !== "all") {
     worksQuery = worksQuery.eq("doctor_id", selectedDoctor);
   } else if (!canPickDoctor && profile) {
-    // Doctores (odontologo_general, especialista): solo ven sus propios trabajos.
     worksQuery = worksQuery.eq("doctor_id", profile.userId);
+  }
+  if (methodParam) {
+    worksQuery = worksQuery.eq("payment_method", methodParam);
+  }
+  if (fromParam) {
+    worksQuery = worksQuery.gte("performed_at", fromParam);
+  }
+  if (toParam) {
+    worksQuery = worksQuery.lte("performed_at", toParam);
   }
 
   const platformAdminIds = canPickDoctor ? await getPlatformAdminIds() : [];
 
-  // Recepcionistas de la clínica (para el campo "Cobrado por" en WorkForm).
   let recepcionistasQuery = isRecepcionista
     ? supabase
         .from("profiles")
@@ -103,7 +128,6 @@ export default async function MisTrabajosPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
-  // Odontólogos y especialistas solo ven sus propios pacientes en el picker.
   let patientsQuery = supabase
     .from("patients")
     .select("id, full_name, national_id")
@@ -148,14 +172,59 @@ export default async function MisTrabajosPage({
     0,
   );
   const totalPaid = rows.reduce((s, w) => s + Number(w.amount_paid), 0);
-  // Recepcionistas solo ven el cobrado del día (no el acumulado global).
   const todayPaid = isRecepcionista
     ? rows
         .filter((w) => w.performed_at === today)
         .reduce((s, w) => s + Number(w.amount_paid), 0)
     : totalPaid;
 
-  // Para admin: su perfil primero; para recepcionista: sin preferencia propia.
+  // Comisiones pendientes de pago (visible en el período/filtro actual)
+  const totalPendingCommission = !isRecepcionista
+    ? rows
+        .filter((w) => !w.commission_paid)
+        .reduce((s, w) => s + Number(w.commission_amount) + Number(w.lab_commission_amount), 0)
+    : 0;
+
+  // Resumen por doctor (solo admin viendo todos)
+  const doctorSummary: DoctorSummaryRow[] =
+    isAdmin && selectedDoctor === "all" && rows.length > 0
+      ? (() => {
+          const map = new Map<string, DoctorSummaryRow>();
+          for (const w of rows) {
+            const name = w.doctor?.full_name ?? "Sin asignar";
+            if (!map.has(name)) map.set(name, { name, count: 0, totalComm: 0, pendingComm: 0 });
+            const entry = map.get(name)!;
+            entry.count++;
+            const comm = Number(w.commission_amount) + Number(w.lab_commission_amount);
+            entry.totalComm += comm;
+            if (!w.commission_paid) entry.pendingComm += comm;
+          }
+          return [...map.values()].sort((a, b) => b.pendingComm - a.pendingComm);
+        })()
+      : [];
+
+  const csvRows: CsvWorkRow[] = rows.map((w) => ({
+    fecha: w.performed_at,
+    paciente: w.patients?.full_name ?? w.patient_name ?? "",
+    doctor: w.doctor?.full_name ?? "",
+    cobrado_por: w.collected_by?.full_name ?? "",
+    trabajo: w.description,
+    lab_trabajo: w.lab_work ?? "",
+    costo: Number(w.cost),
+    lab_costo: Number(w.lab_cost),
+    comision_pct: Number(w.commission_pct),
+    comision_bs: Number(w.commission_amount) + Number(w.lab_commission_amount),
+    cobrado: Number(w.amount_paid),
+    metodo: w.payment_method ?? "",
+    comision_pagada: w.commission_paid ? "Sí" : "No",
+    notas: w.notes ?? "",
+  }));
+
+  const csvFilename =
+    fromParam || toParam
+      ? `trabajos-${fromParam || "inicio"}-a-${toParam || "hoy"}.csv`
+      : `trabajos-${today}.csv`;
+
   const sortedDoctors = doctorProfiles
     ? [
         ...(doctorProfiles.filter((d) => d.id === profile?.userId) ?? []),
@@ -167,6 +236,11 @@ export default async function MisTrabajosPage({
     selectedDoctor === "all"
       ? null
       : sortedDoctors.find((d) => d.id === selectedDoctor)?.full_name;
+
+  const doctorNameForPrint =
+    selectedDoctor === "all"
+      ? "Todos los doctores"
+      : selectedName ?? profile?.fullName ?? "";
 
   return (
     <div className="space-y-8">
@@ -181,14 +255,20 @@ export default async function MisTrabajosPage({
               : "Registra tus trabajos; la comisión se calcula sola."
           }
         />
-        {canPickDoctor && sortedDoctors.length > 0 && (
-          <DoctorFilter
-            doctors={sortedDoctors}
-            selected={selectedDoctor}
-            currentUserId={profile?.userId ?? ""}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {canPickDoctor && sortedDoctors.length > 0 && (
+            <DoctorFilter
+              doctors={sortedDoctors}
+              selected={selectedDoctor}
+              currentUserId={profile?.userId ?? ""}
+            />
+          )}
+          <MethodFilter selected={methodParam} />
+        </div>
       </div>
+
+      {/* Filtro de rango de fechas */}
+      <DateRangeFilter from={fromParam} to={toParam} />
 
       {!isDoctor && (
         <WorkForm
@@ -199,7 +279,8 @@ export default async function MisTrabajosPage({
         />
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Stats */}
+      <div className={`grid grid-cols-1 gap-4 ${isRecepcionista ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
         {!isRecepcionista && (
           <Stat
             label="Trabajos facturados"
@@ -221,29 +302,84 @@ export default async function MisTrabajosPage({
           icon={<Banknote className="h-5 w-5" />}
           valueClassName="text-emerald-600"
         />
+        {!isRecepcionista && (
+          <Stat
+            label="Comisión pendiente"
+            value={bs(totalPendingCommission)}
+            icon={<Clock className="h-5 w-5" />}
+            valueClassName={totalPendingCommission > 0 ? "text-amber-600" : "text-emerald-600"}
+          />
+        )}
       </div>
 
+      {/* Resumen por doctor (admin viendo todos) */}
+      {doctorSummary.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-lg font-semibold">Resumen por doctor</h2>
+          <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+            <div className="grid grid-cols-[minmax(0,1fr)_5rem_9rem_9rem] px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+              <span>Doctor</span>
+              <span className="text-right">Trabajos</span>
+              <span className="text-right">Comisión total</span>
+              <span className="text-right">Pendiente</span>
+            </div>
+            {doctorSummary.map((d) => (
+              <div
+                key={d.name}
+                className="grid grid-cols-[minmax(0,1fr)_5rem_9rem_9rem] border-t border-slate-100 px-4 py-2.5 text-sm"
+              >
+                <span className="font-medium text-slate-800">{d.name}</span>
+                <span className="text-right tabular-nums text-slate-500">{d.count}</span>
+                <span className="text-right tabular-nums font-medium text-clinic">
+                  {bs(d.totalComm)}
+                </span>
+                <span
+                  className={`text-right tabular-nums font-medium ${
+                    d.pendingComm > 0 ? "text-amber-600" : "text-emerald-600"
+                  }`}
+                >
+                  {d.pendingComm > 0 ? bs(d.pendingComm) : "Al día ✓"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Tabla de trabajos */}
       <section>
-        <h2 className="mb-2 text-lg font-semibold">
-          {rows.length} trabajo{rows.length !== 1 ? "s" : ""}
-        </h2>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">
+            {rows.length} trabajo{rows.length !== 1 ? "s" : ""}
+          </h2>
+          <div className="flex items-center gap-2">
+            <ExportCsvButton rows={csvRows} filename={csvFilename} />
+            <PrintPdfButton
+              rows={csvRows}
+              doctorName={doctorNameForPrint}
+              from={fromParam}
+              to={toParam}
+            />
+          </div>
+        </div>
         <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="min-w-[60rem]">
-            <div className={`${GRID(canPickDoctor)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
+            <div className={`${GRID(isAdmin)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
               <span>Paciente</span>
-              {canPickDoctor && <span>Doctor</span>}
+              {isAdmin && <span>Doctor</span>}
               <span>Cobrado por</span>
               <span>Trabajo</span>
               <span className="text-right">Costo</span>
               <span className="text-right">Comisión</span>
               <span className="text-right">Cobrado</span>
+              <span>Método</span>
               <span />
             </div>
             {rows.map((w) => (
               <div
                 key={w.id}
-                className={`${GRID(canPickDoctor)} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
+                className={`${GRID(isAdmin)} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
               >
                 <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
                   {fmtDate(w.performed_at)}
@@ -251,7 +387,7 @@ export default async function MisTrabajosPage({
                 <span className="truncate font-medium">
                   {w.patients?.full_name ?? w.patient_name ?? "—"}
                 </span>
-                {canPickDoctor && (
+                {isAdmin && (
                   <span className="truncate text-slate-600">
                     {w.doctor?.full_name ?? "—"}
                   </span>
@@ -280,33 +416,31 @@ export default async function MisTrabajosPage({
                 </div>
                 <div className="text-right tabular-nums leading-tight">
                   <span className="font-medium text-clinic">
-                    {bs(Number(w.commission_amount) + Number(w.lab_commission_amount))}
+                    {bs(Number(w.commission_amount))}
                   </span>
                   <span className="block text-xs text-slate-400">
-                    Trab: {bs(Number(w.commission_amount))} ({Number(w.commission_pct)}%)
+                    {Number(w.commission_pct)}%{Number(w.lab_cost) > 0 && " s/neto"}
                   </span>
-                  {Number(w.lab_commission_amount) > 0 && (
-                    <span className="block text-xs text-amber-600">
-                      Lab: {bs(Number(w.lab_commission_amount))} ({Number(w.lab_commission_pct)}%)
-                    </span>
+                  {w.commission_paid && (
+                    <span className="block text-xs font-medium text-emerald-600">Pagada ✓</span>
                   )}
                 </div>
-                <div className="flex flex-col items-end leading-tight">
-                  <span className="tabular-nums">{bs(Number(w.amount_paid))}</span>
-                  {w.payment_method && (
-                    <span className="text-xs text-slate-400">
-                      {METHOD_LABEL[w.payment_method] ?? w.payment_method}
-                    </span>
-                  )}
-                </div>
-                <div className="flex justify-end">
+                <span className="text-right tabular-nums">{bs(Number(w.amount_paid))}</span>
+                <span className="text-sm text-slate-500">
+                  {w.payment_method
+                    ? (METHOD_LABEL[w.payment_method] ?? w.payment_method)
+                    : <span className="text-slate-300">—</span>}
+                </span>
+                <div className="flex items-center justify-end gap-1">
+                  {isAdmin && <EditWorkButton work={w} />}
                   {isAdmin && <DeleteWorkButton id={w.id} />}
                 </div>
               </div>
             ))}
             {rows.length === 0 && (
               <p className="px-4 py-8 text-center text-sm text-slate-500">
-                Aún no hay trabajos registrados. Usa el botón de arriba para anotar el primero.
+                Aún no hay trabajos registrados{fromParam || toParam ? " en este período" : ""}.
+                {!isDoctor && !fromParam && !toParam && " Usa el botón de arriba para anotar el primero."}
               </p>
             )}
           </div>
@@ -316,12 +450,10 @@ export default async function MisTrabajosPage({
   );
 }
 
-// Columnas: con/sin la de Doctor (visible para admin y recepcionista).
-// Ambas variantes incluyen "Cobrado por" entre Doctor/Paciente y Trabajo.
 const GRID = (admin: boolean) =>
   admin
-    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4"
-    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
+    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_4rem] items-center gap-x-4"
+    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_2.5rem] items-center gap-x-4";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {
