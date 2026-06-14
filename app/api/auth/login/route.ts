@@ -11,8 +11,8 @@ function getRatelimit(): Ratelimit | null {
   if (!url || !token) return null;
   ratelimit = new Ratelimit({
     redis: new Redis({ url, token }),
-    // 5 intentos por IP cada 15 minutos (ventana fija)
-    limiter: Ratelimit.fixedWindow(5, "15 m"),
+    // 5 intentos por IP cada 2 minutos (ventana fija)
+    limiter: Ratelimit.fixedWindow(5, "2 m"),
     prefix: "rl:login",
   });
   return ratelimit;
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (!success) {
       const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       return NextResponse.json(
-        { error: "Demasiados intentos. Espera unos minutos antes de volver a intentarlo." },
+        { error: `Demasiados intentos. Espera ${Math.ceil(retryAfter / 60)} minuto${retryAfter > 60 ? "s" : ""} antes de volver a intentarlo.` },
         {
           status: 429,
           headers: {
