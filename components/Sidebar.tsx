@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Banknote,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -30,6 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/inventario": Package,
   "/pagos": Banknote,
   "/caja": Wallet,
+  "/cuentas": CreditCard,
   "/ajustes": Stethoscope,
 };
 

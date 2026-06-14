@@ -102,6 +102,27 @@ export async function updatePatient(
   return { ok: true };
 }
 
+export async function saveEvolution(
+  id: string,
+  evolution: string,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "clinical:write"))
+    return { error: "Sin permiso para editar evolución." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("patients")
+    .update({ evolution: evolution.trim() || null })
+    .eq("id", id)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${id}`);
+  return { ok: true };
+}
+
 // Registro rápido desde la agenda: crea un paciente con lo mínimo (nombre + CI
 // + teléfono) y DEVUELVE su id para vincularlo a la cita en el acto.
 const QuickPatientSchema = z.object({

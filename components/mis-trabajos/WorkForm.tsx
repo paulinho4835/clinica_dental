@@ -9,6 +9,7 @@ import { bs } from "@/lib/format";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import type { PlanItemRow } from "@/app/api/patients/[id]/plan-items/route";
 
 const initial: ActionState = {};
 
@@ -17,9 +18,9 @@ type Doctor = { id: string; full_name: string };
 type Recepcionista = { id: string; full_name: string };
 
 const PAYMENT_METHODS = [
-  { value: "cash",     label: "Efectivo" },
-  { value: "qr",       label: "QR" },
-  { value: "card",     label: "Tarjeta" },
+  { value: "cash",  label: "Efectivo" },
+  { value: "qr",   label: "QR" },
+  { value: "card",  label: "Tarjeta" },
 ];
 
 export function WorkForm({
@@ -38,7 +39,6 @@ export function WorkForm({
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  // Paciente: autocomplete sobre los pacientes visibles + texto libre.
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -47,24 +47,28 @@ export function WorkForm({
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedCollectedById, setSelectedCollectedById] = useState("");
 
-  // Comisión trabajo.
+  // Plan de tratamiento del paciente seleccionado.
+  const [planItems, setPlanItems] = useState<PlanItemRow[]>([]);
+  const [selectedPlanItemId, setSelectedPlanItemId] = useState("");
+
+  // Campos controlados para pre-rellenar desde el plan.
+  const [description, setDescription] = useState("");
   const [cost, setCost] = useState("");
   const [pct, setPct] = useState("");
   const costN = Number(cost) || 0;
   const pctN = Number(pct) || 0;
-  const commission = Math.round(costN * pctN) / 100;
 
   // Comisión laboratorio.
   const [labCost, setLabCost] = useState("");
-  const [labPct, setLabPct] = useState("");
   const labCostN = Number(labCost) || 0;
-  const labPctN = Number(labPct) || 0;
-  const labCommission = Math.round(labCostN * labPctN) / 100;
 
-  // Pago al momento del registro.
+  const netCost = costN - labCostN;
+  const commission = Math.round(netCost * pctN) / 100;
+
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
 
+  // Buscar pacientes por query.
   const filtered =
     query.length >= 1
       ? patients
@@ -78,18 +82,50 @@ export function WorkForm({
           .slice(0, 8)
       : [];
 
+  // Cargar ítems del plan de tratamiento cuando se selecciona un paciente.
+  useEffect(() => {
+    if (!selectedId) {
+      setPlanItems([]);
+      setSelectedPlanItemId("");
+      return;
+    }
+    fetch(`/api/patients/${selectedId}/plan-items`)
+      .then((r) => r.json())
+      .then((d) => setPlanItems(d.items ?? []))
+      .catch(() => setPlanItems([]));
+  }, [selectedId]);
+
   function resetForm() {
     formRef.current?.reset();
     setQuery("");
     setSelectedId("");
     setSelectedDoctorId("");
     setSelectedCollectedById("");
+    setPlanItems([]);
+    setSelectedPlanItemId("");
+    setDescription("");
     setCost("");
     setPct("");
     setLabCost("");
-    setLabPct("");
     setAmountPaid("");
     setOpen(false);
+  }
+
+  function selectPlanItem(item: PlanItemRow) {
+    if (selectedPlanItemId === item.id) {
+      // Deseleccionar: limpiar campos pre-rellenados.
+      setSelectedPlanItemId("");
+      setDescription("");
+      setCost("");
+    } else {
+      setSelectedPlanItemId(item.id);
+      setDescription(item.name);
+      setCost(String(item.price));
+      // Si hay selector de doctor (recepcionista/admin) y el ítem tiene doctor asignado, pre-rellenar.
+      if (doctors && item.doctorId) {
+        setSelectedDoctorId(item.doctorId);
+      }
+    }
   }
 
   useEffect(() => {
@@ -125,8 +161,6 @@ export function WorkForm({
       </Button>
     );
   }
-
-  const totalCommission = commission + labCommission;
 
   return (
     <Card className="p-4">
@@ -172,7 +206,37 @@ export function WorkForm({
             )}
           </div>
 
-          {/* Doctor (solo recepcionista) */}
+          {/* Selector del plan de tratamiento (aparece cuando el paciente tiene ítems) */}
+          {selectedId && planItems.length > 0 && (
+            <div className="sm:col-span-2">
+              <FieldLabel>Seleccionar del plan de tratamiento</FieldLabel>
+              <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                {planItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => selectPlanItem(item)}
+                    className={`flex items-center justify-between rounded px-3 py-2 text-sm text-left transition-colors ${
+                      selectedPlanItemId === item.id
+                        ? "bg-clinic/10 font-medium text-clinic-fg ring-1 ring-clinic/30"
+                        : "hover:bg-white"
+                    }`}
+                  >
+                    <span className="truncate">{item.name}</span>
+                    <div className="ml-3 flex shrink-0 items-center gap-3">
+                      {item.doctorName && (
+                        <span className="text-xs text-slate-400">{item.doctorName}</span>
+                      )}
+                      <span className="tabular-nums text-slate-600">{bs(item.price)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <input type="hidden" name="treatment_item_id" value={selectedPlanItemId} />
+            </div>
+          )}
+
+          {/* Doctor (solo recepcionista/admin) */}
           {doctors && (
             <label className="block text-sm sm:col-span-2">
               <FieldLabel>Doctor *</FieldLabel>
@@ -200,11 +264,13 @@ export function WorkForm({
               required
               maxLength={120}
               placeholder="ej. Cirugía, Endodoncia, Limpieza…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className={fieldInputClass}
             />
           </label>
 
-          {/* ── Costo del trabajo ── */}
+          {/* Costo del trabajo */}
           <label className="block text-sm">
             <FieldLabel>Costo del trabajo (Bs)</FieldLabel>
             <input
@@ -234,17 +300,22 @@ export function WorkForm({
             />
           </label>
 
-          {/* Comisión trabajo calculada */}
+          {/* Comisión calculada */}
           <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20 sm:col-span-2">
             <span className="text-slate-600">
-              Comisión del trabajo{pctN > 0 && <span className="text-slate-400"> ({pctN}% de {bs(costN)})</span>}
+              Comisión del trabajo
+              {pctN > 0 && (
+                labCostN > 0
+                  ? <span className="text-slate-400"> ({pctN}% de {bs(netCost)} neto = {bs(costN)} − {bs(labCostN)} lab)</span>
+                  : <span className="text-slate-400"> ({pctN}% de {bs(costN)})</span>
+              )}
             </span>
             <span className="tabular-nums text-base font-semibold text-clinic">
               {bs(commission)}
             </span>
           </div>
 
-          {/* ── Laboratorio ── */}
+          {/* Laboratorio */}
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Trabajo de laboratorio (opcional)</FieldLabel>
             <input
@@ -270,42 +341,7 @@ export function WorkForm({
             />
           </label>
 
-          <label className="block text-sm">
-            <FieldLabel>Comisión laboratorio (%)</FieldLabel>
-            <input
-              name="lab_commission_pct"
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={labPct}
-              onChange={(e) => setLabPct(e.target.value)}
-              placeholder="ej. 20"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Comisión laboratorio calculada */}
-          <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-sm ring-1 ring-amber-200 sm:col-span-2">
-            <span className="text-slate-600">
-              Comisión de laboratorio{labPctN > 0 && <span className="text-slate-400"> ({labPctN}% de {bs(labCostN)})</span>}
-            </span>
-            <span className="tabular-nums text-base font-semibold text-amber-700">
-              {bs(labCommission)}
-            </span>
-          </div>
-
-          {/* Total comisión (si hay laboratorio) */}
-          {labCostN > 0 && (
-            <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 sm:col-span-2">
-              <span className="font-medium text-slate-700">Total comisión</span>
-              <span className="tabular-nums text-base font-bold text-slate-800">
-                {bs(totalCommission)}
-              </span>
-            </div>
-          )}
-
-          {/* ── Cobro al paciente ── */}
+          {/* Cobro al paciente */}
           <label className="block text-sm">
             <FieldLabel>Cobrado al paciente (Bs)</FieldLabel>
             <input
@@ -334,7 +370,7 @@ export function WorkForm({
             </select>
           </label>
 
-          {/* Cobrado por: solo visible cuando hay recepcionistas */}
+          {/* Cobrado por: solo cuando hay recepcionistas */}
           {hasRecepcionistas && (
             <label className="block text-sm sm:col-span-2">
               <FieldLabel>Cobrado por *</FieldLabel>

@@ -12,7 +12,7 @@ export type ActionState = { error?: string; ok?: boolean };
 const PaymentSchema = z.object({
   patient_id: z.string().uuid(),
   amount: z.coerce.number().positive("Monto debe ser > 0"),
-  method: z.enum(["cash", "qr"]),
+  method: z.enum(["cash", "qr", "card"]),
   doctor_id: z.string().uuid().optional().nullable(),
   commission_pct: z.coerce.number().min(0).max(100).default(0),
   note: z.string().max(120).optional().nullable(),
@@ -84,6 +84,7 @@ export async function addPatientPayment(
   }
 
   revalidatePath(`/pacientes/${d.patient_id}`);
+  revalidatePath("/cuentas");
   revalidatePath("/mis-trabajos");
   return { ok: true };
 }

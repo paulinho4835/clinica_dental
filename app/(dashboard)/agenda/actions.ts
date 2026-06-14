@@ -24,7 +24,7 @@ const ApptSchema = z
     // Capa financiera (opcional). Saldo = consult_price - deposit (calculado).
     consult_price: z.coerce.number().min(0, "Precio inválido").default(0),
     deposit: z.coerce.number().min(0, "Adelanto inválido").default(0),
-    deposit_method: z.enum(["cash", "qr"]).optional().nullable(),
+    deposit_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
   })
   // Paciente registrado O nombre suelto (consulta rápida).
   .refine((d) => !!d.patient_id || !!d.patient_name, {
