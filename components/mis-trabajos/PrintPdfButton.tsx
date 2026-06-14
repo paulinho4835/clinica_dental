@@ -182,7 +182,6 @@ export function PrintPdfButton({
 
 <div class="footer">Documento generado automáticamente por el sistema de gestión de clínica dental.</div>
 
-<script>window.onload = () => { window.focus(); window.print(); }</script>
 </body>
 </html>`;
 
@@ -190,6 +189,8 @@ export function PrintPdfButton({
     if (win) {
       win.document.write(html);
       win.document.close();
+      // Llamar print() desde el padre evita que el CSP del popup bloquee inline scripts.
+      setTimeout(() => { win.focus(); win.print(); }, 350);
     }
   }
 
