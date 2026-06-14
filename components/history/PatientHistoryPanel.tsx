@@ -18,6 +18,14 @@ export type PaymentRow = {
   collectedByName?: string | null;
 };
 
+export type WorkDebtRow = {
+  id: string;
+  description: string;
+  cost: number;
+  performedAt: string; // date string YYYY-MM-DD
+  doctorName: string | null;
+};
+
 export type ApptRow = {
   id: string;
   startsAt: string; // ISO
@@ -35,7 +43,6 @@ const PAY_GRID = "grid grid-cols-[10rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
   qr: "QR",
-  // Métodos antiguos (ya no se ofrecen) — etiquetados para historial existente.
   card: "Tarjeta",
   transfer: "Transferencia",
 };
@@ -48,6 +55,13 @@ const fmtDate = (iso: string) =>
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+
+const fmtDay = (d: string) =>
+  new Date(d + "T12:00:00").toLocaleDateString("es-BO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 
 export function VisitasPanel({ appointments }: { appointments: ApptRow[] }) {
@@ -118,6 +132,7 @@ export function PatientHistoryPanel({
   patientId,
   canBilling,
   payments,
+  works,
   doctors,
   recepcionistas,
   totalQuoted,
@@ -126,6 +141,7 @@ export function PatientHistoryPanel({
   patientId: string;
   canBilling: boolean;
   payments: PaymentRow[];
+  works?: WorkDebtRow[];
   doctors: Dentist[];
   recepcionistas?: Recepcionista[];
   totalQuoted: number;
@@ -133,6 +149,7 @@ export function PatientHistoryPanel({
 }) {
   const saldo = totalQuoted - totalPaid;
   const [methodFilter, setMethodFilter] = useState<string>("");
+  const [showWorks, setShowWorks] = useState(false);
 
   const visiblePayments = methodFilter
     ? payments.filter((p) => p.method === methodFilter)
@@ -142,15 +159,52 @@ export function PatientHistoryPanel({
     <div className="space-y-5">
       {/* Resumen financiero */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Total tratamiento" value={bs(totalQuoted)} />
+        <SummaryCard label="Total facturado" value={bs(totalQuoted)} />
         <SummaryCard label="Total pagado" value={bs(totalPaid)} tone="green" />
         <SummaryCard label="Saldo pendiente" value={bs(saldo)} tone={saldo > 0 ? "red" : "slate"} />
       </div>
 
-      {/* Pagos */}
+      {/* Trabajos realizados (deuda) */}
+      {works && works.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowWorks((v) => !v)}
+            className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase text-slate-400 hover:text-slate-600"
+          >
+            <span>{showWorks ? "▼" : "▶"}</span>
+            Trabajos registrados ({works.length}) — detalle de lo facturado
+          </button>
+          {showWorks && (
+            <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+              <div className="divide-y divide-slate-100">
+                {works.map((w) => (
+                  <div key={w.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <span className="w-24 shrink-0 whitespace-nowrap tabular-nums text-xs text-slate-400">
+                      {fmtDay(w.performedAt)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-slate-700">{w.description}</span>
+                    {w.doctorName && (
+                      <span className="hidden truncate text-xs text-slate-400 sm:block">{w.doctorName}</span>
+                    )}
+                    <span className="shrink-0 tabular-nums font-medium text-slate-800">{bs(w.cost)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end border-t border-slate-100 px-4 py-2.5">
+                <span className="text-xs text-slate-500">
+                  Total facturado: <span className="font-semibold text-slate-800">{bs(totalQuoted)}</span>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pagos recibidos */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium uppercase text-slate-400">Pagos</span>
+          <span className="text-xs font-medium uppercase text-slate-400">Pagos recibidos</span>
           <div className="flex gap-1">
             {METHOD_FILTERS.map((f) => (
               <button
@@ -180,7 +234,7 @@ export function PatientHistoryPanel({
             <div className="min-w-[44rem]">
               <div className={`${PAY_GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
                 <span>Fecha</span>
-                <span>Motivo de pago</span>
+                <span>Concepto</span>
                 <span>Doctor</span>
                 <span>Cobrado por</span>
                 <span>Método</span>
@@ -293,6 +347,9 @@ function PaymentForm({
 
   const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;
 
+  // Fecha de hoy en formato YYYY-MM-DD para el default del input date
+  const today = new Date().toLocaleDateString("en-CA"); // en-CA da YYYY-MM-DD
+
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
@@ -312,6 +369,16 @@ function PaymentForm({
     >
       <input type="hidden" name="patient_id" value={patientId} />
       <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs">
+          <span className="mb-1 block text-slate-500">Fecha del pago</span>
+          <input
+            name="received_at"
+            type="date"
+            defaultValue={today}
+            required
+            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          />
+        </label>
         <label className="text-xs">
           <span className="mb-1 block text-slate-500">Monto (Bs)</span>
           <input
@@ -338,20 +405,24 @@ function PaymentForm({
             <option value="card">Tarjeta</option>
           </select>
         </label>
-        <label className="text-xs">
-          <span className="mb-1 block text-slate-500">Doctor que realizó el trabajo</span>
-          <select
-            name="doctor_id"
-            value={doctorId}
-            onChange={(e) => { setDoctorId(e.target.value); if (!e.target.value) setPct(""); }}
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
-          >
-            <option value="">— Sin asignar —</option>
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>{d.full_name}</option>
-            ))}
-          </select>
-        </label>
+
+        {doctors.length > 0 && (
+          <label className="text-xs">
+            <span className="mb-1 block text-slate-500">Doctor (opcional)</span>
+            <select
+              name="doctor_id"
+              value={doctorId}
+              onChange={(e) => { setDoctorId(e.target.value); if (!e.target.value) setPct(""); }}
+              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            >
+              <option value="">— Sin asignar —</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>{d.full_name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!doctorId && <input type="hidden" name="commission_pct" value="0" />}
         {doctorId && (
           <label className="text-xs">
             <span className="mb-1 block text-slate-500">Comisión (%)</span>
@@ -368,7 +439,6 @@ function PaymentForm({
             />
           </label>
         )}
-        {!doctorId && <input type="hidden" name="commission_pct" value="0" />}
 
         {hasRecepcionistas && (
           <label className="text-xs">
@@ -389,14 +459,14 @@ function PaymentForm({
         )}
 
         <label className="flex-1 text-xs">
-          <span className="mb-1 block text-slate-500">Motivo de pago</span>
+          <span className="mb-1 block text-slate-500">Concepto del pago</span>
           <input
             ref={noteRef}
             name="note"
             type="text"
             maxLength={120}
-            placeholder="ej. Adelanto, Pago endodoncia..."
-            className="w-full min-w-[160px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            placeholder="ej. Cuota ortodoncia, Adelanto endodoncia…"
+            className="w-full min-w-[180px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
       </div>
@@ -424,6 +494,16 @@ function PaymentForm({
           className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
         >
           + Adelanto
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (noteRef.current) noteRef.current.value = "Cuota";
+            noteRef.current?.focus();
+          }}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+        >
+          + Cuota
         </button>
       </div>
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}

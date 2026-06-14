@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireNavAccess } from "@/lib/guard";
+import { getProfile } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   PatientHistoryPanel,
   type PaymentRow,
+  type WorkDebtRow,
 } from "@/components/history/PatientHistoryPanel";
 
 export default async function CuentasPacientesPage({
@@ -16,6 +20,8 @@ export default async function CuentasPacientesPage({
   const { q = "", p: selectedId } = await searchParams;
 
   const supabase = await createClient();
+  const profile = await getProfile();
+  const canBilling = can(profile?.role, "billing:write");
 
   // Lista de pacientes (búsqueda opcional).
   let patientsQuery = supabase
@@ -35,8 +41,34 @@ export default async function CuentasPacientesPage({
   // Detalle financiero del paciente seleccionado.
   let selectedPatient: { id: string; full_name: string } | null = null;
   let paymentRows: PaymentRow[] = [];
+  let workRows: WorkDebtRow[] = [];
   let totalQuoted = 0;
   let totalPaid = 0;
+
+  // Doctores y recepcionistas para el formulario de pago.
+  const platformAdminIds = await getPlatformAdminIds();
+
+  let doctorsQuery = supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("role", ["odontologo_general", "especialista", "admin"])
+    .eq("clinic_id", profile!.clinicId)
+    .order("full_name");
+  if (platformAdminIds.length > 0) {
+    doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
+  }
+
+  let recepcionistasQuery = supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "recepcionista")
+    .eq("clinic_id", profile!.clinicId)
+    .order("full_name");
+
+  const [{ data: doctors }, { data: recepcionistas }] = await Promise.all([
+    doctorsQuery,
+    recepcionistasQuery,
+  ]);
 
   if (selectedId) {
     const { data: pat } = await supabase
@@ -48,7 +80,7 @@ export default async function CuentasPacientesPage({
     if (pat) {
       selectedPatient = pat as { id: string; full_name: string };
 
-      const [{ data: payments }, { data: rawPlans }] = await Promise.all([
+      const [{ data: payments }, { data: works }] = await Promise.all([
         supabase
           .from("payments")
           .select(
@@ -57,9 +89,10 @@ export default async function CuentasPacientesPage({
           .eq("patient_id", selectedId)
           .order("received_at", { ascending: false }),
         supabase
-          .from("treatment_plans")
-          .select("id, treatment_phases(treatment_items(id, price, status))")
-          .eq("patient_id", selectedId),
+          .from("doctor_works")
+          .select("id, description, cost, performed_at, doctor:profiles!doctor_works_doctor_id_fkey(full_name)")
+          .eq("patient_id", selectedId)
+          .order("performed_at", { ascending: false }),
       ]);
 
       paymentRows = (payments ?? []).map((p) => ({
@@ -71,19 +104,19 @@ export default async function CuentasPacientesPage({
         doctorName:
           ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
         collectedByName:
-          ((p.collected_by as { full_name?: string } | null)?.full_name) ??
-          null,
+          ((p.collected_by as { full_name?: string } | null)?.full_name) ?? null,
+      }));
+
+      workRows = (works ?? []).map((w) => ({
+        id: w.id as string,
+        description: w.description as string,
+        cost: Number(w.cost),
+        performedAt: w.performed_at as string,
+        doctorName: ((w.doctor as { full_name?: string } | null)?.full_name) ?? null,
       }));
 
       totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
-      totalQuoted = (rawPlans ?? [])
-        .flatMap(
-          (plan) => (plan.treatment_phases as Record<string, unknown>[]) ?? [],
-        )
-        .flatMap(
-          (ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [],
-        )
-        .reduce((s, item) => s + Number(item.price ?? 0), 0);
+      totalQuoted = workRows.reduce((s, w) => s + w.cost, 0);
     }
   }
 
@@ -159,9 +192,11 @@ export default async function CuentasPacientesPage({
               </div>
               <PatientHistoryPanel
                 patientId={selectedPatient.id}
-                canBilling={false}
+                canBilling={canBilling}
                 payments={paymentRows}
-                doctors={[]}
+                works={workRows}
+                doctors={doctors ?? []}
+                recepcionistas={recepcionistas ?? []}
                 totalQuoted={totalQuoted}
                 totalPaid={totalPaid}
               />
