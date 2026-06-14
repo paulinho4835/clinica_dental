@@ -191,6 +191,8 @@ export function PrintPdfButton({
       win.document.close();
       // Llamar print() desde el padre evita que el CSP del popup bloquee inline scripts.
       setTimeout(() => { win.focus(); win.print(); }, 350);
+    } else {
+      alert("El navegador bloqueó la ventana de impresión.\nPermite los popups para este sitio en la barra de direcciones y vuelve a intentarlo.");
     }
   }
 
