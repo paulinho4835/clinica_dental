@@ -47,6 +47,9 @@ export function WorkForm({
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedCollectedById, setSelectedCollectedById] = useState("");
 
+  // Balance del paciente seleccionado.
+  const [balance, setBalance] = useState<{ totalWorked: number; totalPaid: number } | null>(null);
+
   // Plan de tratamiento del paciente seleccionado.
   const [planItems, setPlanItems] = useState<PlanItemRow[]>([]);
   const [selectedPlanItemId, setSelectedPlanItemId] = useState("");
@@ -82,17 +85,22 @@ export function WorkForm({
           .slice(0, 8)
       : [];
 
-  // Cargar ítems del plan de tratamiento cuando se selecciona un paciente.
+  // Cargar balance y plan de tratamiento cuando se selecciona un paciente.
   useEffect(() => {
     if (!selectedId) {
       setPlanItems([]);
       setSelectedPlanItemId("");
+      setBalance(null);
       return;
     }
     fetch(`/api/patients/${selectedId}/plan-items`)
       .then((r) => r.json())
       .then((d) => setPlanItems(d.items ?? []))
       .catch(() => setPlanItems([]));
+    fetch(`/api/patients/${selectedId}/balance`)
+      .then((r) => r.json())
+      .then((d) => setBalance(d.totalWorked != null ? d : null))
+      .catch(() => setBalance(null));
   }, [selectedId]);
 
   function resetForm() {
@@ -108,6 +116,7 @@ export function WorkForm({
     setPct("");
     setLabCost("");
     setAmountPaid("");
+    setBalance(null);
     setOpen(false);
   }
 
@@ -205,6 +214,23 @@ export function WorkForm({
               </ul>
             )}
           </div>
+
+          {/* Saldo del paciente */}
+          {selectedId && balance && (() => {
+            const pending = balance.totalWorked - balance.totalPaid;
+            const isZero = pending <= 0;
+            return (
+              <div className={`sm:col-span-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${isZero ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
+                <div className="flex gap-4">
+                  <span>Facturado: <strong className="tabular-nums">{bs(balance.totalWorked)}</strong></span>
+                  <span>Pagado: <strong className="tabular-nums">{bs(balance.totalPaid)}</strong></span>
+                </div>
+                <span className={`font-semibold tabular-nums ${isZero ? "text-emerald-700" : "text-amber-700"}`}>
+                  {isZero ? "Al día ✓" : `Debe: ${bs(pending)}`}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Selector del plan de tratamiento (aparece cuando el paciente tiene ítems) */}
           {selectedId && planItems.length > 0 && (

@@ -199,7 +199,7 @@ export default async function PagosPage({
           <div className="min-w-[52rem]">
             <div className={`${GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
-              <span>Empleado</span>
+              <span>Trabajador</span>
               <span>Rol</span>
               <span>Concepto</span>
               <span>Método</span>

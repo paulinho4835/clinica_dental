@@ -40,7 +40,7 @@ export const FEATURES: FeatureMeta[] = [
   // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
   { key: "caja", label: "Dashboard financiero", href: "/caja" },
-  { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas", optIn: true },
+  { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
   { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },
