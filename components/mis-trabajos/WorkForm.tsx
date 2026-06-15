@@ -122,15 +122,17 @@ export function WorkForm({
 
   function selectPlanItem(item: PlanItemRow) {
     if (selectedPlanItemId === item.id) {
-      // Deseleccionar: limpiar campos pre-rellenados.
       setSelectedPlanItemId("");
       setDescription("");
       setCost("");
+      setAmountPaid("");
     } else {
       setSelectedPlanItemId(item.id);
       setDescription(item.name);
       setCost(String(item.price));
-      // Si hay selector de doctor (recepcionista/admin) y el ítem tiene doctor asignado, pre-rellenar.
+      // Pre-rellenar con el saldo restante de ese ítem.
+      const restante = Math.max(0, item.price - item.paidAmount);
+      setAmountPaid(restante > 0 ? String(restante) : "");
       if (doctors && item.doctorId) {
         setSelectedDoctorId(item.doctorId);
       }
@@ -217,16 +219,16 @@ export function WorkForm({
 
           {/* Saldo del paciente */}
           {selectedId && balance && (() => {
-            const pending = balance.totalWorked - balance.totalPaid;
-            const isZero = pending <= 0;
+            const deuda = balance.totalWorked - balance.totalPaid;
+            const alDia = deuda <= 0;
             return (
-              <div className={`sm:col-span-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${isZero ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
+              <div className={`sm:col-span-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
                 <div className="flex gap-4">
                   <span>Facturado: <strong className="tabular-nums">{bs(balance.totalWorked)}</strong></span>
                   <span>Pagado: <strong className="tabular-nums">{bs(balance.totalPaid)}</strong></span>
                 </div>
-                <span className={`font-semibold tabular-nums ${isZero ? "text-emerald-700" : "text-amber-700"}`}>
-                  {isZero ? "Al día ✓" : `Debe: ${bs(pending)}`}
+                <span className={`font-semibold tabular-nums ${alDia ? "text-emerald-700" : "text-amber-700"}`}>
+                  {alDia ? "Al día ✓" : `Debe: ${bs(deuda)}`}
                 </span>
               </div>
             );
@@ -236,27 +238,56 @@ export function WorkForm({
           {selectedId && planItems.length > 0 && (
             <div className="sm:col-span-2">
               <FieldLabel>Seleccionar del plan de tratamiento</FieldLabel>
-              <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
-                {planItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectPlanItem(item)}
-                    className={`flex items-center justify-between rounded px-3 py-2 text-sm text-left transition-colors ${
-                      selectedPlanItemId === item.id
-                        ? "bg-clinic/10 font-medium text-clinic-fg ring-1 ring-clinic/30"
-                        : "hover:bg-white"
-                    }`}
-                  >
-                    <span className="truncate">{item.name}</span>
-                    <div className="ml-3 flex shrink-0 items-center gap-3">
-                      {item.doctorName && (
-                        <span className="text-xs text-slate-400">{item.doctorName}</span>
+              <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                {planItems.map((item) => {
+                  const pagado = item.paidAmount;
+                  const saldado = pagado >= item.price && item.price > 0;
+                  const parcial = pagado > 0 && !saldado;
+                  const isSelected = selectedPlanItemId === item.id;
+                  const pct = item.price > 0 ? Math.min(100, Math.round((pagado / item.price) * 100)) : 0;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectPlanItem(item)}
+                      className={`flex flex-col rounded px-3 py-2 text-sm text-left transition-colors ${
+                        isSelected
+                          ? "bg-clinic/10 font-medium text-clinic-fg ring-1 ring-clinic/30"
+                          : saldado
+                          ? "bg-emerald-50 hover:bg-emerald-100"
+                          : "hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="truncate">{item.name}</span>
+                        <div className="ml-3 flex shrink-0 items-center gap-2">
+                          {item.doctorName && (
+                            <span className="text-xs text-slate-400">{item.doctorName}</span>
+                          )}
+                          {saldado ? (
+                            <span className="text-xs font-semibold text-emerald-700">Saldado ✓</span>
+                          ) : parcial ? (
+                            <span className="text-xs text-amber-700 tabular-nums">
+                              {bs(pagado)}<span className="text-slate-400"> / {bs(item.price)}</span>
+                            </span>
+                          ) : (
+                            <span className="tabular-nums text-slate-600">{bs(item.price)}</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Barra de progreso solo si hay algo pagado o el ítem tiene precio */}
+                      {item.price > 0 && (
+                        <div className="mt-1.5 h-1 w-full rounded-full bg-slate-200">
+                          <div
+                            className={`h-1 rounded-full transition-all ${saldado ? "bg-emerald-500" : parcial ? "bg-amber-400" : "bg-slate-300"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       )}
-                      <span className="tabular-nums text-slate-600">{bs(item.price)}</span>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
               <input type="hidden" name="treatment_item_id" value={selectedPlanItemId} />
             </div>
