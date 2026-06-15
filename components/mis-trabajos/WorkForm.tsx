@@ -72,7 +72,8 @@ export function WorkForm({
   // si hay plan item con lab ya registrado, se usa ese; si no, el campo manual.
   const selectedPlanItem = planItems.find((i) => i.id === selectedPlanItemId) ?? null;
   const planItemLabCostN = selectedPlanItem?.labCost ?? 0;
-  const treatmentLabCostN = selectedPlanItemId ? planItemLabCostN : labCostN;
+  // Si el plan item ya tiene lab registrado en DB, usar ese; si no, usar el campo manual.
+  const treatmentLabCostN = planItemLabCostN > 0 ? planItemLabCostN : labCostN;
 
   // Comisión proporcional: cada cuota aporta su fracción de la ganancia neta.
   const netRate = costN > 0 ? Math.max(0, costN - treatmentLabCostN) / costN : 1;
