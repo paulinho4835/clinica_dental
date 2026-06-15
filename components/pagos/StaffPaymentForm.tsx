@@ -192,7 +192,7 @@ export function StaffPaymentForm({
               {unpaidWorks.map((w) => {
                 const commission = w.commission_amount + w.lab_commission_amount;
                 const checked = selectedIds.has(w.id);
-                const pct = w.cost > 0 ? Math.min(100, (w.amount_paid / w.cost) * 100) : 0;
+                const pct = w.planItemPrice > 0 ? Math.min(100, (w.planItemPaid / w.planItemPrice) * 100) : 0;
                 const paid = pct >= 99.9;
                 const barColor = paid
                   ? "bg-emerald-500"
@@ -226,7 +226,7 @@ export function StaffPaymentForm({
                         {bs(commission)}
                       </span>
                     </div>
-                    {w.cost > 0 && (
+                    {w.planItemPrice > 0 && (
                       <div className="ml-6 flex items-center gap-2">
                         <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100">
                           <div
@@ -235,7 +235,7 @@ export function StaffPaymentForm({
                           />
                         </div>
                         <span className={`whitespace-nowrap tabular-nums text-xs ${paid ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
-                          {paid ? "Saldado ✓" : `${bs(w.amount_paid)} / ${bs(w.cost)}`}
+                          {paid ? "Saldado ✓" : `${bs(w.planItemPaid)} / ${bs(w.planItemPrice)}`}
                         </span>
                       </div>
                     )}
