@@ -68,9 +68,14 @@ export function WorkForm({
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
 
+  // Lab cost del tratamiento (para cálculo proporcional de comisión):
+  // si hay plan item con lab ya registrado, se usa ese; si no, el campo manual.
+  const selectedPlanItem = planItems.find((i) => i.id === selectedPlanItemId) ?? null;
+  const planItemLabCostN = selectedPlanItem?.labCost ?? 0;
+  const treatmentLabCostN = selectedPlanItemId ? planItemLabCostN : labCostN;
+
   // Comisión proporcional: cada cuota aporta su fracción de la ganancia neta.
-  // Si costN=0 (sin precio definido) se usa el cobrado sin deducción de lab.
-  const netRate = costN > 0 ? Math.max(0, costN - labCostN) / costN : 1;
+  const netRate = costN > 0 ? Math.max(0, costN - treatmentLabCostN) / costN : 1;
   const commission = Math.round(amountPaidN * netRate * pctN) / 100;
 
   // Buscar pacientes por query.
@@ -364,7 +369,7 @@ export function WorkForm({
             <span className="text-slate-600">
               Comisión del trabajo
               {pctN > 0 && (
-                labCostN > 0 && costN > 0
+                treatmentLabCostN > 0 && costN > 0
                   ? <span className="text-slate-400"> ({pctN}% × {bs(amountPaidN)} × {Math.round(netRate * 100)}% neto lab)</span>
                   : <span className="text-slate-400"> ({pctN}% de {bs(amountPaidN)} cobrado)</span>
               )}
@@ -386,19 +391,35 @@ export function WorkForm({
             />
           </label>
 
-          <label className="block text-sm">
-            <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
-            <input
-              name="lab_cost"
-              type="number"
-              step="0.01"
-              min="0"
-              value={labCost}
-              onChange={(e) => setLabCost(e.target.value)}
-              placeholder="0.00"
-              className={fieldInputClass}
-            />
-          </label>
+          {/* Si el plan item ya tiene lab_cost registrado, mostrarlo como info */}
+          {selectedPlanItemId && planItemLabCostN > 0 ? (
+            <div className="block text-sm sm:col-span-1">
+              <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
+              <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
+                <span className="tabular-nums font-medium text-slate-700">{bs(planItemLabCostN)}</span>
+                <span className="text-xs text-slate-400">(ya registrado en el plan)</span>
+              </div>
+              {/* Campos ocultos: lab_cost=0 (no nuevo gasto), treatment_lab_cost del plan */}
+              <input type="hidden" name="lab_cost" value="0" />
+              <input type="hidden" name="treatment_lab_cost" value={planItemLabCostN} />
+            </div>
+          ) : (
+            <label className="block text-sm">
+              <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
+              <input
+                name="lab_cost"
+                type="number"
+                step="0.01"
+                min="0"
+                value={labCost}
+                onChange={(e) => setLabCost(e.target.value)}
+                placeholder="0.00"
+                className={fieldInputClass}
+              />
+              {/* treatment_lab_cost = lab_cost para obras sin plan o primer registro */}
+              <input type="hidden" name="treatment_lab_cost" value={labCostN} />
+            </label>
+          )}
 
           {/* Cobro al paciente */}
           <label className="block text-sm">

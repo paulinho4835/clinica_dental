@@ -24,6 +24,7 @@ const WorkSchema = z.object({
   notes: z.string().trim().max(300).optional().nullable(),
   lab_work: z.string().trim().max(200).optional().nullable(),
   lab_cost: z.coerce.number().min(0, "El costo de laboratorio no puede ser negativo.").default(0),
+  treatment_lab_cost: z.coerce.number().min(0).default(0),
   doctor_id: z.string().uuid().optional().nullable(),
   collected_by_id: z.string().uuid().optional().nullable(),
   treatment_item_id: z.string().uuid().optional().nullable(),
@@ -52,6 +53,7 @@ export async function createDoctorWork(
     notes: formData.get("notes") || null,
     lab_work: formData.get("lab_work") || null,
     lab_cost: formData.get("lab_cost") || 0,
+    treatment_lab_cost: formData.get("treatment_lab_cost") || 0,
     doctor_id: formData.get("doctor_id") || null,
     collected_by_id: formData.get("collected_by_id") || null,
     treatment_item_id: formData.get("treatment_item_id") || null,
@@ -81,6 +83,8 @@ export async function createDoctorWork(
     notes: d.notes ?? null,
     lab_work: d.lab_work ?? null,
     lab_cost: d.lab_cost ?? 0,
+    treatment_lab_cost: d.treatment_lab_cost ?? 0,
+    treatment_item_id: d.treatment_item_id ?? null,
     collected_by_id: resolvedCollectedById,
   };
 
