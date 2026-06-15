@@ -35,8 +35,11 @@ export function WorkForm({
   recepcionistas?: Recepcionista[];
 }) {
   const [open, setOpen] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [state, formAction, pending] = useActionState(createDoctorWork, initial);
   const formRef = useRef<HTMLFormElement>(null);
+  const hiddenSubmitRef = useRef<HTMLButtonElement>(null);
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   const [query, setQuery] = useState("");
@@ -191,6 +194,19 @@ export function WorkForm({
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  // Cerrar modal de confirmación con Escape.
+  useEffect(() => {
+    if (!showConfirm) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowConfirm(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showConfirm]);
+
+  // Enfocar "Volver" al abrir el modal (el usuario debe confirmar activamente).
+  useEffect(() => {
+    if (showConfirm) confirmCancelRef.current?.focus();
+  }, [showConfirm]);
+
   const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;
   const canSubmit =
     !pending &&
@@ -207,6 +223,7 @@ export function WorkForm({
   }
 
   return (
+    <>
     <Card className="p-4">
       <form ref={formRef} action={formAction} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -546,14 +563,107 @@ export function WorkForm({
         )}
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={!canSubmit}>
+          <Button type="button" disabled={!canSubmit} onClick={() => setShowConfirm(true)}>
             {pending ? "Guardando…" : "Registrar"}
           </Button>
           <Button type="button" variant="ghost" onClick={resetForm}>
             Cancelar
           </Button>
         </div>
+        {/* Botón real de submit, invisible, disparado desde el modal */}
+        <button ref={hiddenSubmitRef} type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
     </Card>
+
+    {/* ── Modal de confirmación ───────────────────────────────── */}
+    {showConfirm && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+      >
+        {/* Backdrop — clic cierra sin guardar */}
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowConfirm(false)}
+        />
+
+        {/* Panel */}
+        <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 dark:ring-white/10">
+          <h2 id="confirm-title" className="text-base font-semibold text-slate-800 dark:text-white">
+            Confirmar registro
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Revisa que los montos y comisiones sean correctos antes de continuar.
+          </p>
+
+          {/* Resumen de datos críticos */}
+          <dl className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 text-sm dark:divide-slate-700 dark:border-slate-700">
+            <div className="flex justify-between gap-2 px-3 py-2">
+              <dt className="text-slate-500 dark:text-slate-400">Paciente</dt>
+              <dd className="max-w-[60%] truncate text-right font-medium text-slate-800 dark:text-white">{query}</dd>
+            </div>
+            <div className="flex justify-between gap-2 px-3 py-2">
+              <dt className="text-slate-500 dark:text-slate-400">Trabajo</dt>
+              <dd className="max-w-[60%] truncate text-right font-medium text-slate-800 dark:text-white">{description || "—"}</dd>
+            </div>
+            {doctors && selectedDoctorId && (
+              <div className="flex justify-between gap-2 px-3 py-2">
+                <dt className="text-slate-500 dark:text-slate-400">Doctor</dt>
+                <dd className="text-right font-medium text-slate-800 dark:text-white">
+                  {doctors.find((d) => d.id === selectedDoctorId)?.full_name ?? "—"}
+                </dd>
+              </div>
+            )}
+            {costN > 0 && (
+              <div className="flex justify-between gap-2 px-3 py-2">
+                <dt className="text-slate-500 dark:text-slate-400">Costo tratamiento</dt>
+                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{bs(costN)}</dd>
+              </div>
+            )}
+            {treatmentLabCostN > 0 && (
+              <div className="flex justify-between gap-2 px-3 py-2">
+                <dt className="text-slate-500 dark:text-slate-400">Costo laboratorio</dt>
+                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{bs(treatmentLabCostN)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between gap-2 px-3 py-2">
+              <dt className="text-slate-500 dark:text-slate-400">Cobrado hoy</dt>
+              <dd className="tabular-nums font-semibold text-slate-900 dark:text-white">{bs(amountPaidN)}</dd>
+            </div>
+            {pctN > 0 && (
+              <div className="flex justify-between gap-2 px-3 py-2">
+                <dt className="text-slate-500 dark:text-slate-400">Comisión doctor</dt>
+                <dd className="tabular-nums font-semibold text-clinic">{pctN}% → {bs(commission)}</dd>
+              </div>
+            )}
+          </dl>
+
+          <div className="mt-5 flex gap-2">
+            <button
+              ref={confirmCancelRef}
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowConfirm(false);
+                hiddenSubmitRef.current?.click();
+              }}
+              disabled={pending}
+              className="flex-1 rounded-lg bg-clinic px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              Sí, registrar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
