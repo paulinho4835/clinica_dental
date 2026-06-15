@@ -40,6 +40,9 @@ export async function createDoctorWork(
     return { error: "Sin permiso para registrar trabajos." };
 
   const isRecepcionista = profile.role === "recepcionista";
+  // Admin y recepcionista registran trabajos en nombre de un doctor:
+  // deben indicar a quién se le atribuye (la comisión es de ese doctor).
+  const canPickDoctor = profile.role === "admin" || isRecepcionista;
 
   const parsed = WorkSchema.safeParse({
     patient_id: formData.get("patient_id") || null,
@@ -90,7 +93,7 @@ export async function createDoctorWork(
 
   let actualDoctorId: string;
 
-  if (isRecepcionista) {
+  if (canPickDoctor) {
     if (!d.doctor_id) return { error: "Selecciona el doctor que realizó el trabajo." };
     const admin = createAdminClient();
     // Verificar que el doctor pertenece a la misma clínica.

@@ -275,7 +275,7 @@ export default async function MisTrabajosPage({
         <WorkForm
           patients={patients ?? []}
           today={today}
-          doctors={isRecepcionista ? sortedDoctors : undefined}
+          doctors={canPickDoctor ? sortedDoctors : undefined}
           recepcionistas={isRecepcionista ? (recepData ?? []) : undefined}
         />
       )}
