@@ -10,6 +10,8 @@ export type UnpaidWork = {
   commission_amount: number;
   lab_commission_amount: number;
   performed_at: string;
+  cost: number;
+  amount_paid: number;
 };
 
 export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWork[]> {
@@ -19,7 +21,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
   const admin = createAdminClient();
   const { data } = await admin
     .from("doctor_works")
-    .select("id, description, patient_name, commission_amount, lab_commission_amount, performed_at")
+    .select("id, description, patient_name, commission_amount, lab_commission_amount, performed_at, cost, amount_paid")
     .eq("clinic_id", profile.clinicId)
     .eq("doctor_id", doctorId)
     .eq("commission_paid", false)
@@ -32,5 +34,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
     commission_amount: Number(w.commission_amount),
     lab_commission_amount: Number(w.lab_commission_amount),
     performed_at: w.performed_at as string,
+    cost: Number(w.cost),
+    amount_paid: Number(w.amount_paid),
   }));
 }

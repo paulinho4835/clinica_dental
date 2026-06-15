@@ -82,7 +82,6 @@ export default async function PatientPage({
     { data: clinicRow },
     { data: rawConsents },
     { data: consentTemplates },
-    { data: doctorWorks },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -121,10 +120,6 @@ export default async function PatientPage({
       .from("consent_templates")
       .select("id, title, body")
       .order("sort_order"),
-    supabase
-      .from("doctor_works")
-      .select("cost")
-      .eq("patient_id", id),
   ]);
 
   // Aplana todos los items del plan en una lista de "trabajos".
@@ -187,7 +182,11 @@ export default async function PatientPage({
 
   const clinicName = (clinicRow as { name?: string; features?: unknown } | null)?.name ?? "";
 
-  const totalQuoted = (doctorWorks ?? []).reduce((s, w) => s + Number(w.cost), 0);
+  const totalQuoted = (rawPlans ?? [])
+    .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
+    .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
+    .filter((it) => (it.status as string) !== "cancelled")
+    .reduce((s, it) => s + Number(it.price), 0);
   const totalPaid = totalPaidRaw;
 
   const teeth = (odo?.teeth as TeethMap) ?? {};

@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Check, X } from "lucide-react";
 import { saveEvolution } from "@/app/(dashboard)/pacientes/actions";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/Button";
+
+function todayStamp() {
+  const now = new Date();
+  const d = String(now.getDate()).padStart(2, "0");
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  return `${d}/${m}/${now.getFullYear()}`;
+}
 
 export function EvolutionPanel({
   patientId,
@@ -20,6 +27,25 @@ export function EvolutionPanel({
   const [value, setValue] = useState(evolution ?? "");
   const [pending, start] = useTransition();
   const router = useRouter();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Cada vez que se abre el editor, se agrega la fecha de hoy al final.
+  function startEditing() {
+    const existing = evolution?.trimEnd() ?? "";
+    const stamp = todayStamp();
+    const next = existing ? `${existing}\n\n${stamp}\n` : `${stamp}\n`;
+    setValue(next);
+    setEditing(true);
+  }
+
+  // Mover el cursor al final cuando aparece el textarea.
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      const el = textareaRef.current;
+      el.focus();
+      el.selectionStart = el.selectionEnd = el.value.length;
+    }
+  }, [editing]);
 
   function handleSave() {
     start(async () => {
@@ -54,7 +80,7 @@ export function EvolutionPanel({
         {canWrite && (
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="mt-3 inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-clinic transition-colors"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -68,12 +94,12 @@ export function EvolutionPanel({
   return (
     <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200 space-y-3">
       <textarea
-        autoFocus
-        rows={6}
+        ref={textareaRef}
+        rows={8}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Describe la evolución del paciente, observaciones clínicas, respuesta al tratamiento…"
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic resize-y"
+        placeholder="Escribe la nota de evolución…"
+        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic resize-y font-mono"
       />
       <div className="flex gap-2">
         <Button type="button" size="sm" onClick={handleSave} disabled={pending}>

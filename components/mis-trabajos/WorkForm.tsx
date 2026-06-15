@@ -185,7 +185,8 @@ export function WorkForm({
     <Card className="p-4">
       <form ref={formRef} action={formAction} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* Paciente */}
+
+          {/* ── Paciente ──────────────────────────────────────── */}
           <div ref={containerRef} className="relative block text-sm sm:col-span-2">
             <FieldLabel>Paciente *</FieldLabel>
             <input
@@ -242,7 +243,7 @@ export function WorkForm({
             );
           })()}
 
-          {/* Selector del plan de tratamiento (aparece cuando el paciente tiene ítems) */}
+          {/* Plan de tratamiento */}
           {selectedId && planItems.length > 0 && (
             <div className="sm:col-span-2">
               <FieldLabel>Seleccionar del plan de tratamiento</FieldLabel>
@@ -253,7 +254,6 @@ export function WorkForm({
                   const parcial = pagado > 0 && !saldado;
                   const isSelected = selectedPlanItemId === item.id;
                   const pct = item.price > 0 ? Math.min(100, Math.round((pagado / item.price) * 100)) : 0;
-
                   return (
                     <button
                       key={item.id}
@@ -284,7 +284,6 @@ export function WorkForm({
                           )}
                         </div>
                       </div>
-                      {/* Barra de progreso solo si hay algo pagado o el ítem tiene precio */}
                       {item.price > 0 && (
                         <div className="mt-1.5 h-1 w-full rounded-full bg-slate-200">
                           <div
@@ -320,7 +319,13 @@ export function WorkForm({
             </label>
           )}
 
-          {/* Trabajo realizado */}
+          {/* ── Trabajo realizado ─────────────────────────────── */}
+          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+            <div className="h-px flex-1 bg-slate-100" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Trabajo</span>
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
           <label className="block text-sm sm:col-span-2">
             <FieldLabel>Trabajo realizado *</FieldLabel>
             <input
@@ -335,9 +340,55 @@ export function WorkForm({
             />
           </label>
 
-          {/* Costo del trabajo */}
           <label className="block text-sm">
-            <FieldLabel>Costo del trabajo (Bs)</FieldLabel>
+            <FieldLabel>Fecha</FieldLabel>
+            <input
+              name="performed_at"
+              type="date"
+              defaultValue={today}
+              className={fieldInputClass}
+            />
+          </label>
+
+          <label className="block text-sm">
+            <FieldLabel>Notas (opcional)</FieldLabel>
+            <input
+              name="notes"
+              type="text"
+              maxLength={300}
+              placeholder="Detalle adicional…"
+              className={fieldInputClass}
+            />
+          </label>
+
+          {/* ── Laboratorio ───────────────────────────────────── */}
+          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+            <div className="h-px flex-1 bg-slate-100" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Laboratorio (opcional)</span>
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
+          <label className="block text-sm sm:col-span-2">
+            <FieldLabel>Nombre del trabajo de laboratorio</FieldLabel>
+            <input
+              name="lab_work"
+              type="text"
+              maxLength={200}
+              placeholder="ej. Corona, Prótesis parcial, Retenedor…"
+              className={fieldInputClass}
+            />
+          </label>
+
+          {/* ── Montos ────────────────────────────────────────── */}
+          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+            <div className="h-px flex-1 bg-slate-100" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Montos</span>
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
+          {/* Costo del trabajo | Costo laboratorio */}
+          <label className="block text-sm">
+            <FieldLabel>Costo del tratamiento (Bs)</FieldLabel>
             <input
               name="cost"
               type="number"
@@ -350,57 +401,13 @@ export function WorkForm({
             />
           </label>
 
-          <label className="block text-sm">
-            <FieldLabel>Comisión trabajo (%)</FieldLabel>
-            <input
-              name="commission_pct"
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={pct}
-              onChange={(e) => setPct(e.target.value)}
-              placeholder="ej. 40"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Comisión calculada */}
-          <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20 sm:col-span-2">
-            <span className="text-slate-600">
-              Comisión del trabajo
-              {pctN > 0 && (
-                treatmentLabCostN > 0 && costN > 0
-                  ? <span className="text-slate-400"> ({pctN}% × {bs(amountPaidN)} × {Math.round(netRate * 100)}% neto lab)</span>
-                  : <span className="text-slate-400"> ({pctN}% de {bs(amountPaidN)} cobrado)</span>
-              )}
-            </span>
-            <span className="tabular-nums text-base font-semibold text-clinic">
-              {bs(commission)}
-            </span>
-          </div>
-
-          {/* Laboratorio */}
-          <label className="block text-sm sm:col-span-2">
-            <FieldLabel>Trabajo de laboratorio (opcional)</FieldLabel>
-            <input
-              name="lab_work"
-              type="text"
-              maxLength={200}
-              placeholder="ej. Corona, Prótesis parcial, Retenedor…"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Si el plan item ya tiene lab_cost registrado, mostrarlo como info */}
           {selectedPlanItemId && planItemLabCostN > 0 ? (
-            <div className="block text-sm sm:col-span-1">
+            <div className="block text-sm">
               <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
               <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
                 <span className="tabular-nums font-medium text-slate-700">{bs(planItemLabCostN)}</span>
-                <span className="text-xs text-slate-400">(ya registrado en el plan)</span>
+                <span className="text-xs text-slate-400">(ya registrado)</span>
               </div>
-              {/* Campos ocultos: lab_cost=0 (no nuevo gasto), treatment_lab_cost del plan */}
               <input type="hidden" name="lab_cost" value="0" />
               <input type="hidden" name="treatment_lab_cost" value={planItemLabCostN} />
             </div>
@@ -417,12 +424,11 @@ export function WorkForm({
                 placeholder="0.00"
                 className={fieldInputClass}
               />
-              {/* treatment_lab_cost = lab_cost para obras sin plan o primer registro */}
               <input type="hidden" name="treatment_lab_cost" value={labCostN} />
             </label>
           )}
 
-          {/* Cobro al paciente */}
+          {/* Cobrado al paciente | Método de pago */}
           <label className="block text-sm">
             <FieldLabel>Cobrado al paciente (Bs)</FieldLabel>
             <input
@@ -451,7 +457,7 @@ export function WorkForm({
             </select>
           </label>
 
-          {/* Cobrado por: solo cuando hay recepcionistas */}
+          {/* Cobrado por */}
           {hasRecepcionistas && (
             <label className="block text-sm sm:col-span-2">
               <FieldLabel>Cobrado por *</FieldLabel>
@@ -470,26 +476,43 @@ export function WorkForm({
             </label>
           )}
 
+          {/* ── Comisión ──────────────────────────────────────── */}
+          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+            <div className="h-px flex-1 bg-slate-100" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Comisión del doctor</span>
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
           <label className="block text-sm">
-            <FieldLabel>Fecha</FieldLabel>
+            <FieldLabel>Porcentaje de comisión (%)</FieldLabel>
             <input
-              name="performed_at"
-              type="date"
-              defaultValue={today}
+              name="commission_pct"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={pct}
+              onChange={(e) => setPct(e.target.value)}
+              placeholder="ej. 40"
               className={fieldInputClass}
             />
           </label>
 
-          <label className="block text-sm sm:col-span-2">
-            <FieldLabel>Notas (opcional)</FieldLabel>
-            <input
-              name="notes"
-              type="text"
-              maxLength={300}
-              placeholder="Detalle adicional…"
-              className={fieldInputClass}
-            />
-          </label>
+          <div className="flex flex-col justify-end">
+            <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2.5 text-sm ring-1 ring-clinic/20">
+              <span className="text-slate-500">
+                {pctN > 0 && costN > 0 ? (
+                  treatmentLabCostN > 0
+                    ? <span>{pctN}% × {Math.round(netRate * 100)}% neto</span>
+                    : <span>{pctN}% de {bs(amountPaidN)}</span>
+                ) : "Comisión"}
+              </span>
+              <span className="tabular-nums text-base font-bold text-clinic">
+                {bs(commission)}
+              </span>
+            </div>
+          </div>
+
         </div>
 
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}

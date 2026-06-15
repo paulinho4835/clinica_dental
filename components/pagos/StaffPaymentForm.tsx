@@ -192,31 +192,53 @@ export function StaffPaymentForm({
               {unpaidWorks.map((w) => {
                 const commission = w.commission_amount + w.lab_commission_amount;
                 const checked = selectedIds.has(w.id);
+                const pct = w.cost > 0 ? Math.min(100, (w.amount_paid / w.cost) * 100) : 0;
+                const paid = pct >= 99.9;
+                const barColor = paid
+                  ? "bg-emerald-500"
+                  : pct > 0
+                    ? "bg-amber-400"
+                    : "bg-slate-200";
                 return (
                   <label
                     key={w.id}
-                    className={`flex cursor-pointer items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0 transition ${
+                    className={`flex cursor-pointer flex-col gap-1 border-b border-slate-100 px-3 py-2 text-sm last:border-0 transition ${
                       checked ? "bg-clinic/5" : "hover:bg-slate-50"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleWork(w.id)}
-                      className="accent-clinic shrink-0"
-                    />
-                    <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                      {fmtShortDate(w.performed_at)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-slate-700">{w.description}</span>
-                    {w.patient_name && (
-                      <span className="max-w-[8rem] truncate text-xs text-slate-400">
-                        {w.patient_name}
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleWork(w.id)}
+                        className="accent-clinic shrink-0"
+                      />
+                      <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
+                        {fmtShortDate(w.performed_at)}
                       </span>
+                      <span className="min-w-0 flex-1 truncate text-slate-700">{w.description}</span>
+                      {w.patient_name && (
+                        <span className="max-w-[8rem] truncate text-xs text-slate-400">
+                          {w.patient_name}
+                        </span>
+                      )}
+                      <span className="whitespace-nowrap tabular-nums text-xs font-medium text-clinic">
+                        {bs(commission)}
+                      </span>
+                    </div>
+                    {w.cost > 0 && (
+                      <div className="ml-6 flex items-center gap-2">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`h-full rounded-full transition-all ${barColor}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className={`whitespace-nowrap tabular-nums text-xs ${paid ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                          {paid ? "Saldado ✓" : `${bs(w.amount_paid)} / ${bs(w.cost)}`}
+                        </span>
+                      </div>
                     )}
-                    <span className="whitespace-nowrap tabular-nums text-xs font-medium text-clinic">
-                      {bs(commission)}
-                    </span>
                   </label>
                 );
               })}
