@@ -149,12 +149,32 @@ export function WorkForm({
 
   useEffect(() => {
     if (state.ok) {
-      resetForm();
-      router.refresh();
       toast("Trabajo registrado", "success");
+      // Limpiar campos del trabajo pero mantener paciente y doctor,
+      // para registrar otro trabajo del mismo paciente sin reseleccionar.
+      formRef.current?.reset();
+      setSelectedPlanItemId("");
+      setDescription("");
+      setCost("");
+      setPct("");
+      setLabCost("");
+      setAmountPaid("");
+      // Refrescar barras de progreso inmediatamente.
+      if (selectedId) {
+        fetch(`/api/patients/${selectedId}/plan-items`)
+          .then((r) => r.json())
+          .then((d) => setPlanItems(d.items ?? []))
+          .catch(() => {});
+        fetch(`/api/patients/${selectedId}/balance`)
+          .then((r) => r.json())
+          .then((d) => setBalance(d.totalWorked != null ? d : null))
+          .catch(() => {});
+      }
+      router.refresh();
     }
+    // selectedId y router se capturan en closure; state es nueva referencia en cada acción.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.ok, router]);
+  }, [state]);
 
   useEffect(() => {
     function handle(e: MouseEvent) {
