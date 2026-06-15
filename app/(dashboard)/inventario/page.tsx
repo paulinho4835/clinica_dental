@@ -5,6 +5,8 @@ import { MovementForm } from "@/components/inventory/MovementForm";
 import { StockTable } from "@/components/inventory/StockTable";
 import { requireNavAccess } from "@/lib/guard";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PackageOpen } from "lucide-react";
 
 const MOVE_LABEL: Record<string, string> = {
   in: "Entrada",
@@ -139,8 +141,12 @@ export default async function InventoryPage() {
               })}
               {!movements?.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-3 text-center text-slate-500">
-                    Sin movimientos registrados.
+                  <td colSpan={6}>
+                    <EmptyState
+                      icon={<PackageOpen className="h-6 w-6" />}
+                      title="Sin movimientos registrados"
+                      description="Las entradas y salidas de stock aparecerán aquí."
+                    />
                   </td>
                 </tr>
               )}

@@ -1,6 +1,8 @@
+import { ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/guard";
 import { bs } from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function TreatmentsPage() {
   await requireFeature("tratamientos");
@@ -35,7 +37,15 @@ export default async function TreatmentsPage() {
             </tr>
           ))}
           {!procs?.length && (
-            <tr><td colSpan={5} className="py-3 text-slate-500">Catálogo vacío.</td></tr>
+            <tr>
+              <td colSpan={5}>
+                <EmptyState
+                  icon={<ClipboardList className="h-6 w-6" />}
+                  title="Catálogo vacío"
+                  description="Aún no hay procedimientos cargados en el catálogo."
+                />
+              </td>
+            </tr>
           )}
         </tbody>
       </table>

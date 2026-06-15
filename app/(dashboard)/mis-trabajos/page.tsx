@@ -6,6 +6,7 @@ import { requireNavAccess } from "@/lib/guard";
 import { bs, boliviaTodayISO, fmtBoliviaTime } from "@/lib/format";
 import { Stat } from "@/components/ui/Stat";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
 import { DeleteWorkButton } from "@/components/mis-trabajos/DeleteWorkButton";
 import { EditWorkButton } from "@/components/mis-trabajos/EditWorkButton";
@@ -442,10 +443,15 @@ export default async function MisTrabajosPage({
               </div>
             ))}
             {rows.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">
-                Aún no hay trabajos registrados{fromParam || toParam ? " en este período" : ""}.
-                {!isDoctor && !fromParam && !toParam && " Usa el botón de arriba para anotar el primero."}
-              </p>
+              <EmptyState
+                icon={<Briefcase className="h-6 w-6" />}
+                title={`Aún no hay trabajos registrados${fromParam || toParam ? " en este período" : ""}`}
+                description={
+                  !isDoctor && !fromParam && !toParam
+                    ? "Usa el botón “Registrar trabajo” de arriba para anotar el primero."
+                    : undefined
+                }
+              />
             )}
           </div>
         </div>

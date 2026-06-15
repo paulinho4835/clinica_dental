@@ -5,6 +5,7 @@ import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { boliviaTodayISO, bs, fmtBoliviaTime } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Stat } from "@/components/ui/Stat";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Banknote, Receipt } from "lucide-react";
 import { StaffPaymentForm } from "@/components/pagos/StaffPaymentForm";
 import { PagosFilter } from "@/components/pagos/PagosFilter";
@@ -355,9 +356,11 @@ export default async function PagosPage({
                 </div>
               ))}
               {rows.length === 0 && (
-                <p className="px-4 py-8 text-center text-sm text-slate-500">
-                  Sin pagos registrados para este período.
-                </p>
+                <EmptyState
+                  icon={<Receipt className="h-6 w-6" />}
+                  title="Sin pagos en este período"
+                  description="Ajusta el rango de fechas o registra un pago a personal."
+                />
               )}
             </div>
           </div>

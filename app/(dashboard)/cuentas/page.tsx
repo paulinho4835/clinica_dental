@@ -5,6 +5,8 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Users } from "lucide-react";
 import {
   PatientHistoryPanel,
   type PaymentRow,
@@ -141,7 +143,15 @@ export default async function CuentasPacientesPage({
 
           <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
             {(patients ?? []).length === 0 ? (
-              <p className="px-4 py-3 text-sm text-slate-500">Sin resultados.</p>
+              <EmptyState
+                icon={<Users className="h-6 w-6" />}
+                title={q ? `Sin resultados para “${q}”` : "Aún no hay pacientes"}
+                description={
+                  q
+                    ? "Prueba con otro nombre, CI o teléfono."
+                    : "Registra pacientes para ver sus cuentas aquí."
+                }
+              />
             ) : (
               <div className="divide-y divide-slate-100">
                 {(patients ?? []).map((pat) => (
