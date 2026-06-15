@@ -352,15 +352,17 @@ export default async function MisTrabajosPage({
           <h2 className="text-lg font-semibold">
             {rows.length} trabajo{rows.length !== 1 ? "s" : ""}
           </h2>
-          <div className="flex items-center gap-2">
-            <ExportCsvButton rows={csvRows} filename={csvFilename} />
-            <PrintPdfButton
-              rows={csvRows}
-              doctorName={doctorNameForPrint}
-              from={fromParam}
-              to={toParam}
-            />
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <ExportCsvButton rows={csvRows} filename={csvFilename} />
+              <PrintPdfButton
+                rows={csvRows}
+                doctorName={doctorNameForPrint}
+                from={fromParam}
+                to={toParam}
+              />
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
           <div className="min-w-[60rem]">
