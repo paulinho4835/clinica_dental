@@ -68,8 +68,10 @@ export function WorkForm({
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
 
-  const netCollected = Math.max(0, amountPaidN - labCostN);
-  const commission = Math.round(netCollected * pctN) / 100;
+  // Comisión proporcional: cada cuota aporta su fracción de la ganancia neta.
+  // Si costN=0 (sin precio definido) se usa el cobrado sin deducción de lab.
+  const netRate = costN > 0 ? Math.max(0, costN - labCostN) / costN : 1;
+  const commission = Math.round(amountPaidN * netRate * pctN) / 100;
 
   // Buscar pacientes por query.
   const filtered =
@@ -362,8 +364,8 @@ export function WorkForm({
             <span className="text-slate-600">
               Comisión del trabajo
               {pctN > 0 && (
-                labCostN > 0
-                  ? <span className="text-slate-400"> ({pctN}% de {bs(netCollected)} cobrado neto = {bs(amountPaidN)} − {bs(labCostN)} lab)</span>
+                labCostN > 0 && costN > 0
+                  ? <span className="text-slate-400"> ({pctN}% × {bs(amountPaidN)} × {Math.round(netRate * 100)}% neto lab)</span>
                   : <span className="text-slate-400"> ({pctN}% de {bs(amountPaidN)} cobrado)</span>
               )}
             </span>
