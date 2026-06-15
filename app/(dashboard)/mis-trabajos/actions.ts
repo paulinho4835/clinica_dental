@@ -140,6 +140,30 @@ export async function createDoctorWork(
     });
   }
 
+  // Persistir el % de comisión en el catálogo si aún no tenía uno definido.
+  // Así la próxima vez que se seleccione ese procedimiento se precarga solo.
+  if (d.treatment_item_id && d.commission_pct > 0) {
+    try {
+      const admin = createAdminClient();
+      // Obtener el procedure_id del ítem del plan.
+      const { data: itemRow } = await admin
+        .from("treatment_items")
+        .select("procedure_id")
+        .eq("id", d.treatment_item_id)
+        .maybeSingle();
+      if (itemRow?.procedure_id) {
+        // Solo actualizar si el catálogo aún tiene 0 (primera vez que se usa).
+        await admin
+          .from("procedure_catalog")
+          .update({ default_commission_pct: d.commission_pct })
+          .eq("id", itemRow.procedure_id)
+          .eq("default_commission_pct", 0);
+      }
+    } catch {
+      // No bloquear el registro si esto falla.
+    }
+  }
+
   revalidatePath("/mis-trabajos");
   if (d.patient_id) revalidatePath(`/pacientes/${d.patient_id}`);
   return { ok: true };

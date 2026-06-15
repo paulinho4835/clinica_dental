@@ -134,6 +134,7 @@ export function WorkForm({
       setDescription("");
       setCost("");
       setAmountPaid("");
+      setPct("");
     } else {
       setSelectedPlanItemId(item.id);
       setDescription(item.name);
@@ -141,6 +142,10 @@ export function WorkForm({
       // Pre-rellenar con el saldo restante de ese ítem.
       const restante = Math.max(0, item.price - item.paidAmount);
       setAmountPaid(restante > 0 ? String(restante) : "");
+      // Auto-llenar comisión desde el catálogo de procedimientos.
+      if (item.defaultCommissionPct > 0) {
+        setPct(String(item.defaultCommissionPct));
+      }
       if (doctors && item.doctorId) {
         setSelectedDoctorId(item.doctorId);
       }

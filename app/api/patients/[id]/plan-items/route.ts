@@ -9,6 +9,7 @@ export type PlanItemRow = {
   labCost: number;
   doctorId: string | null;
   doctorName: string | null;
+  defaultCommissionPct: number;
 };
 
 export async function GET(
@@ -25,7 +26,7 @@ export async function GET(
     supabase
       .from("treatment_plans")
       .select(
-        "treatment_phases(treatment_items(id, price, status, custom_name, doctor_id, procedure:procedure_catalog(name), doctor:profiles!treatment_items_doctor_id_fkey(full_name)))",
+        "treatment_phases(treatment_items(id, price, status, custom_name, doctor_id, procedure:procedure_catalog(name, default_commission_pct), doctor:profiles!treatment_items_doctor_id_fkey(full_name)))",
       )
       .eq("patient_id", patientId),
     supabase
@@ -62,18 +63,19 @@ export async function GET(
     .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
     .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
     .filter((it) => it.status !== "cancelled")
-    .map((it) => ({
-      id: it.id as string,
-      name:
-        ((it.procedure as { name?: string } | null)?.name ??
-          (it.custom_name as string)) || "—",
-      price: Number(it.price),
-      paidAmount: paidByItem.get(it.id as string) ?? 0,
-      labCost: labCostByItem.get(it.id as string) ?? 0,
-      doctorId: (it.doctor_id as string | null) ?? null,
-      doctorName:
-        ((it.doctor as { full_name?: string } | null)?.full_name) ?? null,
-    }));
+    .map((it) => {
+      const proc = it.procedure as { name?: string; default_commission_pct?: number } | null;
+      return {
+        id: it.id as string,
+        name: (proc?.name ?? (it.custom_name as string)) || "—",
+        price: Number(it.price),
+        paidAmount: paidByItem.get(it.id as string) ?? 0,
+        labCost: labCostByItem.get(it.id as string) ?? 0,
+        doctorId: (it.doctor_id as string | null) ?? null,
+        doctorName: ((it.doctor as { full_name?: string } | null)?.full_name) ?? null,
+        defaultCommissionPct: Number(proc?.default_commission_pct ?? 0),
+      };
+    });
 
   return NextResponse.json({ items });
 }
