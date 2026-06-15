@@ -37,20 +37,24 @@ export async function createStaffPayment(
 
   const d = parsed.data;
   const supabase = await createClient();
-  const { error } = await supabase.from("staff_payments").insert({
-    clinic_id: profile.clinicId,
-    employee_id: d.employee_id,
-    amount: d.amount,
-    method: d.method,
-    concept: d.concept ?? null,
-    paid_at: d.paid_at,
-  });
+  const { data: paymentData, error } = await supabase
+    .from("staff_payments")
+    .insert({
+      clinic_id: profile.clinicId,
+      employee_id: d.employee_id,
+      amount: d.amount,
+      method: d.method,
+      concept: d.concept ?? null,
+      paid_at: d.paid_at,
+    })
+    .select("id")
+    .single();
   if (error) return { error: error.message };
 
   if (workIds.length > 0) {
     await supabase
       .from("doctor_works")
-      .update({ commission_paid: true })
+      .update({ commission_paid: true, staff_payment_id: paymentData?.id ?? null })
       .eq("clinic_id", profile.clinicId)
       .in("id", workIds);
   }
