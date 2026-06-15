@@ -1,10 +1,26 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/actions";
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { bs } from "@/lib/format";
+import { toast } from "@/lib/toast";
+
+// Agrupación de trabajos pendientes por ítem del plan de tratamiento.
+// Varias cuotas/sesiones del mismo tratamiento se muestran como una sola
+// barra de progreso (el avance del pago del paciente es por tratamiento).
+type WorkGroup = {
+  key: string;
+  name: string;
+  workIds: string[];
+  commission: number;
+  planItemPrice: number;
+  planItemPaid: number;
+  performed_at: string;
+  patient_name: string | null;
+  hasBar: boolean;
+};
 
 type Employee = { id: string; full_name: string; role: string };
 
@@ -48,6 +64,35 @@ export function StaffPaymentForm({
   const selectedEmployee = employees.find((e) => e.id === employeeId);
   const isDoctor = selectedEmployee ? DOCTOR_ROLES.has(selectedEmployee.role) : false;
 
+  // Agrupar trabajos por treatment_item_id → una barra por tratamiento.
+  // Los trabajos sin plan (manuales) quedan como grupo individual sin barra.
+  const groups = useMemo<WorkGroup[]>(() => {
+    const map = new Map<string, WorkGroup>();
+    for (const w of unpaidWorks) {
+      const key = w.planItemId ?? `work:${w.id}`;
+      const comm = w.commission_amount + w.lab_commission_amount;
+      const existing = map.get(key);
+      if (existing) {
+        existing.workIds.push(w.id);
+        existing.commission += comm;
+        if (w.performed_at > existing.performed_at) existing.performed_at = w.performed_at;
+      } else {
+        map.set(key, {
+          key,
+          name: w.planItemId ? w.planItemName : w.description,
+          workIds: [w.id],
+          commission: comm,
+          planItemPrice: w.planItemPrice,
+          planItemPaid: w.planItemPaid,
+          performed_at: w.performed_at,
+          patient_name: w.patient_name,
+          hasBar: w.planItemPrice > 0,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [unpaidWorks]);
+
   function onEmployeeChange(id: string) {
     setEmployeeId(id);
     setSelectedIds(new Set());
@@ -81,10 +126,11 @@ export function StaffPaymentForm({
     setConcept(conceptStr);
   }
 
-  function toggleWork(id: string) {
+  function toggleGroup(g: WorkGroup) {
     const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    const allSelected = g.workIds.every((id) => next.has(id));
+    if (allSelected) g.workIds.forEach((id) => next.delete(id));
+    else g.workIds.forEach((id) => next.add(id));
     setSelectedIds(next);
     calcFromSelection(next);
   }
@@ -103,15 +149,25 @@ export function StaffPaymentForm({
 
   useEffect(() => {
     if (state.ok) {
+      toast("Pago registrado", "success");
       formRef.current?.reset();
-      setEmployeeId("");
       setAmount("");
       setConcept("");
-      setUnpaidWorks([]);
       setSelectedIds(new Set());
+      // Mantener el empleado seleccionado y refrescar sus trabajos pendientes,
+      // para que los que se acaban de pagar desaparezcan sin necesidad de F5.
+      if (employeeId && isDoctor) {
+        startFetch(async () => {
+          const works = await fetchDoctorUnpaidWorks(employeeId);
+          setUnpaidWorks(works);
+        });
+      } else {
+        setUnpaidWorks([]);
+      }
       router.refresh();
     }
-  }, [state, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   return (
     <form
@@ -189,19 +245,19 @@ export function StaffPaymentForm({
 
           {!fetching && unpaidWorks.length > 0 && (
             <div className="overflow-hidden rounded border border-slate-200 bg-white">
-              {unpaidWorks.map((w) => {
-                const commission = w.commission_amount + w.lab_commission_amount;
-                const checked = selectedIds.has(w.id);
-                const pct = w.planItemPrice > 0 ? Math.min(100, (w.planItemPaid / w.planItemPrice) * 100) : 0;
+              {groups.map((g) => {
+                const checked = g.workIds.every((id) => selectedIds.has(id));
+                const pct = g.planItemPrice > 0 ? Math.min(100, (g.planItemPaid / g.planItemPrice) * 100) : 0;
                 const paid = pct >= 99.9;
                 const barColor = paid
                   ? "bg-emerald-500"
                   : pct > 0
                     ? "bg-amber-400"
                     : "bg-slate-200";
+                const sessions = g.workIds.length;
                 return (
                   <label
-                    key={w.id}
+                    key={g.key}
                     className={`flex cursor-pointer flex-col gap-1 border-b border-slate-100 px-3 py-2 text-sm last:border-0 transition ${
                       checked ? "bg-clinic/5" : "hover:bg-slate-50"
                     }`}
@@ -210,23 +266,28 @@ export function StaffPaymentForm({
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleWork(w.id)}
+                        onChange={() => toggleGroup(g)}
                         className="accent-clinic shrink-0"
                       />
                       <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                        {fmtShortDate(w.performed_at)}
+                        {fmtShortDate(g.performed_at)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-700">{w.description}</span>
-                      {w.patient_name && (
+                      <span className="min-w-0 flex-1 truncate text-slate-700">
+                        {g.name}
+                        {sessions > 1 && (
+                          <span className="ml-1.5 text-xs text-slate-400">({sessions} cuotas)</span>
+                        )}
+                      </span>
+                      {g.patient_name && (
                         <span className="max-w-[8rem] truncate text-xs text-slate-400">
-                          {w.patient_name}
+                          {g.patient_name}
                         </span>
                       )}
                       <span className="whitespace-nowrap tabular-nums text-xs font-medium text-clinic">
-                        {bs(commission)}
+                        {bs(g.commission)}
                       </span>
                     </div>
-                    {w.planItemPrice > 0 && (
+                    {g.hasBar && (
                       <div className="ml-6 flex items-center gap-2">
                         <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100">
                           <div
@@ -235,7 +296,7 @@ export function StaffPaymentForm({
                           />
                         </div>
                         <span className={`whitespace-nowrap tabular-nums text-xs ${paid ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
-                          {paid ? "Saldado ✓" : `${bs(w.planItemPaid)} / ${bs(w.planItemPrice)}`}
+                          {paid ? "Saldado ✓" : `${bs(g.planItemPaid)} / ${bs(g.planItemPrice)}`}
                         </span>
                       </div>
                     )}

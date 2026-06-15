@@ -10,6 +10,9 @@ export type UnpaidWork = {
   commission_amount: number;
   lab_commission_amount: number;
   performed_at: string;
+  // Ítem del plan al que pertenece (para agrupar varias cuotas en una sola barra)
+  planItemId: string | null;
+  planItemName: string;
   // Progreso del pago del plan de tratamiento (fuente: tabla payments)
   planItemPrice: number;
   planItemPaid: number;
@@ -43,8 +46,9 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
     ),
   ];
 
-  // 3. Si hay plan items, buscar precio del ítem y total pagado
+  // 3. Si hay plan items, buscar precio/nombre del ítem y total pagado
   let priceByItem = new Map<string, number>();
+  let nameByItem = new Map<string, string>();
   let paidByItem = new Map<string, number>();
 
   if (itemIds.length > 0) {
@@ -60,7 +64,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
     const [{ data: itemRows }, { data: paymentRows }] = await Promise.all([
       admin
         .from("treatment_items")
-        .select("id, price")
+        .select("id, price, custom_name, procedure:procedure_catalog(name)")
         .in("id", itemIds),
       patientIds.length > 0
         ? admin
@@ -73,6 +77,8 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
 
     for (const row of itemRows ?? []) {
       priceByItem.set(row.id as string, Number(row.price));
+      const procName = (row.procedure as { name?: string } | null)?.name;
+      nameByItem.set(row.id as string, (procName ?? (row.custom_name as string)) || "");
     }
     for (const row of paymentRows ?? []) {
       const key = row.treatment_item_id as string;
@@ -94,6 +100,8 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
       commission_amount: Number(w.commission_amount),
       lab_commission_amount: Number(w.lab_commission_amount),
       performed_at: w.performed_at as string,
+      planItemId: itemId,
+      planItemName: itemId ? (nameByItem.get(itemId) || (w.description as string)) : (w.description as string),
       planItemPrice,
       planItemPaid,
     };
