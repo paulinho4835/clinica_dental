@@ -12,12 +12,14 @@ export async function GET(
 
   const supabase = await createClient();
 
-  const [{ data: works }, { data: payments }] = await Promise.all([
+  const [{ data: plans }, { data: payments }] = await Promise.all([
+    // Suma precios del plan de tratamiento (misma fuente que la Cuenta del paciente en la ficha)
     supabase
-      .from("doctor_works")
-      .select("cost")
-      .eq("patient_id", patientId)
-      .eq("clinic_id", profile.clinicId),
+      .from("treatment_plans")
+      .select(
+        "treatment_phases(treatment_items(price, status))",
+      )
+      .eq("patient_id", patientId),
     supabase
       .from("payments")
       .select("amount")
@@ -25,7 +27,17 @@ export async function GET(
       .eq("clinic_id", profile.clinicId),
   ]);
 
-  const totalWorked = (works ?? []).reduce((s, w) => s + Number(w.cost), 0);
+  // Sumar precios de ítems activos del plan
+  const planItems = (plans ?? [])
+    .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
+    .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
+    .filter((it) => (it.status as string) !== "cancelled");
+
+  const totalWorked =
+    planItems.length > 0
+      ? planItems.reduce((s, it) => s + Number(it.price), 0)
+      : 0;
+
   const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
 
   return NextResponse.json({ totalWorked, totalPaid });
