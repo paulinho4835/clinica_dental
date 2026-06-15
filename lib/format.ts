@@ -28,6 +28,16 @@ export function normalizeSearch(s: string): string {
 // no correrse un día por la noche.
 export const BOLIVIA_TZ = "America/La_Paz";
 
+// Hora en Bolivia (HH:MM, 24h) a partir de un timestamp ISO.
+export function fmtBoliviaTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("es-BO", {
+    timeZone: BOLIVIA_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 // Fecha de hoy en Bolivia como "YYYY-MM-DD" (en-CA produce ese formato ISO).
 export function boliviaTodayISO(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });

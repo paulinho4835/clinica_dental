@@ -2,7 +2,7 @@ import { requireNavAccess } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
-import { boliviaTodayISO, bs } from "@/lib/format";
+import { boliviaTodayISO, bs, fmtBoliviaTime } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Stat } from "@/components/ui/Stat";
 import { Banknote, Receipt } from "lucide-react";
@@ -35,6 +35,7 @@ type PaymentRow = {
   method: string;
   concept: string | null;
   paid_at: string;
+  created_at: string;
   disbursed: boolean;
   employee: { id: string; full_name: string; role: string } | null;
 };
@@ -82,7 +83,7 @@ export default async function PagosPage({
   let paymentsQuery = supabase
     .from("staff_payments")
     .select(
-      "id, amount, method, concept, paid_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role)",
+      "id, amount, method, concept, paid_at, created_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role)",
     )
     .order("paid_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -106,6 +107,7 @@ export default async function PagosPage({
     method: p.method as string,
     concept: p.concept as string | null,
     paid_at: p.paid_at as string,
+    created_at: p.created_at as string,
     disbursed: Boolean(p.disbursed),
     employee: (Array.isArray(p.employee) ? p.employee[0] : p.employee) as { id: string; full_name: string; role: string } | null,
   }));
@@ -232,9 +234,10 @@ export default async function PagosPage({
                   key={p.id}
                   className={`${GRID} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
                 >
-                  <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                    {fmtDate(p.paid_at)}
-                  </span>
+                  <div className="whitespace-nowrap tabular-nums text-xs text-slate-400">
+                    <div>{fmtDate(p.paid_at)}</div>
+                    <div className="text-slate-300">{fmtBoliviaTime(p.created_at)}</div>
+                  </div>
                   <span className="truncate font-medium text-slate-700">
                     {p.employee?.full_name ?? "—"}
                   </span>

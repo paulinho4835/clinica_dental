@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
-import { bs, boliviaTodayISO } from "@/lib/format";
+import { bs, boliviaTodayISO, fmtBoliviaTime } from "@/lib/format";
 import { Stat } from "@/components/ui/Stat";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
@@ -32,6 +32,7 @@ type WorkRow = {
   amount_paid: number;
   payment_method: string | null;
   performed_at: string;
+  created_at: string;
   notes: string | null;
   lab_work: string | null;
   lab_cost: number;
@@ -83,7 +84,7 @@ export default async function MisTrabajosPage({
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -383,9 +384,10 @@ export default async function MisTrabajosPage({
                 key={w.id}
                 className={`${GRID(isAdmin)} border-t border-slate-100 px-4 py-2.5 text-sm transition hover:bg-slate-50/70`}
               >
-                <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                  {fmtDate(w.performed_at)}
-                </span>
+                <div className="whitespace-nowrap tabular-nums text-xs text-slate-400">
+                  <div>{fmtDate(w.performed_at)}</div>
+                  <div className="text-slate-300">{fmtBoliviaTime(w.created_at)}</div>
+                </div>
                 <span className="truncate font-medium">
                   {w.patients?.full_name ?? w.patient_name ?? "—"}
                 </span>
