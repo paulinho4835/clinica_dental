@@ -110,10 +110,11 @@ export default async function PagosPage({
     employee: (Array.isArray(p.employee) ? p.employee[0] : p.employee) as { id: string; full_name: string; role: string } | null,
   }));
 
-  const totalMonth = rows.reduce((s, p) => s + p.amount, 0);
+  const totalMonth = rows.filter((p) => p.disbursed).reduce((s, p) => s + p.amount, 0);
+  const totalPending = rows.filter((p) => !p.disbursed).reduce((s, p) => s + p.amount, 0);
 
-  // Resumen por empleado (útil para detectar pagos duplicados).
-  const byEmployee = rows.reduce<Record<string, { name: string; role: string; total: number; count: number }>>(
+  // Resumen por empleado — solo pagos desembolsados (útil para detectar pagos duplicados).
+  const byEmployee = rows.reduce<Record<string, { name: string; role: string; total: number; count: number; pending: number }>>(
     (acc, p) => {
       const key = p.employee?.id ?? "unknown";
       if (!acc[key]) {
@@ -122,9 +123,11 @@ export default async function PagosPage({
           role: p.employee?.role ?? "",
           total: 0,
           count: 0,
+          pending: 0,
         };
       }
-      acc[key].total += p.amount;
+      if (p.disbursed) acc[key].total += p.amount;
+      else acc[key].pending += p.amount;
       acc[key].count += 1;
       return acc;
     },
@@ -150,11 +153,19 @@ export default async function PagosPage({
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat
-          label={`Total pagado — ${monthLabel}`}
+          label={`Desembolsado — ${monthLabel}`}
           value={bs(totalMonth)}
           icon={<Banknote className="h-5 w-5" />}
           valueClassName="text-emerald-600"
         />
+        {totalPending > 0 && (
+          <Stat
+            label="Pendiente de desembolso"
+            value={bs(totalPending)}
+            icon={<Receipt className="h-5 w-5" />}
+            valueClassName="text-amber-600"
+          />
+        )}
         <Stat
           label="Pagos registrados"
           value={String(rows.length)}
@@ -172,15 +183,23 @@ export default async function PagosPage({
             {employeeSummary.map((e) => (
               <div
                 key={e.name}
-                className="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200"
+                className="rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200"
               >
-                <div>
-                  <div className="text-sm font-medium text-slate-700">{e.name}</div>
-                  <div className="text-xs text-slate-400">
-                    {ROLE_LABEL[e.role] ?? e.role} · {e.count} pago{e.count !== 1 ? "s" : ""}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-slate-700">{e.name}</div>
+                    <div className="text-xs text-slate-400">
+                      {ROLE_LABEL[e.role] ?? e.role} · {e.count} pago{e.count !== 1 ? "s" : ""}
+                    </div>
                   </div>
+                  <span className="tabular-nums font-semibold text-emerald-600">{bs(e.total)}</span>
                 </div>
-                <span className="tabular-nums font-semibold text-slate-800">{bs(e.total)}</span>
+                {e.pending > 0 && (
+                  <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1">
+                    <span className="text-xs text-slate-400">Pendiente</span>
+                    <span className="tabular-nums text-xs font-medium text-amber-600">{bs(e.pending)}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>

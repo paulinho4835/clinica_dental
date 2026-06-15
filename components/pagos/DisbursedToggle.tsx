@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock } from "lucide-react";
 import { toggleDisbursed } from "@/app/(dashboard)/pagos/actions";
 import { toast } from "@/lib/toast";
+import { confirm } from "@/lib/confirm";
 
 export function DisbursedToggle({
   id,
@@ -17,8 +18,23 @@ export function DisbursedToggle({
   const [pending, start] = useTransition();
   const router = useRouter();
 
-  function handle() {
+  async function handle() {
     const next = !disbursed;
+    const ok = await confirm(
+      next
+        ? {
+            title: "Confirmar desembolso",
+            message: "¿Confirmas que este pago fue entregado al trabajador? Se marcará como desembolsado.",
+            confirmText: "Sí, desembolsar",
+          }
+        : {
+            title: "Revertir desembolso",
+            message: "¿Deseas marcar este pago como pendiente nuevamente?",
+            confirmText: "Revertir",
+            tone: "danger",
+          },
+    );
+    if (!ok) return;
     setDisbursed(next);
     start(async () => {
       const res = await toggleDisbursed(id, next);
