@@ -31,7 +31,7 @@ export default async function SuperadminPage({
 
   let query = admin
     .from("clinics")
-    .select("id, name, plan, features, active, max_users, created_at");
+    .select("id, name, plan, features, active, max_users, created_at, settings");
   if (sort === "antiguas") query = query.order("created_at", { ascending: true });
   else if (sort === "nombre") query = query.order("name", { ascending: true });
   else query = query.order("created_at", { ascending: false }); // recientes
@@ -88,6 +88,7 @@ export default async function SuperadminPage({
     max_users: c.max_users ?? 10,
     created_at: c.created_at,
     users: usersByClinic.get(c.id) ?? [],
+    settings: (c.settings as Record<string, unknown>) ?? {},
   }));
 
   const total = rows.length;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -15,6 +15,8 @@ import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton
 import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
 import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
 import { RestoreBackupButton } from "@/components/superadmin/RestoreBackupButton";
+import { VapiConfigForm } from "@/components/superadmin/VapiConfigForm";
+import type { VapiClinicConfig } from "@/lib/vapi";
 
 type FeatureItem = { key: FeatureKey; label: string };
 
@@ -27,6 +29,7 @@ export type ClinicRow = {
   max_users: number;
   created_at: string;
   users: ClinicUser[];
+  settings: Record<string, unknown>;
 };
 
 type SortOption = { key: string; label: string };
@@ -107,7 +110,7 @@ export function ClinicList({
       )}
       {!!clinics.length && !filtered.length && (
         <p className="text-sm text-slate-500">
-          Ninguna clínica coincide con “{search}”.
+          Ninguna clínica coincide con "{search}".
         </p>
       )}
     </section>
@@ -237,7 +240,7 @@ function ClinicCard({
             </h3>
             <p className="mb-2 text-xs text-slate-500">
               Descarga una copia completa de los datos de esta clínica (.json).
-              Para restaurarla, usa “Restaurar backup” arriba: se creará una
+              Para restaurarla, usa "Restaurar backup" arriba: se creará una
               clínica nueva sin afectar a esta.
             </p>
             <a
@@ -247,6 +250,17 @@ function ClinicCard({
               <Download className="h-3.5 w-3.5" />
               Descargar backup
             </a>
+          </div>
+
+          {/* Recepcionista IA (Vapi) */}
+          <div className="border-t border-slate-100 pt-4">
+            <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Recepcionista IA (Vapi)
+            </h3>
+            <VapiConfigForm
+              clinicId={c.id}
+              initial={c.settings as VapiClinicConfig}
+            />
           </div>
         </div>
       )}

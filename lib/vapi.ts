@@ -162,7 +162,17 @@ export const REMINDER_TOOLS = [
 
 // ── Asistente de recepción entrante (inbound) ────────────────────────────────
 
-export function buildInboundAssistant(clinicName: string, todayISO?: string) {
+export type VapiClinicConfig = {
+  vapi_phone_number_id?: string;
+  vapi_voice_id?: string;
+  vapi_first_message?: string;
+};
+
+export function buildInboundAssistant(
+  clinicName: string,
+  config: Pick<VapiClinicConfig, "vapi_voice_id" | "vapi_first_message"> = {},
+  todayISO?: string,
+) {
   const today = todayISO ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
   return {
     model: {
@@ -310,8 +320,8 @@ Normas:
     },
     voice: {
       provider: "11labs",
-      voiceId: "paula",
+      voiceId: config.vapi_voice_id ?? "paula",
     },
-    firstMessage: `Hola, gracias por llamar a ${clinicName}. ¿En qué puedo ayudarle?`,
+    firstMessage: config.vapi_first_message ?? `Hola, gracias por llamar a ${clinicName}. ¿En qué puedo ayudarle?`,
   };
 }

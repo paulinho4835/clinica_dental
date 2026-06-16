@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { FEATURES, type FeatureKey } from "@/lib/features";
+import type { VapiClinicConfig } from "@/lib/vapi";
 
 async function assertSuperadmin() {
   if (!(await isPlatformAdmin())) throw new Error("No autorizado");
@@ -287,6 +288,30 @@ export async function enterClinic(clinicId: string) {
   await serverClient.auth.refreshSession();
 
   redirect("/agenda");
+}
+
+// ── Configuración Vapi por clínica ───────────────────────────────────────────
+export async function updateClinicVapiConfig(
+  clinicId: string,
+  config: VapiClinicConfig,
+): Promise<{ ok: boolean; error?: string }> {
+  await assertSuperadmin();
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("clinics")
+    .select("settings")
+    .eq("id", clinicId)
+    .single();
+  const merged = {
+    ...(existing?.settings as Record<string, unknown> ?? {}),
+    ...(config.vapi_phone_number_id !== undefined && { vapi_phone_number_id: config.vapi_phone_number_id }),
+    ...(config.vapi_voice_id !== undefined && { vapi_voice_id: config.vapi_voice_id }),
+    ...(config.vapi_first_message !== undefined && { vapi_first_message: config.vapi_first_message }),
+  };
+  const { error } = await admin.from("clinics").update({ settings: merged }).eq("id", clinicId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/superadmin");
+  return { ok: true };
 }
 
 // Elimina el perfil temporal del superadmin y restaura el JWT sin clinic_id.

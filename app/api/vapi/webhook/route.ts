@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildInboundAssistant } from "@/lib/vapi";
+import { buildInboundAssistant, type VapiClinicConfig } from "@/lib/vapi";
 import { BOLIVIA_TZ } from "@/lib/format";
 import { parseArgs, normalizeTime, normalizeDate, normalizeVapiPhone, buildSlots } from "@/lib/vapi-helpers";
 
@@ -40,13 +40,15 @@ export async function POST(req: NextRequest) {
     }
     const { data: clinic } = await admin
       .from("clinics")
-      .select("name")
+      .select("name, settings")
       .eq("id", clinicId)
       .single();
 
+    const vapiConfig = ((clinic?.settings ?? {}) as Record<string, unknown>) as VapiClinicConfig;
+
     return NextResponse.json({
       assistant: {
-        ...buildInboundAssistant(clinic?.name ?? "la clínica"),
+        ...buildInboundAssistant(clinic?.name ?? "la clínica", vapiConfig),
         // El clinicId viaja en metadata para poder usarlo en tool-calls.
         serverMessages: ["tool-calls", "end-of-call-report"],
         metadata: { clinicId },
