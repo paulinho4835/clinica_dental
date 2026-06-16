@@ -714,16 +714,18 @@ async function resolveClinicId(
   admin: ReturnType<typeof createAdminClient>,
   phoneNumberId: string | undefined,
 ): Promise<string | null> {
-  // Prototipo: variable de entorno tiene prioridad.
+  // Multi-clínica: buscar por phoneNumberId en settings JSONB (prioridad)
+  if (phoneNumberId) {
+    const { data } = await admin
+      .from("clinics")
+      .select("id")
+      .contains("settings", { vapi_phone_number_id: phoneNumberId })
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+  // Fallback mono-clínica: variable de entorno
   if (process.env.VAPI_CLINIC_ID) return process.env.VAPI_CLINIC_ID;
-  if (!phoneNumberId) return null;
-  // Multi-clínica: buscar en settings JSONB → { vapi_phone_number_id: "xxx" }
-  const { data } = await admin
-    .from("clinics")
-    .select("id")
-    .contains("settings", { vapi_phone_number_id: phoneNumberId })
-    .maybeSingle();
-  return data?.id ?? null;
+  return null;
 }
 
 async function markReminderSent(
