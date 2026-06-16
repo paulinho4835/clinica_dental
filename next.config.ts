@@ -12,8 +12,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",                // Tailwind utility classes
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  // Supabase REST, Auth y Realtime (WSS)
-  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co`,
+  // Supabase REST, Auth y Realtime (WSS) + Vapi web SDK (audio y API)
+  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai`,
   "frame-src 'none'",
   "frame-ancestors 'none'",                          // más fuerte que X-Frame-Options
   "object-src 'none'",                               // bloquea Flash y plugins
@@ -30,7 +30,7 @@ const securityHeaders = [
   // Solo envía el origen en el Referer, nunca la ruta completa a terceros.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Deshabilita permisos de hardware innecesarios.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   // HSTS: fuerza HTTPS por 1 año (solo aplica en producción con TLS).
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
