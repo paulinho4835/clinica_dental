@@ -328,6 +328,7 @@ Normas:
     voice: {
       provider: "11labs",
       voiceId: config.vapi_voice_id ?? "paula",
+      model: "eleven_multilingual_v2",
     },
     firstMessage: config.vapi_first_message ?? `Hola, gracias por llamar a ${clinicName}. ¿En qué puedo ayudarle?`,
     // Turnos más ágiles: la IA responde sin esperar silencios largos.
