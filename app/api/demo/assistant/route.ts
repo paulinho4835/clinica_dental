@@ -31,6 +31,12 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     clinicName: clinic.name,
-    assistant: { ...assistantConfig, server: { url: webhookUrl } },
+    assistant: {
+      ...assistantConfig,
+      // clinicId en metadata: el webhook lo lee para saber a qué clínica
+      // pertenece cada tool call (get_doctors, book_appointment, etc.)
+      metadata: { clinicId },
+      server: { url: webhookUrl },
+    },
   });
 }
