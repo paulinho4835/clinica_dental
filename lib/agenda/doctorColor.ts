@@ -1,19 +1,29 @@
+"use client";
+
+import { createContext, useContext } from "react";
+
 export type DoctorColor = {
-  bg: string;      // Tailwind bg class  e.g. "bg-teal-50"
-  dot: string;     // Tailwind bg class para círculos indicadores e.g. "bg-teal-500"
-  border: string;  // Tailwind border-color class  e.g. "border-teal-500"
-  text: string;    // Tailwind text class  e.g. "text-teal-800"
+  bg: string;      // Tailwind bg class  e.g. "bg-blue-50"
+  dot: string;     // Tailwind bg class para círculos indicadores e.g. "bg-blue-600"
+  border: string;  // Tailwind border-color class  e.g. "border-blue-600"
+  text: string;    // Tailwind text class  e.g. "text-blue-800"
 };
 
+// Paleta de colores MUY distintos entre sí, ordenada para que los primeros
+// (la mayoría de clínicas tienen pocos doctores) sean lo más diferentes posible:
+// azul, rojo, verde, ámbar, violeta, rosa… Sin pares parecidos (nada de
+// teal+emerald ni indigo+violet juntos).
 export const DOCTOR_PALETTE: DoctorColor[] = [
-  { bg: "bg-teal-50",    dot: "bg-teal-500",    border: "border-teal-500",    text: "text-teal-800"   },
-  { bg: "bg-indigo-50",  dot: "bg-indigo-500",  border: "border-indigo-500",  text: "text-indigo-800" },
-  { bg: "bg-pink-50",    dot: "bg-pink-500",    border: "border-pink-500",    text: "text-pink-800"   },
-  { bg: "bg-amber-50",   dot: "bg-amber-500",   border: "border-amber-500",   text: "text-amber-800"  },
-  { bg: "bg-emerald-50", dot: "bg-emerald-500", border: "border-emerald-500", text: "text-emerald-800"},
-  { bg: "bg-violet-50",  dot: "bg-violet-500",  border: "border-violet-500",  text: "text-violet-800" },
-  { bg: "bg-red-50",     dot: "bg-red-500",     border: "border-red-500",     text: "text-red-800"    },
-  { bg: "bg-sky-50",     dot: "bg-sky-500",     border: "border-sky-500",     text: "text-sky-800"    },
+  { bg: "bg-blue-50",    dot: "bg-blue-600",    border: "border-blue-600",    text: "text-blue-800"    },
+  { bg: "bg-red-50",     dot: "bg-red-500",     border: "border-red-500",     text: "text-red-800"     },
+  { bg: "bg-emerald-50", dot: "bg-emerald-500", border: "border-emerald-500", text: "text-emerald-800" },
+  { bg: "bg-amber-50",   dot: "bg-amber-500",   border: "border-amber-500",   text: "text-amber-900"   },
+  { bg: "bg-violet-50",  dot: "bg-violet-500",  border: "border-violet-500",  text: "text-violet-800"  },
+  { bg: "bg-pink-50",    dot: "bg-pink-500",    border: "border-pink-500",    text: "text-pink-800"    },
+  { bg: "bg-cyan-50",    dot: "bg-cyan-500",    border: "border-cyan-500",    text: "text-cyan-800"    },
+  { bg: "bg-lime-50",    dot: "bg-lime-500",    border: "border-lime-600",    text: "text-lime-800"    },
+  { bg: "bg-orange-50",  dot: "bg-orange-600",  border: "border-orange-600",  text: "text-orange-800"  },
+  { bg: "bg-fuchsia-50", dot: "bg-fuchsia-500", border: "border-fuchsia-500", text: "text-fuchsia-800" },
 ];
 
 const UNASSIGNED: DoctorColor = {
@@ -31,7 +41,39 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
-export function getDoctorColor(doctorId: string): DoctorColor {
+// Fallback por hash del nombre (para nombres fuera de la lista de doctores).
+// Puede repetir color si dos nombres colisionan; por eso lo preferible es el
+// resolver por posición (buildDoctorColorResolver), que es libre de colisiones.
+export function getDoctorColor(doctorId: string | null | undefined): DoctorColor {
   if (!doctorId) return UNASSIGNED;
   return DOCTOR_PALETTE[hashStr(doctorId) % DOCTOR_PALETTE.length];
+}
+
+export type DoctorColorResolver = (name: string | null | undefined) => DoctorColor;
+
+// Construye un resolver que asigna a cada doctor un color DISTINTO según su
+// posición en la lista (ordenada por nombre para que sea estable). Dos doctores
+// nunca comparten color mientras haya entradas libres en la paleta.
+export function buildDoctorColorResolver(names: string[]): DoctorColorResolver {
+  const map = new Map<string, DoctorColor>();
+  const unique = [...new Set(names.map((n) => n?.trim()).filter(Boolean))].sort(
+    (a, b) => a!.localeCompare(b!),
+  ) as string[];
+  unique.forEach((name, i) => {
+    map.set(name, DOCTOR_PALETTE[i % DOCTOR_PALETTE.length]);
+  });
+
+  return (name) => {
+    const key = name?.trim();
+    if (!key) return UNASSIGNED;
+    return map.get(key) ?? getDoctorColor(key);
+  };
+}
+
+// Contexto para que las vistas (Día/Semana/Mes) usen el resolver sin colisiones
+// provisto por AgendaShell. Por defecto cae al hash.
+export const DoctorColorContext = createContext<DoctorColorResolver>(getDoctorColor);
+
+export function useDoctorColor(): DoctorColorResolver {
+  return useContext(DoctorColorContext);
 }

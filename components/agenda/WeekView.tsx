@@ -10,7 +10,7 @@ import {
   weekDays,
 } from "@/lib/agenda";
 import { type MonthAppt, apptName, apptBlockClass } from "./apptHelpers";
-import { getDoctorColor } from "@/lib/agenda/doctorColor";
+import { useDoctorColor } from "@/lib/agenda/doctorColor";
 import {
   useDrag,
   applyOptimisticMove,
@@ -45,6 +45,7 @@ export function WeekView({
   onEdit: (a: MonthAppt) => void;
   onLink: (a: MonthAppt) => void;
 }) {
+  const getDoctorColor = useDoctorColor();
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
   const todayKey = dayKey(new Date());
 

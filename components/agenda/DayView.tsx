@@ -18,7 +18,7 @@ import {
   apptBlockClass,
   isFinished,
 } from "./apptHelpers";
-import { getDoctorColor } from "@/lib/agenda/doctorColor";
+import { useDoctorColor } from "@/lib/agenda/doctorColor";
 import {
   useDrag,
   applyOptimisticMove,
@@ -71,6 +71,7 @@ export function DayView({
   /** Cuando se pasa, se usan estos nombres como columnas fijas (vista con doctores). */
   forcedColumns?: string[];
 }) {
+  const getDoctorColor = useDoctorColor();
   const [y, m, d] = day.split("-").map(Number);
   const dayLabel = new Date(y, m - 1, d).toLocaleDateString("es-BO", {
     weekday: "long",

@@ -18,7 +18,10 @@ import {
   apptCI,
 } from "./apptHelpers";
 import { WhatsAppManualModal } from "./WhatsAppManualModal";
-import { getDoctorColor } from "@/lib/agenda/doctorColor";
+import {
+  buildDoctorColorResolver,
+  DoctorColorContext,
+} from "@/lib/agenda/doctorColor";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
 
@@ -76,6 +79,13 @@ export function AgendaShell({
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
+
+  // Resolver de color por doctor SIN colisiones: cada doctor recibe un color
+  // distinto según su posición (ordenado por nombre). Compartido vía contexto.
+  const doctorColor = useMemo(
+    () => buildDoctorColorResolver(doctors.map((d) => d.full_name)),
+    [doctors],
+  );
 
   const byDay = useMemo(() => {
     const map = new Map<string, MonthAppt[]>();
@@ -194,6 +204,7 @@ export function AgendaShell({
   };
 
   return (
+    <DoctorColorContext.Provider value={doctorColor}>
     <div className="space-y-4">
       <SearchBar onSearch={runSearch} message={searchMsg} />
 
@@ -222,7 +233,7 @@ export function AgendaShell({
           <div className="flex items-center gap-1.5">
             {activeDoctor !== ALL_DOCTORS && activeDoctor && (
               <span
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDoctorColor(activeDoctor).dot}`}
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${doctorColor(activeDoctor).dot}`}
               />
             )}
             <select
@@ -374,5 +385,6 @@ export function AgendaShell({
         <WhatsAppManualModal onClose={() => setShowWaManual(false)} />
       )}
     </div>
+    </DoctorColorContext.Provider>
   );
 }
