@@ -8,12 +8,14 @@ const isDev = process.env.NODE_ENV === "development";
 // 'unsafe-eval' solo en desarrollo: Next.js HMR (React Refresh) lo requiere.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,  // anti-flash inline + HMR en dev
+  // Daily.co es el motor WebRTC que usa el SDK de Vapi internamente
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.daily.co`,
   "style-src 'self' 'unsafe-inline'",                // Tailwind utility classes
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  // Supabase REST, Auth y Realtime (WSS) + Vapi web SDK (audio y API)
-  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai`,
+  "worker-src blob:",                                 // Daily.co carga workers desde blob:
+  // Supabase + Vapi (API y señalización) + Daily.co (WebRTC audio)
+  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai https://*.daily.co wss://*.daily.co`,
   "frame-src 'none'",
   "frame-ancestors 'none'",                          // más fuerte que X-Frame-Options
   "object-src 'none'",                               // bloquea Flash y plugins
