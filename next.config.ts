@@ -8,14 +8,17 @@ const isDev = process.env.NODE_ENV === "development";
 // 'unsafe-eval' solo en desarrollo: Next.js HMR (React Refresh) lo requiere.
 const csp = [
   "default-src 'self'",
-  // Daily.co es el motor WebRTC que usa el SDK de Vapi internamente
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.daily.co`,
+  // Daily.co es el motor WebRTC que usa el SDK de Vapi internamente.
+  // 'wasm-unsafe-eval' es obligatorio: Daily procesa audio con WebAssembly.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} https://*.daily.co`,
   "style-src 'self' 'unsafe-inline'",                // Tailwind utility classes
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "worker-src blob:",                                 // Daily.co carga workers desde blob:
-  // Supabase + Vapi (API y señalización) + Daily.co (WebRTC audio)
-  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai https://*.daily.co wss://*.daily.co`,
+  "worker-src 'self' blob:",                          // Daily.co carga workers desde blob:
+  "child-src blob:",                                  // Daily.co usa iframes/workers blob:
+  "media-src 'self' blob: https://*.daily.co",        // streams de audio de la llamada
+  // Supabase + Vapi (API y señalización) + Daily.co (WebRTC) + Sentry (telemetría de Vapi)
+  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai https://*.daily.co wss://*.daily.co https://*.pluot.blue https://*.sentry.io`,
   "frame-src 'none'",
   "frame-ancestors 'none'",                          // más fuerte que X-Frame-Options
   "object-src 'none'",                               // bloquea Flash y plugins
