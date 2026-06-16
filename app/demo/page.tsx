@@ -79,7 +79,7 @@ function DemoContent() {
         const { error: msg } = await res.json();
         throw new Error(msg ?? "Error al cargar el asistente");
       }
-      const { clinicName: name, assistantId } = await res.json();
+      const { clinicName: name, assistant } = await res.json();
       setClinicName(name);
 
       const vapi = new Vapi(publicKey);
@@ -109,7 +109,7 @@ function DemoContent() {
         }
       });
 
-      await vapi.start(assistantId);
+      await vapi.start(assistant);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error inesperado");
       setStatus("idle");
