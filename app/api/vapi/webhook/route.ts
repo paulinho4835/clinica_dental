@@ -80,7 +80,11 @@ export async function POST(req: NextRequest) {
 
     const fnName = toolCall.function?.name ?? "";
     const args = parseArgs(toolCall.function?.arguments);
-    const callMeta = (message.call?.metadata ?? {}) as Record<string, string>;
+    // Inbound telefónico -> call.metadata. SDK web (transitorio) -> assistant.metadata.
+    const callMeta = {
+      ...((message.assistant?.metadata ?? {}) as Record<string, string>),
+      ...((message.call?.metadata ?? {}) as Record<string, string>),
+    };
     // Número del llamante según Vapi (inbound). Sirve de respaldo cuando el LLM
     // no incluye `phone` en los argumentos de un tool call.
     const callerNumberFromCall = message.call?.customer?.number ?? "";
@@ -754,6 +758,8 @@ type VapiMessage = {
     metadata?: unknown;
     customer?: { number?: string };
   };
+  // En el SDK web (asistente transitorio) la metadata viaja en assistant, no en call.
+  assistant?: { metadata?: unknown };
   toolCallList?: VapiToolCall[];
   toolCalls?: VapiToolCall[];
   toolWithToolCallList?: Array<{ toolCall?: VapiToolCall }>;
