@@ -60,21 +60,44 @@ export default async function DashboardLayout({
   // Menú = módulos encendidos de la clínica Y permitidos para el rol del usuario.
   const features = normalizeFeatures(clinic?.features);
   const role = profile?.role as Role | undefined;
+
+  // Badge de stock bajo: solo para admin con módulo inventario activo.
+  let lowStockCount = 0;
+  if (role === "admin" && features.inventario) {
+    const { data: stockItems } = await supabase
+      .from("inventory_items")
+      .select("min_stock, current_stock");
+    lowStockCount = (stockItems ?? []).filter(
+      (it) => Number(it.current_stock) <= Number(it.min_stock),
+    ).length;
+  }
+
   const nav =
     superadmin && !isPreview
       ? []
-      : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key));
+      : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key)).map((f) => ({
+          href: f.href,
+          label: f.label,
+          badge: f.key === "inventario" && lowStockCount > 0 ? lowStockCount : undefined,
+        }));
 
   const initials =
     !superadmin && profile?.full_name
       ? getInitials(profile.full_name)
       : null;
 
+  const ROLE_LABEL: Record<string, string> = {
+    admin: "Administrador",
+    recepcionista: "Recepcionista",
+    odontologo_general: "Odontólogo",
+    especialista: "Especialista",
+    asistente: "Asistente",
+  };
   const subtitle = isPreview
-    ? "Vista previa · Superadmin"
+    ? "Vista previa"
     : superadmin
     ? "Operador de plataforma"
-    : `${profile?.full_name} · ${profile?.role}`;
+    : `${profile?.full_name ?? ""} · ${ROLE_LABEL[profile?.role ?? ""] ?? profile?.role ?? ""}`;
 
   return (
     <div className="flex min-h-screen flex-col">

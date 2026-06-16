@@ -60,6 +60,8 @@ export default async function PatientPage({
     .maybeSingle();
 
   const platformAdminIds = await getPlatformAdminIds();
+  const platformAdminIdSet = new Set(platformAdminIds);
+  const canSeeHistory = profile?.role === "admin";
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
   const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
@@ -142,12 +144,12 @@ export default async function PatientPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("patient_evolution_note_history")
-      .select("id, note_id, author_name, body, action, changed_at")
+      .select("id, note_id, author_id, author_name, body, action, changed_at")
       .eq("patient_id", id)
       .order("changed_at", { ascending: false }),
     supabase
       .from("odontogram_events")
-      .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(full_name)")
+      .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(id, full_name)")
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     supabase
@@ -164,15 +166,23 @@ export default async function PatientPage({
   }));
 
   // Aplana el join de actor a actor_name para el componente de historial.
-  const odoEvents = (rawOdoEvents ?? []).map((e) => ({
-    id: e.id as string,
-    tooth_fdi: e.tooth_fdi as string,
-    surface: (e.surface as string | null) ?? null,
-    prev_state: (e.prev_state as string | null) ?? null,
-    new_state: (e.new_state as string | null) ?? null,
-    created_at: e.created_at as string,
-    actor_name: (e.actor as { full_name?: string } | null)?.full_name ?? null,
-  }));
+  // Los platform-admins (superadmin) nunca exponen su nombre en la clínica.
+  const odoEvents = (rawOdoEvents ?? []).map((e) => {
+    const actor = e.actor as { id?: string; full_name?: string } | null;
+    const actorName =
+      !actor || platformAdminIdSet.has(actor.id ?? "")
+        ? null
+        : actor.full_name ?? null;
+    return {
+      id: e.id as string,
+      tooth_fdi: e.tooth_fdi as string,
+      surface: (e.surface as string | null) ?? null,
+      prev_state: (e.prev_state as string | null) ?? null,
+      new_state: (e.new_state as string | null) ?? null,
+      created_at: e.created_at as string,
+      actor_name: actorName,
+    };
+  });
 
   // Aplana todos los items del plan en una lista de "trabajos".
   const works: Work[] = (rawPlans ?? [])
@@ -283,7 +293,7 @@ export default async function PatientPage({
           initialTeeth={teeth}
           canWrite={canEditClinical}
         />
-        <OdontogramHistory events={odoEvents} />
+        <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
       </section>
 
       <section>
@@ -300,10 +310,26 @@ export default async function PatientPage({
         <h2 className="mb-3 text-lg font-semibold">Evolución del paciente</h2>
         <EvolutionPanel
           patientId={patient.id}
-          notes={evolutionNotes ?? []}
-          history={evolutionHistory ?? []}
+          notes={(evolutionNotes ?? []).map((n) => ({
+            ...n,
+            // El superadmin no debe aparecer con su nombre en la clínica.
+            author_name: platformAdminIdSet.has(n.author_id ?? "")
+              ? "Sistema"
+              : n.author_name as string,
+          }))}
+          history={(evolutionHistory ?? []).map((h) => ({
+            id: h.id as string,
+            note_id: h.note_id as string,
+            author_name: platformAdminIdSet.has((h as { author_id?: string }).author_id ?? "")
+              ? "Sistema"
+              : h.author_name as string,
+            body: h.body as string,
+            action: h.action as "edited" | "deleted",
+            changed_at: h.changed_at as string,
+          }))}
           legacyEvolution={(patient as { evolution?: string | null }).evolution ?? null}
           canWrite={canEditClinical}
+          canSeeHistory={canSeeHistory}
           currentUserId={profile?.userId ?? ""}
         />
       </section>

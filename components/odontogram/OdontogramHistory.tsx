@@ -54,9 +54,15 @@ function groupEvents(events: OdontogramEvent[]): Group[] {
   return [...map.values()];
 }
 
-export function OdontogramHistory({ events }: { events: OdontogramEvent[] }) {
+export function OdontogramHistory({
+  events,
+  canSeeHistory,
+}: {
+  events: OdontogramEvent[];
+  canSeeHistory: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  if (events.length === 0) return null;
+  if (!canSeeHistory || events.length === 0) return null;
 
   const groups = groupEvents(events);
 

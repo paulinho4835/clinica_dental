@@ -30,6 +30,7 @@ const ROLE_LABEL: Record<string, string> = {
   odontologo_general: "Odontólogo general",
   especialista: "Especialista",
   asistente: "Asistente",
+  superadmin: "Administrador",
 };
 
 const initial: ActionState = {};

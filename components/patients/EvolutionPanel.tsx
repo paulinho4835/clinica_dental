@@ -29,6 +29,7 @@ export function EvolutionPanel({
   history,
   legacyEvolution,
   canWrite,
+  canSeeHistory,
   currentUserId,
 }: {
   patientId: string;
@@ -38,6 +39,8 @@ export function EvolutionPanel({
   legacyEvolution: string | null;
   /** true solo para admin y doctores (no recepcionista). */
   canWrite: boolean;
+  /** true solo para admin: ver el historial de ediciones/borrados. */
+  canSeeHistory: boolean;
   /** id del usuario logueado, para saber qué notas puede editar. */
   currentUserId: string;
 }) {
@@ -242,8 +245,8 @@ export function EvolutionPanel({
         </div>
       )}
 
-      {/* Historial de cambios (versiones editadas/borradas) */}
-      {history.length > 0 && (
+      {/* Historial de cambios (versiones editadas/borradas): solo admin */}
+      {canSeeHistory && history.length > 0 && (
         <div className="rounded-lg ring-1 ring-slate-200">
           <button
             type="button"

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireNavAccess } from "@/lib/guard";
 import { getProfile } from "@/lib/auth";
+import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BOLIVIA_TZ } from "@/lib/format";
@@ -13,6 +14,7 @@ import { ShieldCheck, Pencil, Trash2 } from "lucide-react";
 type HistoryRow = {
   id: string;
   action: "edited" | "deleted";
+  author_id: string | null;
   author_name: string;
   body: string;
   version_created_at: string | null;
@@ -37,7 +39,11 @@ export default async function AuditoriaPage() {
   await requireNavAccess("auditoria");
 
   const supabase = await createClient();
-  const profile = await getProfile();
+  const [profile, platformAdminIds] = await Promise.all([
+    getProfile(),
+    getPlatformAdminIds(),
+  ]);
+  const platformAdminIdSet = new Set(platformAdminIds);
 
   // RLS ya restringe por clínica; el filtro explícito es defensa en profundidad.
   // El historial es un log inmutable SIN foreign key a patients (para no perder
@@ -45,13 +51,18 @@ export default async function AuditoriaPage() {
   const { data } = await supabase
     .from("patient_evolution_note_history")
     .select(
-      "id, action, author_name, body, version_created_at, changed_at, patient_id",
+      "id, action, author_id, author_name, body, version_created_at, changed_at, patient_id",
     )
     .eq("clinic_id", profile!.clinicId)
     .order("changed_at", { ascending: false })
     .limit(200);
 
-  const rows = (data ?? []) as HistoryRow[];
+  const rows = (data ?? []).map((r) => ({
+    ...(r as HistoryRow),
+    author_name: platformAdminIdSet.has((r as { author_id?: string | null }).author_id ?? "")
+      ? "Sistema"
+      : (r as { author_name: string }).author_name,
+  })) as HistoryRow[];
 
   // Mapa patient_id → nombre, con una sola consulta para los pacientes citados.
   const patientIds = [...new Set(rows.map((r) => r.patient_id))];
