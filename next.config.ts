@@ -28,7 +28,10 @@ const cspStrict = [
 // maneja datos de pacientes.
 const cspDemo = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://*.daily.co",
+  // blob: es necesario: Daily.co y el filtro de ruido Krisp cargan scripts y
+  // AudioWorklets desde URLs blob: generadas en runtime.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.daily.co",
+  "script-src-elem 'self' 'unsafe-inline' blob: https://*.daily.co",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
