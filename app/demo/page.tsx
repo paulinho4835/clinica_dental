@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Vapi from "@vapi-ai/web";
 import { Phone, PhoneOff, Mic, MicOff } from "lucide-react";
@@ -14,6 +14,14 @@ type TranscriptLine = {
 };
 
 export default function DemoPage() {
+  return (
+    <Suspense>
+      <DemoContent />
+    </Suspense>
+  );
+}
+
+function DemoContent() {
   const searchParams = useSearchParams();
   const vapiRef = useRef<Vapi | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
