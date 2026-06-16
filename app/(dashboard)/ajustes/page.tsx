@@ -12,6 +12,8 @@ import {
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getClinicFeatures } from "@/lib/superadmin";
 import { RemindersPanel, type ReminderRow } from "@/components/ajustes/RemindersPanel";
+import { ClinicalHoursPanel } from "@/components/ajustes/ClinicalHoursPanel";
+import { getClinicalHours, type ClinicalHours } from "@/lib/clinicalHours";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -62,6 +64,17 @@ export default async function SettingsPage() {
       .limit(20);
 
     recentReminders = (recent ?? []) as unknown as ReminderRow[];
+  }
+
+  // Bloqueo por horario clínico (addon "bloqueo_horario").
+  let clinicalHours: ClinicalHours | null = null;
+  if (isClinicAdmin && features.bloqueo_horario && profile) {
+    const { data: clinicData } = await supabase
+      .from("clinics")
+      .select("settings")
+      .eq("id", profile.clinicId)
+      .single();
+    clinicalHours = getClinicalHours(clinicData?.settings);
   }
 
   let systemTemplates: TemplateRow[] = [];
@@ -154,6 +167,20 @@ export default async function SettingsPage() {
             recentReminders={recentReminders}
             canWrite={canWrite}
           />
+        </section>
+      )}
+
+      {isClinicAdmin && features.bloqueo_horario && clinicalHours && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Bloqueo por horario
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Define la franja en la que los doctores pueden editar el odontograma
+            y las notas de evolución. Fuera de ese horario quedan en modo lectura.
+            El administrador siempre puede editar.
+          </p>
+          <ClinicalHoursPanel config={clinicalHours} canWrite={canWrite} />
         </section>
       )}
 

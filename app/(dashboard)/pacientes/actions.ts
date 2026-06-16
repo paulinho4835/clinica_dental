@@ -6,8 +6,26 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PatientSchema } from "@/lib/schemas/patient";
+import { withinClinicalHours } from "@/lib/clinicalHours";
+import { getClinicFeatures } from "@/lib/superadmin";
 
 export type ActionState = { error?: string; ok?: boolean };
+
+// ¿El registro clínico está bloqueado por horario para este usuario?
+// Solo aplica si el addon "bloqueo_horario" está activo para la clínica.
+// El admin queda exento; los doctores solo editan dentro de la ventana de la clínica.
+async function clinicalLocked(role: string, clinicId: string): Promise<boolean> {
+  if (role === "admin") return false;
+  const features = await getClinicFeatures();
+  if (!features.bloqueo_horario) return false; // addon apagado → sin bloqueo
+  const supabase = await createClient();
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("settings")
+    .eq("id", clinicId)
+    .single();
+  return !withinClinicalHours(clinic?.settings);
+}
 
 // Convierte "a, b ,c" -> ["a","b","c"] (ignora vacíos). Para alergias/alertas.
 function csvToArray(v: FormDataEntryValue | null): string[] {
@@ -162,6 +180,8 @@ export async function addEvolutionNote(
   if (!profile) return { error: "Sesión expirada." };
   if (!canWriteEvolution(profile.role))
     return { error: "Solo los doctores y el administrador pueden anotar evolución." };
+  if (await clinicalLocked(profile.role, profile.clinicId))
+    return { error: "Fuera del horario de edición permitido. La evolución está en modo lectura." };
 
   const text = body.trim();
   if (!text) return { error: "La nota no puede estar vacía." };
@@ -189,6 +209,8 @@ export async function updateEvolutionNote(
   if (!profile) return { error: "Sesión expirada." };
   if (!canWriteEvolution(profile.role))
     return { error: "Sin permiso para editar evolución." };
+  if (await clinicalLocked(profile.role, profile.clinicId))
+    return { error: "Fuera del horario de edición permitido. La evolución está en modo lectura." };
 
   const text = body.trim();
   if (!text) return { error: "La nota no puede estar vacía." };
@@ -217,6 +239,8 @@ export async function deleteEvolutionNote(
   if (!profile) return { error: "Sesión expirada." };
   if (!canWriteEvolution(profile.role))
     return { error: "Sin permiso para borrar evolución." };
+  if (await clinicalLocked(profile.role, profile.clinicId))
+    return { error: "Fuera del horario de edición permitido. La evolución está en modo lectura." };
 
   const supabase = await createClient();
   const { data, error } = await supabase

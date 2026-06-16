@@ -14,6 +14,7 @@ import {
   X,
   Banknote,
   CreditCard,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -33,6 +34,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/caja": Wallet,
   "/cuentas": CreditCard,
   "/ajustes": Stethoscope,
+  "/auditoria": ShieldCheck,
 };
 
 function navIcon(href: string) {

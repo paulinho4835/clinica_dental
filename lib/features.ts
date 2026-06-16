@@ -11,6 +11,8 @@ export type FeatureKey =
   | "cuentas"
   | "inventario"
   | "ajustes"
+  | "auditoria"
+  | "bloqueo_horario"
   | "whatsapp"
   | "whatsapp_manual"
   | "recetas"
@@ -40,6 +42,8 @@ export const FEATURES: FeatureMeta[] = [
   { key: "caja", label: "Dashboard financiero", href: "/caja" },
   { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
+  { key: "auditoria", label: "Auditoría", href: "/auditoria" },
+  { key: "bloqueo_horario", label: "Bloqueo por horario", href: "/ajustes", optIn: true },
   { key: "whatsapp", label: "WhatsApp Baileys", href: "/agenda", optIn: true },
   { key: "whatsapp_manual", label: "WhatsApp Manual", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },

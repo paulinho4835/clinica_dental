@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { withinClinicalHours } from "@/lib/clinicalHours";
+import { getClinicFeatures } from "@/lib/superadmin";
 import type { TeethMap } from "@/lib/odontogram/types";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -67,6 +69,22 @@ export async function saveOdontogram(
     return { error: "Solo los doctores y el administrador pueden modificar el odontograma." };
 
   const supabase = await createClient();
+
+  // Bloqueo horario (addon "bloqueo_horario"): los doctores solo editan dentro
+  // de la ventana de la clínica (el admin queda exento). Si el addon está
+  // apagado, no hay restricción.
+  if (profile.role !== "admin") {
+    const features = await getClinicFeatures();
+    if (features.bloqueo_horario) {
+      const { data: clinic } = await supabase
+        .from("clinics")
+        .select("settings")
+        .eq("id", profile.clinicId)
+        .single();
+      if (!withinClinicalHours(clinic?.settings))
+        return { error: "Fuera del horario de edición permitido. El odontograma está en modo lectura." };
+    }
+  }
 
   // 1) Estado actual (1 fila por paciente).
   const { error: upErr } = await supabase.from("odontograms").upsert(

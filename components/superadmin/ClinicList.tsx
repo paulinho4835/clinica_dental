@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Search, Users } from "lucide-react";
+import { ChevronRight, Search, Users, Download } from "lucide-react";
 import type { Features, FeatureKey } from "@/lib/features";
 import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
 import { AddonToggle } from "@/components/superadmin/AddonToggle";
@@ -14,6 +14,7 @@ import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
 import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
 import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
+import { RestoreBackupButton } from "@/components/superadmin/RestoreBackupButton";
 
 type FeatureItem = { key: FeatureKey; label: string };
 
@@ -91,6 +92,8 @@ export function ClinicList({
               </Link>
             ))}
           </div>
+
+          <RestoreBackupButton />
         </div>
       </div>
 
@@ -225,6 +228,25 @@ function ClinicCard({
             </h3>
             <ClinicUsers users={c.users} />
             <AddUserForm clinicId={c.id} />
+          </div>
+
+          {/* Backup */}
+          <div className="border-t border-slate-100 pt-4">
+            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Backup
+            </h3>
+            <p className="mb-2 text-xs text-slate-500">
+              Descarga una copia completa de los datos de esta clínica (.json).
+              Para restaurarla, usa “Restaurar backup” arriba: se creará una
+              clínica nueva sin afectar a esta.
+            </p>
+            <a
+              href={`/api/superadmin/backup?clinicId=${c.id}`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Descargar backup
+            </a>
           </div>
         </div>
       )}

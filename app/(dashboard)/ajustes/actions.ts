@@ -315,3 +315,46 @@ export async function saveRemindersConfig(
   revalidatePath("/ajustes");
   return { ok: true };
 }
+
+// ============================================================================
+// Bloqueo por horario clínico (addon "bloqueo_horario").
+// Define la ventana en la que los doctores pueden editar odontograma y
+// evolución. Fuera de ella, esos registros quedan en modo lectura (el admin
+// siempre puede editar). Se guarda en clinics.settings.clinical_hours.
+// ============================================================================
+
+export async function saveClinicalHours(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { profile } = auth;
+
+  const enabled = formData.get("clinical_enabled") === "on";
+  const from = String(formData.get("clinical_from") ?? "").trim();
+  const to = String(formData.get("clinical_to") ?? "").trim();
+  const hhmm = /^\d{2}:\d{2}$/;
+  if (!hhmm.test(from) || !hhmm.test(to))
+    return { error: "Las horas deben tener formato HH:MM." };
+  if (from === to)
+    return { error: "La hora de apertura y cierre no pueden ser iguales." };
+
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("settings")
+    .eq("id", profile.clinicId)
+    .single();
+
+  const existing = (clinic?.settings ?? {}) as Record<string, unknown>;
+  const { error } = await admin
+    .from("clinics")
+    .update({ settings: { ...existing, clinical_hours: { enabled, from, to } } })
+    .eq("id", profile.clinicId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/ajustes");
+  return { ok: true };
+}
