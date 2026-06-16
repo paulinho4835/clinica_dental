@@ -175,6 +175,13 @@ export function buildInboundAssistant(
 ) {
   const today = todayISO ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
   return {
+    // Transcriptor en español: sin esto Vapi usa el default (inglés) y "no
+    // reconoce" la voz del paciente, respondiendo mal y lento.
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2",
+      language: "es",
+    },
     model: {
       provider: "openai",
       model: "gpt-4o-mini",
@@ -323,5 +330,10 @@ Normas:
       voiceId: config.vapi_voice_id ?? "paula",
     },
     firstMessage: config.vapi_first_message ?? `Hola, gracias por llamar a ${clinicName}. ¿En qué puedo ayudarle?`,
+    // Turnos más ágiles: la IA responde sin esperar silencios largos.
+    startSpeakingPlan: {
+      waitSeconds: 0.4,
+      smartEndpointingEnabled: true,
+    },
   };
 }
