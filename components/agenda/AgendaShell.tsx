@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, MessageCircle } from "lucide-react";
 import { STEP_MIN } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
@@ -17,6 +17,7 @@ import {
   apptName,
   apptCI,
 } from "./apptHelpers";
+import { WhatsAppManualModal } from "./WhatsAppManualModal";
 import { getDoctorColor } from "@/lib/agenda/doctorColor";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
@@ -47,6 +48,7 @@ export function AgendaShell({
   isAdmin,
   myName,
   whatsappEnabled,
+  whatsappManualEnabled,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -58,6 +60,7 @@ export function AgendaShell({
   /** Nombre completo del usuario logueado (para preseleccionar "Mi Agenda") */
   myName: string;
   whatsappEnabled: boolean;
+  whatsappManualEnabled: boolean;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -69,6 +72,7 @@ export function AgendaShell({
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
+  const [showWaManual, setShowWaManual] = useState(false);
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
@@ -218,9 +222,7 @@ export function AgendaShell({
           <div className="flex items-center gap-1.5">
             {activeDoctor !== ALL_DOCTORS && activeDoctor && (
               <span
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDoctorColor(
-                  doctors.find((d) => d.full_name === activeDoctor)?.id ?? activeDoctor
-                ).border.replace("border-", "bg-")}`}
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${getDoctorColor(activeDoctor).dot}`}
               />
             )}
             <select
@@ -266,19 +268,30 @@ export function AgendaShell({
           {monthLabel}
         </span>
 
-        {canWrite && whatsappEnabled && (
+        {canWrite && (whatsappEnabled || whatsappManualEnabled) && (
           <div className="ml-auto flex items-center gap-2">
             {sendResult && (
               <span className="text-sm text-slate-600">{sendResult}</span>
             )}
-            <button
-              onClick={sendReminders}
-              disabled={sending}
-              className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {sending ? "Enviando..." : "Recordatorios WhatsApp"}
-            </button>
+            {whatsappEnabled && (
+              <button
+                onClick={sendReminders}
+                disabled={sending}
+                className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {sending ? "Enviando..." : "Recordatorios WhatsApp"}
+              </button>
+            )}
+            {whatsappManualEnabled && (
+              <button
+                onClick={() => setShowWaManual(true)}
+                className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Recordatorios WhatsApp
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -356,6 +369,9 @@ export function AgendaShell({
           appt={linkAppt}
           onClose={() => setLinkAppt(null)}
         />
+      )}
+      {showWaManual && (
+        <WhatsAppManualModal onClose={() => setShowWaManual(false)} />
       )}
     </div>
   );

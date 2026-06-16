@@ -210,6 +210,7 @@ export async function toggleFeature(formData: FormData) {
 
   await admin.from("clinics").update({ features }).eq("id", clinicId);
   revalidatePath("/superadmin");
+  revalidatePath("/agenda");
   revalidatePath("/", "layout");
 }
 

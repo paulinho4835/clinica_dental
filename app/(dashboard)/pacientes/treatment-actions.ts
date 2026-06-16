@@ -92,6 +92,8 @@ const WorkSchema = z.object({
   description: z.string().trim().min(1, "Escribe el trabajo a realizar"),
   price: z.coerce.number().min(0, "Precio inválido"),
   doctor_id: z.string().uuid().optional().nullable(),
+  // Vínculo opcional al catálogo de la clínica (cuando se eligió de la lista).
+  procedure_id: z.string().uuid().optional().nullable(),
 });
 
 // Agrega un trabajo al plan. Crea plan + fase automáticamente si no existen.
@@ -109,6 +111,7 @@ export async function addPlanWork(
     description: formData.get("description"),
     price: formData.get("price"),
     doctor_id: formData.get("doctor_id") || null,
+    procedure_id: formData.get("procedure_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -165,6 +168,7 @@ export async function addPlanWork(
   const { error } = await supabase.from("treatment_items").insert({
     clinic_id: profile.clinicId,
     phase_id: phaseId,
+    procedure_id: parsed.data.procedure_id ?? null,
     custom_name: parsed.data.description,
     price: parsed.data.price,
     status: "proposed",
@@ -200,11 +204,13 @@ export async function setWorkDone(
   return { ok: true };
 }
 
-// Elimina un trabajo del plan.
+// Elimina un trabajo del plan. Una vez agregado, SOLO el admin puede borrarlo
+// (ni doctores ni recepcionistas pueden modificar el plan).
 export async function deleteWork(itemId: string, patientId: string): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  if (!can(profile.role, "clinical:write")) return { error: "Sin permiso clínico." };
+  if (profile.role !== "admin")
+    return { error: "Solo el administrador puede eliminar trabajos del plan." };
 
   const supabase = await createClient();
   const { error } = await supabase

@@ -9,6 +9,8 @@ import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 
+export const dynamic = "force-dynamic";
+
 const isView = (v: string | undefined): v is AgendaView =>
   v === "day" || v === "week" || v === "month" || v === "overview";
 
@@ -121,6 +123,7 @@ export default async function AgendaPage({
         isAdmin={canViewAll}
         myName={myName}
         whatsappEnabled={features.whatsapp}
+        whatsappManualEnabled={features.whatsapp_manual}
       />
     </div>
   );

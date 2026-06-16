@@ -11,6 +11,9 @@ import { bs } from "@/lib/format";
 
 export type Dentist = { id: string; full_name: string };
 
+// Tratamiento del catálogo de la clínica, para sugerir y autollenar precio.
+export type CatalogOption = { id: string; name: string; base_price: number };
+
 export type Work = {
   id: string;
   name: string;
@@ -36,21 +39,27 @@ const fmtDateTime = (iso: string) =>
 export function TreatmentPlanPanel({
   patientId,
   canWrite,
+  canDelete,
   works,
   dentists,
+  catalog,
   recetasEnabled,
 }: {
   patientId: string;
   canWrite: boolean;
+  /** Solo el admin puede eliminar trabajos ya agregados al plan. */
+  canDelete: boolean;
   works: Work[];
   dentists: Dentist[];
+  /** Catálogo de tratamientos de la clínica (sugerencias + autollenado de precio). */
+  catalog: CatalogOption[];
   recetasEnabled?: boolean;
 }) {
   const total = works.reduce((s, w) => s + w.price, 0);
 
   return (
     <div className="space-y-4">
-      {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} />}
+      {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} catalog={catalog} />}
 
       {recetasEnabled && (
         <div className="flex items-center justify-end">
@@ -80,7 +89,7 @@ export function TreatmentPlanPanel({
         </div>
         <div className="divide-y divide-slate-100">
           {works.map((w) => (
-            <WorkRow key={w.id} work={w} patientId={patientId} canWrite={canWrite} />
+            <WorkRow key={w.id} work={w} patientId={patientId} canDelete={canDelete} />
           ))}
           {works.length === 0 && (
             <p className="px-4 py-3 text-sm text-slate-500">Sin trabajos en el plan.</p>
@@ -100,11 +109,11 @@ export function TreatmentPlanPanel({
 function WorkRow({
   work,
   patientId,
-  canWrite,
+  canDelete,
 }: {
   work: Work;
   patientId: string;
-  canWrite: boolean;
+  canDelete: boolean;
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -122,7 +131,7 @@ function WorkRow({
         {bs(work.price)}
       </span>
       <div className="order-5 text-right sm:order-none">
-        {canWrite && (
+        {canDelete && (
           <button
             disabled={pending}
             onClick={() =>
@@ -172,7 +181,15 @@ export function DoneToggle({
   );
 }
 
-function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Dentist[] }) {
+function AddWorkForm({
+  patientId,
+  dentists,
+  catalog,
+}: {
+  patientId: string;
+  dentists: Dentist[];
+  catalog: CatalogOption[];
+}) {
   const [state, formAction, pending] = useActionState(addPlanWork, initial);
   const router = useRouter();
 
@@ -180,12 +197,32 @@ function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Den
   const [descVal, setDescVal] = useState("");
   const [priceVal, setPriceVal] = useState("");
   const [doctorId, setDoctorId] = useState("");
+  // procedure_id se setea cuando lo escrito coincide con un tratamiento del catálogo.
+  const [procedureId, setProcedureId] = useState("");
+
+  const listId = `catalog-${patientId}`;
+
+  // Al cambiar la descripción: si coincide con un tratamiento del catálogo,
+  // autollena el precio y guarda el vínculo; si no, lo trata como texto libre.
+  function onDescChange(value: string) {
+    setDescVal(value);
+    const match = catalog.find(
+      (c) => c.name.toLowerCase() === value.trim().toLowerCase(),
+    );
+    if (match) {
+      setProcedureId(match.id);
+      setPriceVal(String(match.base_price));
+    } else {
+      setProcedureId("");
+    }
+  }
 
   useEffect(() => {
     if (state.ok) {
       // Clear only work description and price; keep doctor selected.
       setDescVal("");
       setPriceVal("");
+      setProcedureId("");
       router.refresh();
     }
   }, [state, router]);
@@ -196,17 +233,24 @@ function AddWorkForm({ patientId, dentists }: { patientId: string; dentists: Den
       className="flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
       <input type="hidden" name="patient_id" value={patientId} />
+      <input type="hidden" name="procedure_id" value={procedureId} />
       <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
         <span className="mb-1 block text-slate-500">Trabajo a realizar</span>
         <input
           name="description"
           type="text"
           required
+          list={listId}
           value={descVal}
-          onChange={(e) => setDescVal(e.target.value)}
-          placeholder="ej. Resina diente 16, limpieza, endodoncia…"
+          onChange={(e) => onDescChange(e.target.value)}
+          placeholder="Elige del catálogo o escribe uno…"
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
+        <datalist id={listId}>
+          {catalog.map((c) => (
+            <option key={c.id} value={c.name} />
+          ))}
+        </datalist>
       </label>
       <label className="text-xs">
         <span className="mb-1 block text-slate-500">Doctor</span>

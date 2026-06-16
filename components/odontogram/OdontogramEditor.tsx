@@ -31,9 +31,12 @@ type Tool =
 export function OdontogramEditor({
   patientId,
   initialTeeth,
+  canWrite,
 }: {
   patientId: string;
   initialTeeth: TeethMap;
+  /** Solo admin y doctores pueden editar; el resto ve el odontograma en solo lectura. */
+  canWrite: boolean;
 }) {
   const router = useRouter();
   const [teeth, setTeeth] = useState<TeethMap>(initialTeeth);
@@ -115,6 +118,18 @@ export function OdontogramEditor({
       {label}
     </button>
   );
+
+  if (!canWrite) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">
+          Vista de solo lectura. Solo los doctores y el administrador pueden modificar el
+          odontograma.
+        </p>
+        <Odontogram teeth={teeth} onSurfaceClick={() => {}} onWholeClick={() => {}} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

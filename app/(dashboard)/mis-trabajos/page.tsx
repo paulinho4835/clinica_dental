@@ -281,9 +281,14 @@ export default async function MisTrabajosPage({
         />
       )}
 
-      {/* Stats */}
-      <div className={`grid grid-cols-1 gap-4 ${isRecepcionista ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
-        {!isRecepcionista && (
+      {/* Stats — los doctores solo ven sus comisiones (acumulada y pendiente),
+          no los montos facturados ni lo cobrado a pacientes. */}
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          isRecepcionista ? "sm:grid-cols-3" : isDoctor ? "sm:grid-cols-2" : "sm:grid-cols-4"
+        }`}
+      >
+        {isAdmin && (
           <Stat
             label="Trabajos facturados"
             value={bs(totalCost)}
@@ -298,12 +303,14 @@ export default async function MisTrabajosPage({
             valueClassName="text-clinic"
           />
         )}
-        <Stat
-          label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
-          value={bs(isRecepcionista ? todayPaid : totalPaid)}
-          icon={<Banknote className="h-5 w-5" />}
-          valueClassName="text-emerald-600"
-        />
+        {!isDoctor && (
+          <Stat
+            label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
+            value={bs(isRecepcionista ? todayPaid : totalPaid)}
+            icon={<Banknote className="h-5 w-5" />}
+            valueClassName="text-emerald-600"
+          />
+        )}
         {!isRecepcionista && (
           <Stat
             label="Comisión pendiente"

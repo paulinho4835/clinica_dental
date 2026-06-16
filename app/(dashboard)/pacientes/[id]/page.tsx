@@ -4,6 +4,7 @@ import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
 import { can, canSeeNav } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
+import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import {
   WorkStatusPanel,
@@ -62,6 +63,16 @@ export default async function PatientPage({
   const canClinical = can(profile?.role, "clinical:write");
   const canBilling = can(profile?.role, "billing:write");
   const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
+  // Registro clínico (evolución y odontograma): solo admin y doctores pueden
+  // modificar (NO recepcionista, aunque ésta tenga clinical:write para otras cosas).
+  const canEditClinical =
+    profile?.role === "admin" ||
+    profile?.role === "odontologo_general" ||
+    profile?.role === "especialista";
+  // Doctores: vista restringida del paciente (solo lectura de datos personales,
+  // editan únicamente alergias y alertas médicas).
+  const isDoctor =
+    profile?.role === "odontologo_general" || profile?.role === "especialista";
 
   let dentistsQuery = supabase
     .from("profiles")
@@ -82,6 +93,10 @@ export default async function PatientPage({
     { data: clinicRow },
     { data: rawConsents },
     { data: consentTemplates },
+    { data: evolutionNotes },
+    { data: evolutionHistory },
+    { data: rawOdoEvents },
+    { data: rawCatalog },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -120,7 +135,44 @@ export default async function PatientPage({
       .from("consent_templates")
       .select("id, title, body")
       .order("sort_order"),
+    supabase
+      .from("patient_evolution_notes")
+      .select("id, author_id, author_name, body, created_at, updated_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("patient_evolution_note_history")
+      .select("id, note_id, author_name, body, action, changed_at")
+      .eq("patient_id", id)
+      .order("changed_at", { ascending: false }),
+    supabase
+      .from("odontogram_events")
+      .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(full_name)")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("procedure_catalog")
+      .select("id, name, base_price")
+      .eq("active", true)
+      .order("name"),
   ]);
+
+  const catalog = (rawCatalog ?? []).map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    base_price: Number(c.base_price),
+  }));
+
+  // Aplana el join de actor a actor_name para el componente de historial.
+  const odoEvents = (rawOdoEvents ?? []).map((e) => ({
+    id: e.id as string,
+    tooth_fdi: e.tooth_fdi as string,
+    surface: (e.surface as string | null) ?? null,
+    prev_state: (e.prev_state as string | null) ?? null,
+    new_state: (e.new_state as string | null) ?? null,
+    created_at: e.created_at as string,
+    actor_name: (e.actor as { full_name?: string } | null)?.full_name ?? null,
+  }));
 
   // Aplana todos los items del plan en una lista de "trabajos".
   const works: Work[] = (rawPlans ?? [])
@@ -196,11 +248,12 @@ export default async function PatientPage({
       <header>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-          <EditPatientForm patient={patient} />
+          {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón. */}
+          {canEditClinical && <EditPatientForm patient={patient} restricted={isDoctor} />}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
-          {patient.phone && <span>Tel.: {patient.phone}</span>}
+          {patient.phone && !isDoctor && <span>Tel.: {patient.phone}</span>}
           {canBilling && <span>Saldo: {bs(totalQuoted - totalPaid)}</span>}
         </div>
         {patient.medical_alerts?.length > 0 && (
@@ -213,14 +266,19 @@ export default async function PatientPage({
         )}
       </header>
 
-      <section>
+      <section className="space-y-3">
         <h2 className="mb-3 text-lg font-semibold">Odontograma</h2>
-        <OdontogramEditor patientId={patient.id} initialTeeth={teeth} />
+        <OdontogramEditor
+          patientId={patient.id}
+          initialTeeth={teeth}
+          canWrite={canEditClinical}
+        />
+        <OdontogramHistory events={odoEvents} />
       </section>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} works={works} dentists={dentists ?? []} recetasEnabled={recetasEnabled} />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} />
       </section>
 
       <section>
@@ -232,8 +290,11 @@ export default async function PatientPage({
         <h2 className="mb-3 text-lg font-semibold">Evolución del paciente</h2>
         <EvolutionPanel
           patientId={patient.id}
-          evolution={(patient as { evolution?: string | null }).evolution ?? null}
-          canWrite={canClinical}
+          notes={evolutionNotes ?? []}
+          history={evolutionHistory ?? []}
+          legacyEvolution={(patient as { evolution?: string | null }).evolution ?? null}
+          canWrite={canEditClinical}
+          currentUserId={profile?.userId ?? ""}
         />
       </section>
 

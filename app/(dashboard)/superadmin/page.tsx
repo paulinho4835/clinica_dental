@@ -1,19 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Building2, CheckCircle2, PauseCircle, Users } from "lucide-react";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
-import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
-import { AddonToggle } from "@/components/superadmin/AddonToggle";
-import { PlanSelect } from "@/components/superadmin/PlanSelect";
-import { ClinicUsers, type ClinicUser } from "@/components/superadmin/ClinicUsers";
-import { AddUserForm } from "@/components/superadmin/AddUserForm";
-import { EditClinicName } from "@/components/superadmin/EditClinicName";
-import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
-import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
-import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
-import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
+import { ClinicList, type ClinicRow } from "@/components/superadmin/ClinicList";
+import type { ClinicUser } from "@/components/superadmin/ClinicUsers";
 
 const SORTS = [
   { key: "recientes", label: "Más recientes" },
@@ -72,8 +64,37 @@ export default async function SuperadminPage({
     usersByClinic.set(p.clinic_id, list);
   }
 
-  const modules = FEATURES.filter((f) => !f.core && !f.optIn);
-  const addons  = FEATURES.filter((f) => !f.core && f.optIn);
+  const modules = FEATURES.filter((f) => !f.core && !f.optIn).map((f) => ({
+    key: f.key,
+    label: f.label,
+  }));
+  const addons = FEATURES.filter((f) => !f.core && f.optIn).map((f) => ({
+    key: f.key,
+    label: f.label,
+  }));
+
+  const rows: ClinicRow[] = (clinics ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    plan: c.plan,
+    features: normalizeFeatures(c.features),
+    active: c.active !== false,
+    max_users: c.max_users ?? 10,
+    created_at: c.created_at,
+    users: usersByClinic.get(c.id) ?? [],
+  }));
+
+  const total = rows.length;
+  const activeCount = rows.filter((c) => c.active).length;
+  const suspendedCount = total - activeCount;
+  const totalUsers = rows.reduce((sum, c) => sum + c.users.length, 0);
+
+  const stats = [
+    { label: "Clínicas", value: total, icon: Building2, tone: "text-clinic-fg bg-clinic/10" },
+    { label: "Activas", value: activeCount, icon: CheckCircle2, tone: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" },
+    { label: "Suspendidas", value: suspendedCount, icon: PauseCircle, tone: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" },
+    { label: "Usuarios", value: totalUsers, icon: Users, tone: "text-slate-600 bg-slate-100" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -85,126 +106,45 @@ export default async function SuperadminPage({
         </p>
       </div>
 
-      <section className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <h2 className="mb-4 text-lg font-semibold">Nueva clínica</h2>
-        <NewClinicForm />
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">
-            Clínicas ({clinics?.length ?? 0})
-          </h2>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-400">Ordenar:</span>
-            {SORTS.map((s) => (
-              <Link
-                key={s.key}
-                href={`/superadmin?sort=${s.key}`}
-                scroll={false}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                  sort === s.key
-                    ? "bg-clinic text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                {s.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {clinics?.map((c) => {
-          const features = normalizeFeatures(c.features);
-          const users = usersByClinic.get(c.id) ?? [];
-          const active = c.active !== false;
-          return (
-            <div
-              key={c.id}
-              className={`rounded-lg bg-white p-5 shadow-sm ring-1 ${
-                active ? "ring-slate-200" : "ring-amber-300"
-              }`}
-            >
-              {/* Encabezado */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <EditClinicName clinicId={c.id} name={c.name} />
-                    {!active && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                        Suspendida
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                    <MaxUsersInput
-                      clinicId={c.id}
-                      maxUsers={c.max_users ?? 10}
-                      currentCount={users.length}
-                    />
-                    <span className="text-slate-300">·</span>
-                    <span>{new Date(c.created_at).toLocaleDateString("es-BO")}</span>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <EnterClinicButton clinicId={c.id} />
-                  <PlanSelect clinicId={c.id} plan={c.plan} />
-                  <SuspendClinicButton
-                    clinicId={c.id}
-                    clinicName={c.name}
-                    active={active}
-                  />
-                  <DeleteClinicButton clinicId={c.id} clinicName={c.name} />
-                </div>
-              </div>
-
-              {/* Módulos principales */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {modules.map((f) => (
-                  <FeatureToggle
-                    key={f.key}
-                    clinicId={c.id}
-                    featureKey={f.key}
-                    label={f.label}
-                    enabled={features[f.key]}
-                  />
-                ))}
-              </div>
-
-              {/* Add-ons opcionales */}
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Add-ons
-                </span>
-                {addons.map((f) => (
-                  <AddonToggle
-                    key={f.key}
-                    clinicId={c.id}
-                    featureKey={f.key}
-                    label={f.label}
-                    enabled={features[f.key]}
-                  />
-                ))}
-              </div>
-
-              {/* Usuarios */}
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Usuarios
-                </h3>
-                <ClinicUsers users={users} />
-                <AddUserForm clinicId={c.id} />
-              </div>
+      {/* Métricas */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200"
+          >
+            <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${s.tone}`}>
+              <s.icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold leading-none">{s.value}</div>
+              <div className="mt-1 truncate text-xs text-slate-500">{s.label}</div>
             </div>
-          );
-        })}
+          </div>
+        ))}
+      </div>
 
-        {!clinics?.length && (
-          <p className="text-sm text-slate-500">
-            Sin clínicas registradas aún.
-          </p>
-        )}
-      </section>
+      {/* Nueva clínica (colapsable) */}
+      <details className="group rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-6 [&::-webkit-details-marker]:hidden">
+          <h2 className="text-lg font-semibold">Nueva clínica</h2>
+          <span className="rounded-full bg-clinic px-3 py-1 text-xs font-medium text-white transition group-open:bg-slate-100 group-open:text-slate-500">
+            <span className="group-open:hidden">+ Crear clínica</span>
+            <span className="hidden group-open:inline">Cerrar</span>
+          </span>
+        </summary>
+        <div className="border-t border-slate-100 p-6 pt-5">
+          <NewClinicForm />
+        </div>
+      </details>
+
+      <ClinicList
+        clinics={rows}
+        modules={modules}
+        addons={addons}
+        sort={sort}
+        sorts={SORTS}
+      />
     </div>
   );
 }

@@ -78,10 +78,7 @@ export function MonthView({
                         className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${col.bg} ${col.text}`}
                       >
                         <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${col.border.replace(
-                            "border-",
-                            "bg-"
-                          )}`}
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${col.dot}`}
                         />
                         <span className="truncate">{name}</span>
                       </div>

@@ -3,10 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
 import type { TeethMap } from "@/lib/odontogram/types";
 
 export type ActionState = { error?: string; ok?: boolean };
+
+// Solo admin y doctores pueden modificar el odontograma (NO recepcionista).
+const ODONTOGRAM_ROLES = ["admin", "odontologo_general", "especialista"] as const;
+function canEditOdontogram(role: string | undefined): boolean {
+  return ODONTOGRAM_ROLES.includes(role as (typeof ODONTOGRAM_ROLES)[number]);
+}
 
 const SURFACES = ["O", "M", "D", "V", "L"] as const;
 
@@ -58,8 +63,8 @@ export async function saveOdontogram(
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  if (!can(profile.role, "clinical:write"))
-    return { error: "Sin permiso clínico." };
+  if (!canEditOdontogram(profile.role))
+    return { error: "Solo los doctores y el administrador pueden modificar el odontograma." };
 
   const supabase = await createClient();
 

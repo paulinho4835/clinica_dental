@@ -12,6 +12,7 @@ export type FeatureKey =
   | "inventario"
   | "ajustes"
   | "whatsapp"
+  | "whatsapp_manual"
   | "recetas"
   | "pagos"
   | "perfil"
@@ -34,19 +35,17 @@ export const FEATURES: FeatureMeta[] = [
   { key: "pacientes", label: "Pacientes", href: "/pacientes" },
   { key: "mis_trabajos", label: "Mis trabajos", href: "/mis-trabajos" },
   { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
+  { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "inventario", label: "Inventario", href: "/inventario" },
-  // Catálogo de procedimientos: oculto (no se usa). El código, la ruta
-  // /tratamientos y la tabla procedure_catalog siguen intactos.
-  // Para reactivar: descomentar esta línea.
-  // { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "caja", label: "Dashboard financiero", href: "/caja" },
   { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
-  { key: "whatsapp", label: "WhatsApp", href: "/agenda", optIn: true },
+  { key: "whatsapp", label: "WhatsApp Baileys", href: "/agenda", optIn: true },
+  { key: "whatsapp_manual", label: "WhatsApp Manual", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },
   { key: "perfil", label: "Perfil de clínica", href: "/ajustes", optIn: true },
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
-  { key: "recordatorios", label: "Recordatorios WhatsApp", href: "/ajustes", optIn: true },
+  { key: "recordatorios", label: "Recordatorios Automáticos", href: "/ajustes", optIn: true },
 ];
 
 export type Features = Record<FeatureKey, boolean>;
@@ -67,12 +66,6 @@ export function normalizeFeatures(raw: unknown): Features {
       out[f.key] = obj[f.key] !== false;
     }
   }
-  // "tratamientos" está en FeatureKey pero comentado de FEATURES (módulo oculto).
-  // Sin esta línea, features.tratamientos sería undefined en runtime aunque
-  // TypeScript diga boolean — lo que haría que requireFeature("tratamientos")
-  // redirigiera por accidente en lugar de por diseño.
-  out.tratamientos = false;
-
   return out;
 }
 

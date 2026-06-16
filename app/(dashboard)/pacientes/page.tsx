@@ -30,6 +30,9 @@ export default async function PatientsPage({
   await requireFeature("pacientes");
   const supabase = await createClient();
   const profile = await getProfile();
+  // Los doctores no ven el teléfono del paciente (dato de contacto reservado).
+  const isDoctor =
+    profile?.role === "odontologo_general" || profile?.role === "especialista";
 
   const q = (await searchParams).q?.trim() ?? "";
 
@@ -75,8 +78,12 @@ export default async function PatientsPage({
                 <div className="font-medium">{p.full_name}</div>
                 <div className="text-xs text-slate-500">
                   {p.national_id ? `CI: ${p.national_id}` : "Sin CI"}
-                  {" · "}
-                  {p.phone ?? "Sin teléfono"}
+                  {!isDoctor && (
+                    <>
+                      {" · "}
+                      {p.phone ?? "Sin teléfono"}
+                    </>
+                  )}
                 </div>
               </div>
             </div>

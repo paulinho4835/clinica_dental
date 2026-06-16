@@ -65,8 +65,31 @@ export async function updatePatient(
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  if (!can(profile.role, "patients:write"))
+
+  // Solo admin y doctores editan pacientes (recepcionista y asistente NO).
+  const isDoctor =
+    profile.role === "odontologo_general" || profile.role === "especialista";
+  const isAdmin = profile.role === "admin";
+  if (!isAdmin && !isDoctor)
     return { error: "Sin permiso para editar pacientes." };
+
+  // Los doctores solo pueden modificar alergias y alertas médicas; el resto de
+  // datos personales (nombre, CI, teléfono, email, dirección…) queda intacto,
+  // aunque el request los incluya.
+  if (isDoctor) {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("patients")
+      .update({
+        allergies: csvToArray(formData.get("allergies")),
+        medical_alerts: csvToArray(formData.get("medical_alerts")),
+      })
+      .eq("id", id)
+      .eq("clinic_id", profile.clinicId);
+    if (error) return { error: error.message };
+    revalidatePath(`/pacientes/${id}`);
+    return { ok: true };
+  }
 
   const parsed = PatientSchema.safeParse({
     full_name: formData.get("full_name"),
@@ -102,24 +125,111 @@ export async function updatePatient(
   return { ok: true };
 }
 
-export async function saveEvolution(
-  id: string,
-  evolution: string,
+// ── Notas de evolución (firmadas por autor) ──────────────────────────────────
+// Solo admin y doctores pueden anotar. Cada nota queda firmada con el nombre del
+// autor y SOLO su autor puede editarla/borrarla (reforzado además por RLS).
+
+export type EvolutionNote = {
+  id: string;
+  author_id: string | null;
+  author_name: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// Versión anterior de una nota (capturada por el trigger al editar/borrar).
+export type EvolutionNoteHistory = {
+  id: string;
+  note_id: string;
+  author_name: string;
+  body: string;
+  action: "edited" | "deleted";
+  changed_at: string;
+};
+
+// Roles con potestad de anotar evolución clínica (excluye recepcionista/asistente).
+const EVOLUTION_ROLES = ["admin", "odontologo_general", "especialista"] as const;
+function canWriteEvolution(role: string | undefined): boolean {
+  return EVOLUTION_ROLES.includes(role as (typeof EVOLUTION_ROLES)[number]);
+}
+
+export async function addEvolutionNote(
+  patientId: string,
+  body: string,
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
-  if (!can(profile.role, "clinical:write"))
-    return { error: "Sin permiso para editar evolución." };
+  if (!canWriteEvolution(profile.role))
+    return { error: "Solo los doctores y el administrador pueden anotar evolución." };
+
+  const text = body.trim();
+  if (!text) return { error: "La nota no puede estar vacía." };
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("patients")
-    .update({ evolution: evolution.trim() || null })
-    .eq("id", id)
-    .eq("clinic_id", profile.clinicId);
+  const { error } = await supabase.from("patient_evolution_notes").insert({
+    patient_id: patientId,
+    clinic_id: profile.clinicId,
+    author_id: profile.userId,
+    author_name: profile.fullName,
+    body: text,
+  });
   if (error) return { error: error.message };
 
-  revalidatePath(`/pacientes/${id}`);
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
+}
+
+export async function updateEvolutionNote(
+  noteId: string,
+  patientId: string,
+  body: string,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!canWriteEvolution(profile.role))
+    return { error: "Sin permiso para editar evolución." };
+
+  const text = body.trim();
+  if (!text) return { error: "La nota no puede estar vacía." };
+
+  const supabase = await createClient();
+  // RLS ya impide editar notas ajenas; el filtro por author_id es defensa extra.
+  const { data, error } = await supabase
+    .from("patient_evolution_notes")
+    .update({ body: text, updated_at: new Date().toISOString() })
+    .eq("id", noteId)
+    .eq("author_id", profile.userId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data?.length)
+    return { error: "Solo puedes editar tus propias notas." };
+
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
+}
+
+export async function deleteEvolutionNote(
+  noteId: string,
+  patientId: string,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!canWriteEvolution(profile.role))
+    return { error: "Sin permiso para borrar evolución." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("patient_evolution_notes")
+    .delete()
+    .eq("id", noteId)
+    .eq("author_id", profile.userId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data?.length)
+    return { error: "Solo puedes borrar tus propias notas." };
+
+  revalidatePath(`/pacientes/${patientId}`);
   return { ok: true };
 }
 

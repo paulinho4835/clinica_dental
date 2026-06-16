@@ -38,7 +38,19 @@ const FIELDS: { name: keyof PatientInput; label: string; type?: string }[] = [
   { name: "medical_alerts", label: "Alertas médicas (coma)" },
 ];
 
-export function EditPatientForm({ patient }: { patient: PatientData }) {
+// En modo restringido (doctores): solo ven estos campos en lectura…
+const DOCTOR_READONLY: (keyof PatientInput)[] = ["full_name", "national_id", "dob"];
+// …y solo pueden editar estos.
+const DOCTOR_EDITABLE: (keyof PatientInput)[] = ["allergies", "medical_alerts"];
+
+export function EditPatientForm({
+  patient,
+  restricted = false,
+}: {
+  patient: PatientData;
+  /** Doctores: solo ven nombre/CI/nacimiento (lectura) y editan alergias/alertas. */
+  restricted?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -88,24 +100,43 @@ export function EditPatientForm({ patient }: { patient: PatientData }) {
     );
   }
 
+  // Campos visibles según el modo. Los doctores solo ven lectura + editables.
+  const visibleFields = restricted
+    ? FIELDS.filter(
+        (f) => DOCTOR_READONLY.includes(f.name) || DOCTOR_EDITABLE.includes(f.name),
+      )
+    : FIELDS;
+
   return (
     <Card className="mt-4 p-4">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <h3 className="font-medium text-slate-800">Editar paciente</h3>
+        {restricted && (
+          <p className="text-xs text-slate-500">
+            Solo puedes modificar alergias y alertas médicas. El resto de datos son de
+            solo lectura.
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {FIELDS.map(({ name, label, type }) => (
-            <label key={name} className="block text-sm">
-              <FieldLabel>{label}</FieldLabel>
-              <input
-                {...register(name)}
-                type={type ?? "text"}
-                className={fieldInputClass}
-              />
-              {errors[name] && (
-                <p className="mt-0.5 text-xs text-red-600">{errors[name]?.message}</p>
-              )}
-            </label>
-          ))}
+          {visibleFields.map(({ name, label, type }) => {
+            const readOnly = restricted && DOCTOR_READONLY.includes(name);
+            return (
+              <label key={name} className="block text-sm">
+                <FieldLabel>{label}</FieldLabel>
+                <input
+                  {...register(name)}
+                  type={type ?? "text"}
+                  readOnly={readOnly}
+                  className={`${fieldInputClass} ${
+                    readOnly ? "cursor-not-allowed bg-slate-100 text-slate-500" : ""
+                  }`}
+                />
+                {errors[name] && (
+                  <p className="mt-0.5 text-xs text-red-600">{errors[name]?.message}</p>
+                )}
+              </label>
+            );
+          })}
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         <div className="flex gap-2">
