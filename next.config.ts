@@ -2,41 +2,54 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// CSP: permite solo orígenes explícitos. 'unsafe-inline' en style-src es necesario
-// para Tailwind + emotion. 'unsafe-inline' en script-src es necesario para el
-// script anti-flash de dark mode en el layout; el resto de JS viene como módulos.
-// 'unsafe-eval' solo en desarrollo: Next.js HMR (React Refresh) lo requiere.
-const csp = [
+const supabaseConnect = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co`;
+
+// ── CSP estricta (todo el sitio salvo /demo) ─────────────────────────────────
+// 'unsafe-inline' en style-src: necesario para Tailwind. 'unsafe-inline' en
+// script-src: script anti-flash de dark mode. 'unsafe-eval' solo en dev (HMR).
+const cspStrict = [
   "default-src 'self'",
-  // Daily.co es el motor WebRTC que usa el SDK de Vapi internamente.
-  // 'wasm-unsafe-eval' es obligatorio: Daily procesa audio con WebAssembly.
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} https://*.daily.co`,
-  "style-src 'self' 'unsafe-inline'",                // Tailwind utility classes
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "worker-src 'self' blob:",                          // Daily.co carga workers desde blob:
-  "child-src blob:",                                  // Daily.co usa iframes/workers blob:
-  "media-src 'self' blob: https://*.daily.co",        // streams de audio de la llamada
-  // Supabase + Vapi (API y señalización) + Daily.co (WebRTC) + Sentry (telemetría de Vapi)
-  `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co https://*.vapi.ai wss://*.vapi.ai https://*.daily.co wss://*.daily.co https://*.pluot.blue https://*.sentry.io`,
+  `connect-src 'self' ${supabaseConnect}`,
   "frame-src 'none'",
-  "frame-ancestors 'none'",                          // más fuerte que X-Frame-Options
-  "object-src 'none'",                               // bloquea Flash y plugins
-  "base-uri 'self'",                                 // evita inyección de <base>
-  "form-action 'self'",                              // bloquea submit a terceros
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
 ].join("; ");
 
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
-  // Previene que la app se cargue en un iframe (clickjacking).
+// ── CSP laxa SOLO para /demo ─────────────────────────────────────────────────
+// El SDK web de Vapi usa Daily.co (WebRTC). Daily descarga y EVALÚA su "call
+// object bundle" en runtime → requiere 'unsafe-eval' (no basta wasm-unsafe-eval).
+// Aislamos esta política a /demo para no debilitar el resto de la app, que
+// maneja datos de pacientes.
+const cspDemo = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://*.daily.co",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "worker-src 'self' blob:",
+  "child-src blob:",
+  "media-src 'self' blob: https://*.daily.co",
+  // Supabase + Vapi (API/señalización) + Daily.co (WebRTC) + Sentry (telemetría)
+  `connect-src 'self' ${supabaseConnect} https://*.vapi.ai wss://*.vapi.ai https://*.daily.co wss://*.daily.co https://*.pluot.blue https://*.sentry.io`,
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
+// Cabeceras de seguridad compartidas (sin CSP, que se asigna por ruta).
+const baseSecurityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
-  // Evita que el browser adivine el MIME type de respuestas.
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Solo envía el origen en el Referer, nunca la ruta completa a terceros.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Deshabilita permisos de hardware innecesarios.
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
-  // HSTS: fuerza HTTPS por 1 año (solo aplica en producción con TLS).
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 
@@ -45,8 +58,26 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
-        headers: securityHeaders,
+        source: "/demo",
+        headers: [
+          ...baseSecurityHeaders,
+          { key: "Content-Security-Policy", value: cspDemo },
+        ],
+      },
+      {
+        source: "/demo/:path*",
+        headers: [
+          ...baseSecurityHeaders,
+          { key: "Content-Security-Policy", value: cspDemo },
+        ],
+      },
+      {
+        // Todo menos /demo
+        source: "/((?!demo).*)",
+        headers: [
+          ...baseSecurityHeaders,
+          { key: "Content-Security-Policy", value: cspStrict },
+        ],
       },
     ];
   },

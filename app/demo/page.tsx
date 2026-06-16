@@ -7,6 +7,28 @@ import { Phone, PhoneOff, Mic, MicOff } from "lucide-react";
 
 type CallStatus = "idle" | "connecting" | "active" | "ended";
 
+/** Extrae un mensaje legible del objeto de error de Vapi/Daily (suele venir anidado). */
+function extractErrorDetail(e: unknown): string {
+  if (!e) return "";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  const obj = e as Record<string, unknown>;
+  const nested = obj.error as Record<string, unknown> | string | undefined;
+  const parts = [
+    obj.type,
+    obj.stage,
+    typeof nested === "string" ? nested : nested?.msg ?? nested?.message ?? nested?.errorMsg,
+    obj.errorMsg,
+    obj.msg,
+  ].filter((p): p is string => typeof p === "string" && p.length > 0);
+  if (parts.length) return parts.join(" — ");
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return "error desconocido";
+  }
+}
+
 type TranscriptLine = {
   id: number;
   role: "user" | "assistant";
@@ -70,7 +92,8 @@ function DemoContent() {
       });
       vapi.on("error", (e: unknown) => {
         console.error("Vapi error", e);
-        setError("Error en la llamada. Intenta de nuevo.");
+        const detail = extractErrorDetail(e);
+        setError(detail ? `Error: ${detail}` : "Error en la llamada. Intenta de nuevo.");
         setStatus("idle");
         vapiRef.current = null;
       });
