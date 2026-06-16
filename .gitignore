@@ -9,6 +9,8 @@ next-env.d.ts
 *.log
 supabase/.branches
 supabase/.temp
+# Snippets del SQL Editor de Supabase (no son parte del código)
+supabase/snippets/
 e2e/.auth/
 test-results/
 playwright-report/
