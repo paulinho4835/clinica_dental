@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { ItemForm, type InvItem } from "./ItemForm";
+
+function fmtBs(n: number) {
+  return `Bs. ${n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // Tabla de stock con buscador y orden por criticidad (bajos primero).
 // Permite crear y editar insumos. `canWrite` habilita la edición.
@@ -50,57 +55,70 @@ export function StockTable({ items, canWrite }: { items: InvItem[]; canWrite: bo
         </div>
       </div>
 
-      <table className="w-full text-sm">
-        <thead className="text-left text-slate-500">
-          <tr>
-            <th className="py-2">Insumo</th>
-            <th>Categoría</th>
-            <th className="text-right">Mín.</th>
-            <th className="text-right">Actual</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.map((it) => {
-            const low = Number(it.current_stock) <= Number(it.min_stock);
-            return (
-              <tr key={it.id} className={low ? "bg-red-50 dark:bg-red-500/10" : ""}>
-                <td className="py-2 font-medium">{it.name}</td>
-                <td className="text-slate-500">{it.category ?? "—"}</td>
-                <td className="text-right tabular-nums">{it.min_stock}</td>
-                <td className="text-right tabular-nums">
-                  {it.current_stock}
-                </td>
-                <td className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {low && (
-                      <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
-                        Stock bajo
-                      </span>
-                    )}
-                    {canWrite && (
-                      <button
-                        onClick={() => setEditing(it)}
-                        title="Editar insumo"
-                        className="rounded p-1 text-slate-400 transition hover:bg-white hover:text-clinic"
-                      >
-                        ✏️
-                      </button>
-                    )}
-                  </div>
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead className="text-left text-slate-500">
+            <tr>
+              <th className="py-2">Insumo</th>
+              <th className="hidden sm:table-cell">Categoría</th>
+              <th className="text-right">Mín.</th>
+              <th className="text-right">Actual</th>
+              <th className="hidden text-right sm:table-cell">Precio (Bs.)</th>
+              <th className="text-right">Subtotal</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((it) => {
+              const low = Number(it.current_stock) <= Number(it.min_stock);
+              const subtotal =
+                it.unit_price != null ? it.current_stock * it.unit_price : null;
+              return (
+                <tr key={it.id} className={low ? "bg-red-50 dark:bg-red-500/10" : ""}>
+                  <td className="py-2 font-medium">{it.name}</td>
+                  <td className="hidden text-slate-500 sm:table-cell">{it.category ?? "—"}</td>
+                  <td className="text-right tabular-nums">{it.min_stock}</td>
+                  <td className="text-right tabular-nums">{it.current_stock}</td>
+                  <td className="hidden text-right tabular-nums text-slate-500 sm:table-cell">
+                    {it.unit_price != null
+                      ? it.unit_price.toLocaleString("es-BO", { minimumFractionDigits: 2 })
+                      : "—"}
+                  </td>
+                  <td className="text-right tabular-nums text-slate-700">
+                    {subtotal != null ? fmtBs(subtotal) : "—"}
+                  </td>
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {low && (
+                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                          Stock bajo
+                        </span>
+                      )}
+                      {canWrite && (
+                        <button
+                          onClick={() => setEditing(it)}
+                          title="Editar insumo"
+                          aria-label={`Editar ${it.name}`}
+                          className="rounded p-1 text-slate-400 transition hover:bg-white hover:text-clinic"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-3 text-center text-slate-500">
+                  {query ? "Sin coincidencias." : "Sin insumos cargados."}
                 </td>
               </tr>
-            );
-          })}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={5} className="py-3 text-center text-slate-500">
-                {query ? "Sin coincidencias." : "Sin insumos cargados."}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {editing && (
         <ItemForm

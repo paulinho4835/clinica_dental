@@ -121,10 +121,13 @@ export async function createTeamUser(
     getPlatformAdminIds(),
     admin.from("clinics").select("max_users").eq("id", profile.clinicId).single(),
   ]);
+  // Solo cuentan los usuarios activos para el cupo: un usuario desactivado
+  // libera su lugar y la clínica puede crear otro.
   let countQuery = admin
     .from("profiles")
     .select("id", { count: "exact", head: true })
-    .eq("clinic_id", profile.clinicId);
+    .eq("clinic_id", profile.clinicId)
+    .eq("active", true);
   if (platformAdminIds.length > 0) {
     countQuery = countQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }

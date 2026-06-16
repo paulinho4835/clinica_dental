@@ -514,6 +514,7 @@ export async function POST(req: NextRequest) {
         .select("full_name")
         .eq("clinic_id", clinicId)
         .in("role", ["odontologo_general", "especialista", "admin"])
+        .eq("active", true)
         .order("full_name");
 
       if (!doctors || doctors.length === 0) {
@@ -624,6 +625,7 @@ export async function POST(req: NextRequest) {
           .select("full_name")
           .eq("clinic_id", clinicId)
           .in("role", ["odontologo_general", "especialista", "admin"])
+          .eq("active", true)
           .ilike("full_name", `%${doctor_name.trim()}%`)
           .limit(1)
           .maybeSingle();
@@ -635,6 +637,7 @@ export async function POST(req: NextRequest) {
           .select("full_name")
           .eq("clinic_id", clinicId)
           .in("role", ["odontologo_general", "especialista", "admin"])
+          .eq("active", true)
           .order("full_name")
           .limit(1)
           .maybeSingle();

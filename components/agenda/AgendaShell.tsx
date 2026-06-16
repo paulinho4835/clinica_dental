@@ -22,6 +22,7 @@ import {
   buildDoctorColorResolver,
   DoctorColorContext,
 } from "@/lib/agenda/doctorColor";
+import { toast } from "@/lib/toast";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
 
@@ -74,7 +75,6 @@ export function AgendaShell({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<string | null>(null);
   const [showWaManual, setShowWaManual] = useState(false);
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
@@ -164,16 +164,15 @@ export function AgendaShell({
 
   async function sendReminders() {
     setSending(true);
-    setSendResult(null);
     try {
       const res = await fetch("/api/whatsapp/send-reminders", { method: "POST" });
       const body = await res.json();
-      setSendResult(res.ok ? "✅ Recordatorios enviados" : `❌ ${body.error}`);
+      if (res.ok) toast("Recordatorios enviados", "success");
+      else toast(body.error ?? "No se pudieron enviar los recordatorios", "error");
     } catch {
-      setSendResult("❌ Error de conexión");
+      toast("Error de conexión con el servicio de WhatsApp", "error");
     } finally {
       setSending(false);
-      setTimeout(() => setSendResult(null), 5000);
     }
   }
 
@@ -281,9 +280,6 @@ export function AgendaShell({
 
         {canWrite && (whatsappEnabled || whatsappManualEnabled) && (
           <div className="ml-auto flex items-center gap-2">
-            {sendResult && (
-              <span className="text-sm text-slate-600">{sendResult}</span>
-            )}
             {whatsappEnabled && (
               <button
                 onClick={sendReminders}
@@ -291,7 +287,7 @@ export function AgendaShell({
                 className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
-                {sending ? "Enviando..." : "Recordatorios WhatsApp"}
+                {sending ? "Enviando..." : "Enviar recordatorios"}
               </button>
             )}
             {whatsappManualEnabled && (
@@ -300,7 +296,7 @@ export function AgendaShell({
                 className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50"
               >
                 <MessageCircle className="h-3.5 w-3.5" />
-                Recordatorios WhatsApp
+                Enviar recordatorios
               </button>
             )}
           </div>

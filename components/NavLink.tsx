@@ -20,11 +20,13 @@ export function NavLink({
   href,
   label,
   icon,
+  badge,
   onNavigate,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
+  badge?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -43,6 +45,11 @@ export function NavLink({
     >
       <NavIcon icon={icon} />
       {label}
+      {badge != null && badge > 0 && (
+        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }

@@ -165,7 +165,7 @@ function ClinicCard({
                 <MaxUsersInput
                   clinicId={c.id}
                   maxUsers={c.max_users ?? 10}
-                  currentCount={c.users.length}
+                  currentCount={c.users.filter((u) => u.active).length}
                 />
               </span>
               <span className="text-slate-300">·</span>

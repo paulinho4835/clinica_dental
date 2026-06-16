@@ -50,11 +50,13 @@ export default async function CuentasPacientesPage({
   // Doctores y recepcionistas para el formulario de pago.
   const platformAdminIds = await getPlatformAdminIds();
 
+  // Solo usuarios activos: a un desactivado no se le asignan pagos nuevos.
   let doctorsQuery = supabase
     .from("profiles")
     .select("id, full_name")
     .in("role", ["odontologo_general", "especialista", "admin"])
     .eq("clinic_id", profile!.clinicId)
+    .eq("active", true)
     .order("full_name");
   if (platformAdminIds.length > 0) {
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
@@ -65,6 +67,7 @@ export default async function CuentasPacientesPage({
     .select("id, full_name")
     .eq("role", "recepcionista")
     .eq("clinic_id", profile!.clinicId)
+    .eq("active", true)
     .order("full_name");
 
   const [{ data: doctors }, { data: recepcionistas }] = await Promise.all([

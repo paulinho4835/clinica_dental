@@ -40,7 +40,7 @@ export default async function SuperadminPage({
 
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, clinic_id, full_name, role");
+    .select("id, clinic_id, full_name, role, active");
 
   // Emails desde auth.users (service_role tiene acceso completo)
   const emailMap = new Map<string, string>();
@@ -60,7 +60,13 @@ export default async function SuperadminPage({
     if (platformAdminIds.has(p.id)) continue;
     const email = emailMap.get(p.id) ?? "";
     const list = usersByClinic.get(p.clinic_id) ?? [];
-    list.push({ id: p.id, full_name: p.full_name, role: p.role, email });
+    list.push({
+      id: p.id,
+      full_name: p.full_name,
+      role: p.role,
+      email,
+      active: (p as { active?: boolean }).active ?? true,
+    });
     usersByClinic.set(p.clinic_id, list);
   }
 
@@ -87,7 +93,11 @@ export default async function SuperadminPage({
   const total = rows.length;
   const activeCount = rows.filter((c) => c.active).length;
   const suspendedCount = total - activeCount;
-  const totalUsers = rows.reduce((sum, c) => sum + c.users.length, 0);
+  // Solo usuarios activos: los desactivados no ocupan cupo ni cuentan aquí.
+  const totalUsers = rows.reduce(
+    (sum, c) => sum + c.users.filter((u) => u.active).length,
+    0,
+  );
 
   const stats = [
     { label: "Clínicas", value: total, icon: Building2, tone: "text-clinic-fg bg-clinic/10" },

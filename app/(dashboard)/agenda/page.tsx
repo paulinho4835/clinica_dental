@@ -59,12 +59,14 @@ export default async function AgendaPage({
     apptsQuery = apptsQuery.eq("dentist_name", myName);
   }
 
-  // Query de odontólogos (dropdown de admin y recepcionista), excluyendo superadmins.
+  // Query de odontólogos (dropdown de admin y recepcionista), excluyendo
+  // superadmins y usuarios desactivados (no se asignan citas nuevas a ellos).
   let doctorsQuery = canViewAll
     ? supabase
         .from("profiles")
         .select("id, full_name")
         .in("role", ["odontologo_general", "especialista", "admin"])
+        .eq("active", true)
         .order("full_name")
     : null;
   if (doctorsQuery && platformAdminIds.length > 0) {

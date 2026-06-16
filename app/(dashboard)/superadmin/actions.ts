@@ -133,6 +133,20 @@ export async function updateUserRole(formData: FormData) {
   revalidatePath("/superadmin");
 }
 
+// ── Desactivar / reactivar usuario (reversible, solo superadmin) ─────────────
+// A diferencia de eliminar, NO borra la cuenta: el usuario deja de poder entrar
+// (el layout le muestra un aviso), pero conserva TODO su rastro clínico (citas,
+// trabajos, comisiones, notas). El admin de clínica NO tiene esta opción.
+export async function setUserActive(formData: FormData) {
+  await assertSuperadmin();
+  const userId = String(formData.get("userId") ?? "");
+  const active = formData.get("active") === "true";
+  if (!userId) return;
+  const admin = createAdminClient();
+  await admin.from("profiles").update({ active }).eq("id", userId);
+  revalidatePath("/superadmin");
+}
+
 // ── Eliminar usuario ─────────────────────────────────────────────────────────
 export async function removeClinicUser(formData: FormData) {
   await assertSuperadmin();

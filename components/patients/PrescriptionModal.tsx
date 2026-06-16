@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import {
   createPrescription,
   type Medication,
 } from "@/app/(dashboard)/pacientes/prescription-actions";
+import { useDismissable } from "@/components/ui/useDismissable";
 
 const emptyMed = (): Medication => ({ name: "", dosage: "", instructions: "" });
 
@@ -16,6 +18,7 @@ export function PrescriptionModal({
   patientId: string;
   onClose: () => void;
 }) {
+  useDismissable(onClose);
   const [medications, setMedications] = useState<Medication[]>([emptyMed()]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +62,10 @@ export function PrescriptionModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            aria-label="Cerrar"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           >
-            ✕
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -108,9 +112,10 @@ export function PrescriptionModal({
                 onClick={() => removeMed(idx)}
                 disabled={medications.length === 1}
                 title="Eliminar medicamento"
-                className="pb-1.5 text-slate-300 hover:text-red-500 disabled:opacity-30"
+                aria-label="Eliminar medicamento"
+                className="pb-2 text-slate-300 hover:text-red-500 disabled:opacity-30"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}

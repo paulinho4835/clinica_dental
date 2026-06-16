@@ -2,9 +2,13 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, UserX, UserCheck } from "lucide-react";
 import { confirm } from "@/lib/confirm";
-import { removeClinicUser, updateUserRole } from "@/app/(dashboard)/superadmin/actions";
+import {
+  removeClinicUser,
+  updateUserRole,
+  setUserActive,
+} from "@/app/(dashboard)/superadmin/actions";
 
 const ROLES = [
   { value: "admin", label: "Admin" },
@@ -19,6 +23,7 @@ export type ClinicUser = {
   full_name: string;
   role: string;
   email: string;
+  active: boolean;
 };
 
 export function ClinicUsers({ users }: { users: ClinicUser[] }) {
@@ -51,6 +56,25 @@ export function ClinicUsers({ users }: { users: ClinicUser[] }) {
     });
   }
 
+  async function handleToggleActive(userId: string, name: string, active: boolean) {
+    const ok = await confirm({
+      title: active ? "Desactivar usuario" : "Reactivar usuario",
+      message: active
+        ? `¿Desactivar a ${name}? No podrá iniciar sesión, pero se conserva toda su información (citas, trabajos, comisiones).`
+        : `¿Reactivar a ${name}? Volverá a tener acceso al sistema.`,
+      confirmText: active ? "Desactivar" : "Reactivar",
+      tone: active ? "danger" : "default",
+    });
+    if (!ok) return;
+    const fd = new FormData();
+    fd.set("userId", userId);
+    fd.set("active", String(!active));
+    startTransition(async () => {
+      await setUserActive(fd);
+      router.refresh();
+    });
+  }
+
   if (!users.length) {
     return <p className="text-xs text-slate-400">Sin usuarios registrados.</p>;
   }
@@ -58,9 +82,25 @@ export function ClinicUsers({ users }: { users: ClinicUser[] }) {
   return (
     <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
       {users.map((u) => (
-        <li key={u.id} className="flex items-center gap-3 px-3 py-2">
+        <li
+          key={u.id}
+          className={`flex items-center gap-3 px-3 py-2 ${u.active ? "" : "bg-slate-50"}`}
+        >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{u.full_name}</div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`truncate text-sm font-medium ${
+                  u.active ? "" : "text-slate-400 line-through"
+                }`}
+              >
+                {u.full_name}
+              </span>
+              {!u.active && (
+                <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                  Inactivo
+                </span>
+              )}
+            </div>
             <div className="truncate text-xs text-slate-400">{u.email}</div>
           </div>
           <select
@@ -75,6 +115,19 @@ export function ClinicUsers({ users }: { users: ClinicUser[] }) {
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => handleToggleActive(u.id, u.full_name, u.active)}
+            className={
+              u.active
+                ? "rounded p-1 text-slate-400 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50"
+                : "rounded p-1 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"
+            }
+            title={u.active ? "Desactivar usuario" : "Reactivar usuario"}
+          >
+            {u.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+          </button>
           <button
             type="button"
             disabled={pending}

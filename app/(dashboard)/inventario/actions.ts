@@ -55,6 +55,10 @@ const ItemSchema = z.object({
   category: z.string().trim().optional().nullable(),
   unit: z.string().trim().min(1, "Unidad requerida"),
   min_stock: z.coerce.number().min(0, "Mínimo inválido"),
+  unit_price: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.coerce.number().min(0).nullable().optional(),
+  ),
 });
 
 // Alta de insumo: nombre + cantidad inicial + stock mínimo (default 5) + lote/caducidad opcionales.
@@ -62,6 +66,10 @@ const CreateItemSchema = z.object({
   name: z.string().trim().min(1, "Nombre requerido"),
   initial_qty: z.coerce.number().min(0, "Cantidad inválida").default(0),
   min_stock: z.coerce.number().min(0, "Mínimo inválido").default(5),
+  unit_price: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.coerce.number().min(0).nullable().optional(),
+  ),
   lot: z.string().trim().optional().nullable(),
   expiry_date: z.string().optional().nullable(),
 });
@@ -81,6 +89,7 @@ export async function createItem(
     name: formData.get("name"),
     initial_qty: formData.get("initial_qty") || 0,
     min_stock: formData.get("min_stock") ?? 5,
+    unit_price: formData.get("unit_price") || null,
     lot: formData.get("lot") || null,
     expiry_date: formData.get("expiry_date") || null,
   });
@@ -95,6 +104,7 @@ export async function createItem(
       name: parsed.data.name,
       unit: "unidad",
       min_stock: parsed.data.min_stock,
+      unit_price: parsed.data.unit_price ?? null,
     })
     .select("id")
     .single();
@@ -145,6 +155,7 @@ export async function updateItem(
     category: formData.get("category") || null,
     unit: formData.get("unit") || "unidad",
     min_stock: formData.get("min_stock") || 0,
+    unit_price: formData.get("unit_price") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -157,6 +168,7 @@ export async function updateItem(
       category: parsed.data.category,
       unit: parsed.data.unit,
       min_stock: parsed.data.min_stock,
+      unit_price: parsed.data.unit_price ?? null,
     })
     .eq("id", id); // RLS limita a la clínica
   if (error) return { error: error.message };

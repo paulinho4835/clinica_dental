@@ -15,13 +15,13 @@ type ReminderRow = {
     status: string;
     dentist_name: string | null;
     reason: string | null;
-    patient_name: string | null;       // consulta rápida (sin paciente registrado)
+    patient_name: string | null;
     patients: { full_name: string | null; phone: string | null } | null;
     clinics: { name: string | null } | null;
   } | null;
 };
 
-function normalizePhone(raw: string | null | undefined): string | null {
+export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   let d = raw.replace(/\D/g, "");
   if (!d) return null;
@@ -40,7 +40,8 @@ async function markFailed(id: string) {
 }
 
 export async function processReminders(
-  sendFn: (phone: string, message: string) => Promise<void>
+  sendFn: (phone: string, message: string) => Promise<void>,
+  clinicId: string
 ) {
   const now = new Date().toISOString();
 
@@ -50,25 +51,24 @@ export async function processReminders(
       "id, appointments(starts_at, status, dentist_name, reason, patient_name, patients(full_name, phone), clinics(name))"
     )
     .eq("status", "pending")
+    .eq("clinic_id", clinicId)
     .lte("scheduled_for", now)
     .limit(100);
 
   if (error) {
-    console.error("Error consultando recordatorios:", error.message);
+    console.error(`[${clinicId}] Error consultando recordatorios:`, error.message);
     return;
   }
 
   const due = (data ?? []) as unknown as ReminderRow[];
 
   if (due.length === 0) {
-    console.log("Sin recordatorios pendientes.");
+    console.log(`[${clinicId}] Sin recordatorios pendientes.`);
     return;
   }
 
-  console.log(`Procesando ${due.length} recordatorio(s)...`);
-  let sent = 0,
-    failed = 0,
-    skipped = 0;
+  console.log(`[${clinicId}] Procesando ${due.length} recordatorio(s)...`);
+  let sent = 0, failed = 0, skipped = 0;
 
   for (const r of due) {
     const appt = r.appointments;
@@ -79,7 +79,6 @@ export async function processReminders(
       continue;
     }
 
-    // Consultas rápidas no tienen teléfono — no se puede enviar.
     const normalized = normalizePhone(appt.patients?.phone);
     if (!normalized) {
       await markFailed(r.id);
@@ -116,14 +115,14 @@ export async function processReminders(
         .from("appointment_reminders")
         .update({ status: "sent", sent_at: new Date().toISOString() })
         .eq("id", r.id);
-      console.log(`  ✅ ${normalized} — ${name}`);
+      console.log(`[${clinicId}]   ✅ ${normalized} — ${name}`);
       sent++;
     } catch (e) {
-      console.error(`  ❌ ${normalized}:`, e instanceof Error ? e.message : e);
+      console.error(`[${clinicId}]   ❌ ${normalized}:`, e instanceof Error ? e.message : e);
       await markFailed(r.id);
       failed++;
     }
   }
 
-  console.log(`Listo: ${sent} enviados, ${failed} fallidos, ${skipped} omitidos.`);
+  console.log(`[${clinicId}] Listo: ${sent} enviados, ${failed} fallidos, ${skipped} omitidos.`);
 }

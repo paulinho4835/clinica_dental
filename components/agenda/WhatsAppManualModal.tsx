@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ExternalLink, PhoneOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ExternalLink, PhoneOff, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { useDismissable } from "@/components/ui/useDismissable";
+import { normalizePhone } from "@/lib/phone-utils";
 
 type ApptEntry = {
   id: string;
@@ -26,17 +28,15 @@ function hhmm(iso: string) {
   });
 }
 
-function normalizePhone(raw: string): string {
-  // Elimina espacios, guiones, puntos; si no empieza con + agrega +591 (Bolivia)
-  const digits = raw.replace(/[\s.\-()]/g, "");
-  if (digits.startsWith("+")) return digits;
-  if (digits.startsWith("591")) return `+${digits}`;
-  return `+591${digits}`;
-}
-
-function buildWaLink(phone: string, message: string): string {
+// Construye un enlace wa.me SOLO si el teléfono es válido (normalizePhone de
+// phone-utils quita todo lo no numérico y valida la longitud → null si inválido).
+// wa.me funciona en WhatsApp Web y app, a diferencia del esquema whatsapp://
+// que, con un número inválido, redirige al 404 de api.whatsapp.com/resolve.
+function buildWaLink(phone: string | null, message: string): string | null {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
   const e = encodeURIComponent(message);
-  return `https://wa.me/${normalizePhone(phone).replace("+", "")}?text=${e}`;
+  return `https://wa.me/${normalized.replace("+", "")}?text=${e}`;
 }
 
 function buildMessage(a: ApptEntry, date: string, clinicName: string): string {
@@ -63,6 +63,7 @@ function tomorrowISO(): string {
 }
 
 export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
+  useDismissable(onClose);
   const [selectedDate, setSelectedDate] = useState(tomorrowISO);
   const [data, setData] = useState<ListData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,12 +82,20 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
       .finally(() => setLoading(false));
   }, [selectedDate]);
 
-  const withPhone = data?.appts.filter((a) => a.phone) ?? [];
-  const noPhone = data?.appts.filter((a) => !a.phone) ?? [];
+  // "Con teléfono" = teléfono que normaliza a un número válido. Un valor basura
+  // (letras, muy corto) cae en "sin teléfono" en vez de generar un enlace roto.
+  const withPhone = data?.appts.filter((a) => normalizePhone(a.phone)) ?? [];
+  const noPhone = data?.appts.filter((a) => !normalizePhone(a.phone)) ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl ring-1 ring-slate-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl ring-1 ring-slate-200"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
@@ -146,7 +155,8 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
                 <div className="space-y-2">
                   {withPhone.map((a) => {
                     const msg = buildMessage(a, data.date, data.clinicName);
-                    const url = buildWaLink(a.phone!, msg);
+                    const url = buildWaLink(a.phone, msg);
+                    if (!url) return null;
                     return (
                       <div
                         key={a.id}
@@ -167,8 +177,8 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
                               {a.reason ? ` · ${a.reason}` : ""}
                             </p>
                           )}
-                          <p className="mt-0.5 text-[11px] text-slate-400">
-                            📱 {a.phone}
+                          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
+                            <Phone className="h-3 w-3" /> {a.phone}
                           </p>
                         </div>
                         <a

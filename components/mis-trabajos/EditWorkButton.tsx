@@ -6,6 +6,7 @@ import { updateDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabaj
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { bs } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { useDismissable } from "@/components/ui/useDismissable";
 
 type WorkData = {
   id: string;
@@ -30,6 +31,7 @@ const initial: ActionState = {};
 
 export function EditWorkButton({ work }: { work: WorkData }) {
   const [open, setOpen] = useState(false);
+  useDismissable(() => setOpen(false), open);
   const boundAction = updateDoctorWork.bind(null, work.id);
   const [state, formAction, pending] = useActionState(boundAction, initial);
 

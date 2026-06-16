@@ -15,6 +15,7 @@ import {
   Banknote,
   CreditCard,
   ShieldCheck,
+  MessageSquareDashed,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -23,7 +24,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/cn";
 
-export type NavItem = { href: string; label: string };
+export type NavItem = { href: string; label: string; badge?: number };
 
 const ICONS: Record<string, LucideIcon> = {
   "/agenda": Calendar,
@@ -35,6 +36,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/cuentas": CreditCard,
   "/ajustes": Stethoscope,
   "/auditoria": ShieldCheck,
+  "/wa-masivo": MessageSquareDashed,
 };
 
 function navIcon(href: string) {
@@ -96,6 +98,7 @@ export function Sidebar({
             href={item.href}
             label={item.label}
             icon={navIcon(item.href)}
+            badge={item.badge}
             onNavigate={() => setOpen(false)}
           />
         ))}

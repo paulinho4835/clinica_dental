@@ -124,6 +124,7 @@ export default async function MisTrabajosPage({
         .from("profiles")
         .select("id, full_name, role")
         .in("role", ["admin", "odontologo_general", "especialista"])
+        .eq("active", true)
         .order("full_name")
     : null;
   if (doctorsQuery && platformAdminIds.length > 0) {

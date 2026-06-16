@@ -13,9 +13,12 @@ export async function POST() {
   if (!features.whatsapp) {
     return NextResponse.json({ error: "Módulo WhatsApp no habilitado para esta clínica" }, { status: 403 });
   }
+  if (!profile?.clinicId) {
+    return NextResponse.json({ error: "Sin clínica" }, { status: 400 });
+  }
 
   try {
-    const res = await fetch(`${WA_URL}/send-reminders`, {
+    const res = await fetch(`${WA_URL}/send-reminders/${profile.clinicId}`, {
       method: "POST",
       signal: AbortSignal.timeout(30_000),
     });

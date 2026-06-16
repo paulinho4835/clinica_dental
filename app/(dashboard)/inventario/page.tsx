@@ -43,7 +43,7 @@ export default async function InventoryPage() {
   const [{ data: items }, { data: batches }, { data: movements }] = await Promise.all([
     supabase
       .from("inventory_items")
-      .select("id, name, category, unit, min_stock, current_stock")
+      .select("id, name, category, unit, min_stock, current_stock, unit_price")
       .order("name"),
     supabase
       .from("inventory_batches")
@@ -66,19 +66,32 @@ export default async function InventoryPage() {
   const expiringCount = (batches ?? []).filter(
     (b) => b.expiry_date && new Date(b.expiry_date) <= soon,
   ).length;
+  const capitalTotal = itemList.reduce((sum, it) => {
+    if (it.unit_price == null) return sum;
+    return sum + Number(it.current_stock) * Number(it.unit_price);
+  }, 0);
+  const capitalStr =
+    capitalTotal > 0
+      ? `Bs. ${capitalTotal.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : null;
 
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Inventario y suministros</h1>
 
       {/* ── Resumen ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Insumos" value={itemList.length} tone="neutral" />
         <Kpi label="Bajo mínimo" value={lowCount} tone={lowCount > 0 ? "danger" : "ok"} />
         <Kpi
           label="Lotes por vencer (3m)"
           value={expiringCount}
           tone={expiringCount > 0 ? "warn" : "ok"}
+        />
+        <Kpi
+          label="Capital en insumos"
+          value={capitalStr ?? "—"}
+          tone={capitalTotal > 0 ? "neutral" : "neutral"}
         />
       </div>
 
@@ -97,6 +110,7 @@ export default async function InventoryPage() {
           unit: it.unit,
           min_stock: Number(it.min_stock),
           current_stock: Number(it.current_stock),
+          unit_price: it.unit_price != null ? Number(it.unit_price) : null,
         }))}
         canWrite={canWrite}
       />
@@ -104,16 +118,16 @@ export default async function InventoryPage() {
       {/* ── Historial de movimientos ── */}
       <section>
         <h2 className="mb-2 text-lg font-semibold">Movimientos recientes</h2>
-        <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+          <table className="w-full min-w-[420px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-slate-500">
               <tr>
                 <th className="px-4 py-2">Fecha</th>
                 <th>Insumo</th>
                 <th>Tipo</th>
                 <th className="text-right">Cantidad</th>
-                <th>Motivo</th>
-                <th>Por</th>
+                <th className="hidden md:table-cell">Motivo</th>
+                <th className="hidden md:table-cell">Por</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -134,8 +148,8 @@ export default async function InventoryPage() {
                     <td className="text-right tabular-nums">
                       {m.quantity} {it?.unit ?? ""}
                     </td>
-                    <td className="text-slate-500">{m.reason ?? "—"}</td>
-                    <td className="text-slate-500">{who || "—"}</td>
+                    <td className="hidden text-slate-500 md:table-cell">{m.reason ?? "—"}</td>
+                    <td className="hidden text-slate-500 md:table-cell">{who || "—"}</td>
                   </tr>
                 );
               })}
@@ -204,7 +218,7 @@ function Kpi({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   tone: "neutral" | "ok" | "warn" | "danger";
 }) {
   const color = {

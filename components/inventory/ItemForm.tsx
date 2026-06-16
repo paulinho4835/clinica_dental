@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createItem, updateItem, type ActionState } from "@/app/(dashboard)/inventario/actions";
+import { Modal } from "@/components/ui/Modal";
 
 const initial: ActionState = {};
 
@@ -13,7 +14,11 @@ export type InvItem = {
   unit: string;
   min_stock: number;
   current_stock: number;
+  unit_price: number | null;
 };
+
+const inputCls =
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic";
 
 // Modal de alta/edición de insumo. Si recibe `item` → modo edición.
 export function ItemForm({ item, onClose }: { item?: InvItem; onClose: () => void }) {
@@ -32,71 +37,61 @@ export function ItemForm({ item, onClose }: { item?: InvItem; onClose: () => voi
   }, [state.ok, router, onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      title={isEditing ? "Editar insumo" : "Nuevo insumo"}
     >
-      <form
-        action={formAction}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-3 rounded-lg bg-white p-5 shadow-xl"
-      >
-        <div className="flex items-start justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">
-            {isEditing ? "Editar insumo" : "Nuevo insumo"}
-          </h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            ✕
-          </button>
-        </div>
-
+      <form action={formAction}>
         {isEditing && <input type="hidden" name="id" value={item!.id} />}
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Nombre *</span>
-          <input
-            name="name"
-            type="text"
-            required
-            autoFocus
-            defaultValue={item?.name ?? ""}
-            placeholder="ej. Guantes nitrilo M"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-          />
-        </label>
+        <div className="space-y-4">
+          {/* Nombre */}
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Nombre *</span>
+            <input
+              name="name"
+              type="text"
+              required
+              autoFocus
+              defaultValue={item?.name ?? ""}
+              placeholder="ej. Guantes nitrilo M"
+              className={inputCls}
+            />
+          </label>
 
-        {/* Categoría y unidad: solo al editar (en el alta se simplifica). */}
-        {isEditing && (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Categoría</span>
-              <input
-                name="category"
-                type="text"
-                defaultValue={item?.category ?? ""}
-                placeholder="ej. Descartables"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Unidad *</span>
-              <input
-                name="unit"
-                type="text"
-                required
-                defaultValue={item?.unit ?? "unidad"}
-                placeholder="caja, par, ml…"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-              />
-            </label>
-          </div>
-        )}
+          {/* Categoría + Unidad — solo en edición */}
+          {isEditing && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Categoría</span>
+                <input
+                  name="category"
+                  type="text"
+                  defaultValue={item?.category ?? ""}
+                  placeholder="ej. Descartables"
+                  className={inputCls}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Unidad *</span>
+                <input
+                  name="unit"
+                  type="text"
+                  required
+                  defaultValue={item?.unit ?? "unidad"}
+                  placeholder="caja, par, ml…"
+                  className={inputCls}
+                />
+              </label>
+            </div>
+          )}
 
-        {/* Cantidad inicial + lote/caducidad opcionales: solo en el alta. */}
-        {!isEditing && (
-          <>
+          {/* Cantidad inicial — solo en alta */}
+          {!isEditing && (
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Cantidad inicial *</span>
+              <span className="mb-1 block font-medium text-slate-700">Cantidad inicial *</span>
               <input
                 name="initial_qty"
                 type="number"
@@ -105,50 +100,86 @@ export function ItemForm({ item, onClose }: { item?: InvItem; onClose: () => voi
                 required
                 defaultValue=""
                 placeholder="0"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                className={inputCls}
               />
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Nº de lote <span className="text-slate-400">(opcional)</span></span>
+          )}
+
+          {/* Precio unitario + Stock mínimo */}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">
+                Precio unitario{" "}
+                <span className="font-normal text-slate-400">(opcional)</span>
+              </span>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-3 flex items-center text-sm text-slate-400">
+                  Bs.
+                </span>
                 <input
-                  name="lot"
-                  type="text"
-                  placeholder="ej. L2024-01"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  name="unit_price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={item?.unit_price ?? ""}
+                  placeholder="0.00"
+                  className="w-full rounded-md border border-slate-300 py-2 pl-10 pr-3 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Fecha de caducidad <span className="text-slate-400">(opcional)</span></span>
-                <input
-                  name="expiry_date"
-                  type="date"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-                />
-              </label>
+              </div>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Stock mínimo *</span>
+              <input
+                name="min_stock"
+                type="number"
+                step="1"
+                min="0"
+                required
+                defaultValue={item?.min_stock ?? 5}
+                className={inputCls}
+              />
+              <span className="mt-1 block text-xs text-slate-400">
+                Alerta cuando baje de este valor.
+              </span>
+            </label>
+          </div>
+
+          {/* Lote + Caducidad — solo en alta, sección opcional */}
+          {!isEditing && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">Opcional</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-700">Nº de lote</span>
+                  <input
+                    name="lot"
+                    type="text"
+                    placeholder="ej. L2024-01"
+                    className={inputCls}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-700">Fecha de caducidad</span>
+                  <input
+                    name="expiry_date"
+                    type="date"
+                    className={inputCls}
+                  />
+                </label>
+              </div>
             </div>
-          </>
+          )}
+        </div>
+
+        {state.error && (
+          <p className="mt-3 text-sm text-red-600">{state.error}</p>
         )}
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Stock mínimo *</span>
-          <input
-            name="min_stock"
-            type="number"
-            step="1"
-            min="0"
-            required
-            defaultValue={item?.min_stock ?? 5}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-          />
-          <span className="mt-1 block text-xs text-slate-400">
-            Avisa cuando el stock llegue o baje de este valor.
-          </span>
-        </label>
-
-        {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-
-        <div className="flex gap-2 pt-1">
+        <div className="mt-5 flex gap-2">
           <button
             type="submit"
             disabled={pending}
@@ -165,6 +196,6 @@ export function ItemForm({ item, onClose }: { item?: InvItem; onClose: () => voi
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

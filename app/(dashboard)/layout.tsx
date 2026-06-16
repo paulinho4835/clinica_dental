@@ -20,7 +20,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, clinics(name, features, active)")
+    .select("full_name, role, active, clinics(name, features, active)")
     .eq("id", user.id)
     .single();
 
@@ -33,6 +33,24 @@ export default async function DashboardLayout({
   const clinic = profile?.clinics as
     | { name?: string; features?: unknown; active?: boolean }
     | null;
+
+  // Usuario desactivado: conserva todos sus datos pero no puede operar. El
+  // superadmin en vista previa nunca se bloquea (su perfil temporal es active).
+  const profileActive = (profile as { active?: boolean } | null)?.active ?? true;
+  if (!superadmin && profile && profileActive === false) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-md rounded-xl bg-white p-8 text-center shadow ring-1 ring-slate-200">
+          <h1 className="text-xl font-bold text-slate-800">Cuenta desactivada</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Tu cuenta fue desactivada. Si crees que es un error, contacta al
+            administrador de tu clínica para reactivarla.
+          </p>
+        </div>
+        <Toaster />
+      </main>
+    );
+  }
 
   // Clínica dada de baja: bloquea el acceso a sus usuarios (el superadmin sí
   // entra, pues opera la plataforma, no una clínica).

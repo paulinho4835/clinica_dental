@@ -13,6 +13,7 @@ import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getClinicFeatures } from "@/lib/superadmin";
 import { RemindersPanel, type ReminderRow } from "@/components/ajustes/RemindersPanel";
 import { ClinicalHoursPanel } from "@/components/ajustes/ClinicalHoursPanel";
+import { WhatsAppPanel } from "@/components/ajustes/WhatsAppPanel";
 import { getClinicalHours, type ClinicalHours } from "@/lib/clinicalHours";
 
 export default async function SettingsPage() {
@@ -112,10 +113,13 @@ export default async function SettingsPage() {
   if (isClinicAdmin && profile) {
     const [platformAdminIds, { data: profiles }] = await Promise.all([
       getPlatformAdminIds(),
+      // Solo usuarios activos: a un usuario desactivado lo gestiona únicamente el
+      // superadmin; el admin de clínica ni siquiera lo ve en su equipo.
       supabase
         .from("profiles")
         .select("id, full_name, role")
         .eq("clinic_id", profile.clinicId)
+        .eq("active", true)
         .order("full_name"),
     ]);
 
@@ -150,6 +154,17 @@ export default async function SettingsPage() {
             presupuestos y reportes.
           </p>
           <ClinicProfilePanel profile={clinicProfile} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.whatsapp && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">WhatsApp Baileys</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Conecta el número de WhatsApp de tu clínica para enviar recordatorios automáticos.
+            Escanea el código QR con la app de WhatsApp en el teléfono de la clínica.
+          </p>
+          <WhatsAppPanel canWrite={canWrite} />
         </section>
       )}
 

@@ -2,9 +2,11 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { SignaturePad, type SignaturePadRef } from "./SignaturePad";
 import { createConsent } from "@/app/(dashboard)/pacientes/consent-actions";
 import { fillPlaceholders, todayFormatted } from "@/lib/consent-utils";
+import { useDismissable } from "@/components/ui/useDismissable";
 
 export type ConsentTemplate = { id: string; title: string; body: string };
 export type ConsentAppointment = { id: string; startsAt: string; reason: string | null };
@@ -27,6 +29,7 @@ export function ConsentModal({
   onClose: () => void;
 }) {
   const router = useRouter();
+  useDismissable(onClose);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPad, setShowPad] = useState(false);
@@ -109,9 +112,10 @@ export function ConsentModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            aria-label="Cerrar"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           >
-            ✕
+            <X className="h-5 w-5" />
           </button>
         </div>
 

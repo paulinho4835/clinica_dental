@@ -76,11 +76,14 @@ export default async function PatientPage({
   const isDoctor =
     profile?.role === "odontologo_general" || profile?.role === "especialista";
 
+  // Solo doctores activos en el selector de asignación de tratamientos; los
+  // trabajos ya registrados conservan el nombre del doctor aunque se desactive.
   let dentistsQuery = supabase
     .from("profiles")
     .select("id, full_name")
     .in("role", ["odontologo_general", "especialista", "admin"])
     .eq("clinic_id", patient.clinic_id)
+    .eq("active", true)
     .order("full_name");
   if (platformAdminIds.length > 0) {
     dentistsQuery = dentistsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
