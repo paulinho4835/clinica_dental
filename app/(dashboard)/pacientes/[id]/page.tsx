@@ -6,6 +6,7 @@ import { can, canSeeNav } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
+import { DeletePatientButton } from "@/components/patients/DeletePatientButton";
 import {
   WorkStatusPanel,
   VisitasPanel,
@@ -63,6 +64,7 @@ export default async function PatientPage({
   const platformAdminIdSet = new Set(platformAdminIds);
   const canSeeHistory = profile?.role === "admin";
   const canClinical = can(profile?.role, "clinical:write");
+  const canDelete = can(profile?.role, "patients:delete");
   const canBilling = can(profile?.role, "billing:write");
   const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
   // Registro clínico (evolución y odontograma): solo admin y doctores pueden
@@ -261,18 +263,26 @@ export default async function PatientPage({
       <header>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-          {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón.
-              Para doctores se omiten teléfono/email/dirección incluso del payload. */}
-          {canEditClinical && (
-            <EditPatientForm
-              patient={
-                isDoctor
-                  ? { ...patient, phone: null, email: null, address: null }
-                  : patient
-              }
-              restricted={isDoctor}
-            />
-          )}
+          <div className="flex items-start gap-2">
+            {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón.
+                Para doctores se omiten teléfono/email/dirección incluso del payload. */}
+            {canEditClinical && (
+              <EditPatientForm
+                patient={
+                  isDoctor
+                    ? { ...patient, phone: null, email: null, address: null }
+                    : patient
+                }
+                restricted={isDoctor}
+              />
+            )}
+            {canDelete && (
+              <DeletePatientButton
+                patientId={patient.id}
+                patientName={patient.full_name}
+              />
+            )}
+          </div>
         </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}

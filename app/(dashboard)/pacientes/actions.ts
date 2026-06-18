@@ -257,6 +257,32 @@ export async function deleteEvolutionNote(
   return { ok: true };
 }
 
+export async function deletePatient(id: string): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "patients:delete"))
+    return { error: "Sin permiso para eliminar pacientes." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("patients")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", profile.clinicId);
+
+  if (error) {
+    if (error.code === "23503")
+      return {
+        error:
+          "No se puede eliminar: el paciente tiene citas, facturas o pagos registrados. Elimínalos primero.",
+      };
+    return { error: error.message };
+  }
+
+  revalidatePath("/pacientes");
+  return { ok: true };
+}
+
 // Registro rápido desde la agenda: crea un paciente con lo mínimo (nombre + CI
 // + teléfono) y DEVUELVE su id para vincularlo a la cita en el acto.
 const QuickPatientSchema = z.object({

@@ -194,7 +194,15 @@ export async function deleteClinic(formData: FormData) {
     .select("id")
     .eq("clinic_id", clinicId);
 
+  // Nunca eliminar cuentas de platform admins aunque tengan perfil en esta clínica
+  // (puede ocurrir si el superadmin estaba en modo vista previa de la clínica).
+  const { data: platformAdmins } = await admin
+    .from("platform_admins")
+    .select("user_id");
+  const safeIds = new Set((platformAdmins ?? []).map((pa) => pa.user_id));
+
   for (const p of profiles ?? []) {
+    if (safeIds.has(p.id)) continue;
     await admin.auth.admin.deleteUser(p.id);
   }
 
