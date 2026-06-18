@@ -105,11 +105,21 @@ export default async function AgendaPage({
         : patientsQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
   }
 
-  const [{ data: appts }, { data: patients }, { data: doctors }] = await Promise.all([
+  const [{ data: appts }, { data: patients }, { data: doctorsRaw }] = await Promise.all([
     apptsQuery,
     patientsQuery,
     doctorsQuery ?? Promise.resolve({ data: [] }),
   ]);
+
+  // Doctores que ve el modal para el campo "Odontólogo".
+  // Admin/recepcionista: lista completa. Doctor: solo él mismo, así el
+  // modal muestra un select preseleccionado con su nombre exacto y el
+  // valor guardado en dentist_name siempre coincide con profile.full_name.
+  const doctors = canViewAll
+    ? (doctorsRaw ?? [])
+    : profile
+    ? [{ id: profile.userId, full_name: profile.fullName }]
+    : [];
 
   return (
     <div className="space-y-6">
