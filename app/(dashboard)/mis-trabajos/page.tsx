@@ -43,7 +43,7 @@ type WorkRow = {
   commission_paid: boolean;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
-  collected_by: { full_name?: string } | null;
+  collected_by: { name?: string } | null;
 };
 
 type DoctorSummaryRow = {
@@ -85,7 +85,7 @@ export default async function MisTrabajosPage({
   let worksQuery = worksClient
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:profiles!doctor_works_collected_by_id_fkey(full_name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -110,13 +110,13 @@ export default async function MisTrabajosPage({
 
   const platformAdminIds = canPickDoctor ? await getPlatformAdminIds() : [];
 
-  let recepcionistasQuery = isRecepcionista
+  let recepcionistasQuery = (isRecepcionista || isAdmin) && profile
     ? supabase
-        .from("profiles")
-        .select("id, full_name")
-        .eq("role", "recepcionista")
-        .eq("clinic_id", profile!.clinicId)
-        .order("full_name")
+        .from("clinic_receptionists")
+        .select("id, name")
+        .eq("clinic_id", profile.clinicId)
+        .eq("active", true)
+        .order("name")
     : null;
 
   let doctorsQuery = canPickDoctor
@@ -210,7 +210,7 @@ export default async function MisTrabajosPage({
     fecha: w.performed_at,
     paciente: w.patients?.full_name ?? w.patient_name ?? "",
     doctor: w.doctor?.full_name ?? "",
-    cobrado_por: w.collected_by?.full_name ?? "",
+    cobrado_por: w.collected_by?.name ?? "",
     trabajo: w.description,
     lab_trabajo: w.lab_work ?? "",
     costo: Number(w.cost),
@@ -278,7 +278,7 @@ export default async function MisTrabajosPage({
           patients={patients ?? []}
           today={today}
           doctors={canPickDoctor ? sortedDoctors : undefined}
-          recepcionistas={isRecepcionista ? (recepData ?? []) : undefined}
+          recepcionistas={canPickDoctor ? (recepData ?? []) : undefined}
         />
       )}
 
@@ -406,7 +406,7 @@ export default async function MisTrabajosPage({
                   </span>
                 )}
                 <span className="truncate text-slate-500">
-                  {w.collected_by?.full_name ?? <span className="text-slate-300">—</span>}
+                  {w.collected_by?.name ?? <span className="text-slate-300">—</span>}
                 </span>
                 <span className="truncate text-slate-600">
                   {w.description}

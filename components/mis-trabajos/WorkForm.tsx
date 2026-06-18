@@ -15,7 +15,7 @@ const initial: ActionState = {};
 
 type Patient = { id: string; full_name: string; national_id?: string | null };
 type Doctor = { id: string; full_name: string };
-type Recepcionista = { id: string; full_name: string };
+type Recepcionista = { id: string; name: string };
 
 const PAYMENT_METHODS = [
   { value: "cash",  label: "Efectivo" },
@@ -512,7 +512,7 @@ export function WorkForm({
               >
                 <option value="">Selecciona recepcionista…</option>
                 {recepcionistas!.map((r) => (
-                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                  <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
             </label>

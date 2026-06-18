@@ -15,6 +15,10 @@ import { RemindersPanel, type ReminderRow } from "@/components/ajustes/Reminders
 import { ClinicalHoursPanel } from "@/components/ajustes/ClinicalHoursPanel";
 import { WhatsAppPanel } from "@/components/ajustes/WhatsAppPanel";
 import { getClinicalHours, type ClinicalHours } from "@/lib/clinicalHours";
+import {
+  ReceptionistasPanel,
+  type ReceptionistaRow,
+} from "@/components/ajustes/ReceptionistasPanel";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -106,6 +110,18 @@ export default async function SettingsPage() {
         isSystem: false,
         clinicId: t.clinic_id as string,
       }));
+  }
+
+  // Recepcionistas (nombres para "Cobrado por" en Mis Trabajos, sin cuenta propia).
+  let receptionistas: ReceptionistaRow[] = [];
+  if (isClinicAdmin && profile) {
+    const { data } = await supabase
+      .from("clinic_receptionists")
+      .select("id, name")
+      .eq("clinic_id", profile.clinicId)
+      .eq("active", true)
+      .order("name");
+    receptionistas = (data ?? []) as ReceptionistaRow[];
   }
 
   // Equipo (cuentas con login): solo lo gestiona el admin de la clínica.
@@ -210,6 +226,17 @@ export default async function SettingsPage() {
             systemTemplates={systemTemplates}
             clinicTemplates={clinicTemplates}
           />
+        </section>
+      )}
+
+      {isClinicAdmin && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Recepcionistas</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Nombres que aparecerán en el campo "Cobrado por" al registrar trabajos.
+            Útil cuando varias recepcionistas comparten una misma cuenta.
+          </p>
+          <ReceptionistasPanel receptionistas={receptionistas} />
         </section>
       )}
 

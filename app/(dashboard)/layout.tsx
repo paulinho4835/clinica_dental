@@ -79,24 +79,12 @@ export default async function DashboardLayout({
   const features = normalizeFeatures(clinic?.features);
   const role = profile?.role as Role | undefined;
 
-  // Badge de stock bajo: solo para admin con módulo inventario activo.
-  let lowStockCount = 0;
-  if (role === "admin" && features.inventario) {
-    const { data: stockItems } = await supabase
-      .from("inventory_items")
-      .select("min_stock, current_stock");
-    lowStockCount = (stockItems ?? []).filter(
-      (it) => Number(it.current_stock) <= Number(it.min_stock),
-    ).length;
-  }
-
   const nav =
     superadmin && !isPreview
       ? []
       : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key)).map((f) => ({
           href: f.href,
           label: f.label,
-          badge: f.key === "inventario" && lowStockCount > 0 ? lowStockCount : undefined,
         }));
 
   const initials =
