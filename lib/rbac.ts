@@ -37,7 +37,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "clinical:write", "billing:write", "expenses:write", "inventory:write", "settings:write",
   ],
   recepcionista: [
-    "patients:read", "patients:write", "patients:delete", "appointments:write",
+    "patients:read", "patients:write", "appointments:write",
     "clinical:write", "billing:write",
   ],
   odontologo_general: ["patients:read", "patients:write", "appointments:write", "clinical:write"],
