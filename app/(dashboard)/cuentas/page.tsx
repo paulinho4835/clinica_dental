@@ -62,18 +62,24 @@ export default async function CuentasPacientesPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
+  // Las recepcionistas viven en clinic_receptionists (no en profiles); columna `name`.
   let recepcionistasQuery = supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("role", "recepcionista")
+    .from("clinic_receptionists")
+    .select("id, name")
     .eq("clinic_id", profile!.clinicId)
     .eq("active", true)
-    .order("full_name");
+    .order("name");
 
-  const [{ data: doctors }, { data: recepcionistas }] = await Promise.all([
+  const [{ data: doctors }, { data: recepcionistasRaw }] = await Promise.all([
     doctorsQuery,
     recepcionistasQuery,
   ]);
+
+  // PatientHistoryPanel espera { id, full_name }: mapeamos name -> full_name.
+  const recepcionistas = (recepcionistasRaw ?? []).map((r) => ({
+    id: r.id as string,
+    full_name: r.name as string,
+  }));
 
   if (selectedId) {
     const { data: pat } = await supabase
@@ -89,7 +95,7 @@ export default async function CuentasPacientesPage({
         supabase
           .from("payments")
           .select(
-            "id, amount, method, note, received_at, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:profiles!payments_collected_by_id_fkey(full_name)",
+            "id, amount, method, note, received_at, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:clinic_receptionists!payments_collected_by_id_fkey(name)",
           )
           .eq("patient_id", selectedId)
           .order("received_at", { ascending: false }),
@@ -109,7 +115,7 @@ export default async function CuentasPacientesPage({
         doctorName:
           ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
         collectedByName:
-          ((p.collected_by as { full_name?: string } | null)?.full_name) ?? null,
+          ((p.collected_by as { name?: string } | null)?.name) ?? null,
       }));
 
       workRows = (works ?? []).map((w) => ({
