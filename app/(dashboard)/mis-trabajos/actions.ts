@@ -68,9 +68,10 @@ export async function createDoctorWork(
   if (!d.patient_id && !d.patient_name)
     return { error: "Indica el paciente (registrado o por nombre)." };
 
-  // Admin se asigna a sí mismo como "cobrado por" si no se indicó otro.
-  const resolvedCollectedById =
-    d.collected_by_id ?? (profile.role === "admin" ? profile.userId : null);
+  // "Cobrado por" referencia clinic_receptionists (no profiles). Si no se
+  // indicó recepcionista, queda null: NO se puede usar profile.userId (es un id
+  // de profiles) porque violaría el FK doctor_works/payments_collected_by_id_fkey.
+  const resolvedCollectedById = d.collected_by_id ?? null;
 
   const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
 
