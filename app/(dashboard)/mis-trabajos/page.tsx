@@ -90,7 +90,11 @@ export default async function MisTrabajosPage({
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (isRecepcionista && profile) {
+  // Aislamiento por clínica EXPLÍCITO (defensa en profundidad), no opcional:
+  // el cliente de recepcionista usa service_role y NO aplica RLS, así que este
+  // filtro es la ÚNICA barrera contra ver trabajos de otras clínicas. Para los
+  // demás roles refuerza la RLS por si el claim clinic_id del JWT no estuviera.
+  if (profile) {
     worksQuery = worksQuery.eq("clinic_id", profile.clinicId);
   }
   if (canPickDoctor && selectedDoctor && selectedDoctor !== "all") {
@@ -119,11 +123,12 @@ export default async function MisTrabajosPage({
         .order("name")
     : null;
 
-  let doctorsQuery = canPickDoctor
+  let doctorsQuery = canPickDoctor && profile
     ? supabase
         .from("profiles")
         .select("id, full_name, role")
         .in("role", ["admin", "odontologo_general", "especialista"])
+        .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name")
     : null;
@@ -135,6 +140,9 @@ export default async function MisTrabajosPage({
     .from("patients")
     .select("id, full_name, national_id")
     .order("full_name");
+  if (profile) {
+    patientsQuery = patientsQuery.eq("clinic_id", profile.clinicId);
+  }
   if (!canPickDoctor && profile) {
     const [{ data: apptP }, { data: workP }] = await Promise.all([
       supabase

@@ -25,10 +25,12 @@ export default async function CuentasPacientesPage({
   const profile = await getProfile();
   const canBilling = can(profile?.role, "billing:write");
 
-  // Lista de pacientes (búsqueda opcional).
+  // Lista de pacientes (búsqueda opcional). Aislamiento por clínica explícito
+  // (defensa en profundidad) además de la RLS.
   let patientsQuery = supabase
     .from("patients")
     .select("id, full_name, phone, national_id")
+    .eq("clinic_id", profile!.clinicId)
     .order("full_name")
     .limit(60);
 

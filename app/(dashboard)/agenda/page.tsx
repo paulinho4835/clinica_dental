@@ -54,6 +54,12 @@ export default async function AgendaPage({
     .neq("status", "cancelled")
     .order("starts_at", { ascending: true });
 
+  // Aislamiento por clínica EXPLÍCITO (defensa en profundidad): refuerza la RLS
+  // para que la agenda nunca muestre citas de otra clínica.
+  if (profile) {
+    apptsQuery = apptsQuery.eq("clinic_id", profile.clinicId);
+  }
+
   // Solo doctores ven únicamente sus citas; admin y recepcionista ven todas.
   if (!canViewAll && myName) {
     apptsQuery = apptsQuery.eq("dentist_name", myName);
@@ -61,11 +67,12 @@ export default async function AgendaPage({
 
   // Query de odontólogos (dropdown de admin y recepcionista), excluyendo
   // superadmins y usuarios desactivados (no se asignan citas nuevas a ellos).
-  let doctorsQuery = canViewAll
+  let doctorsQuery = canViewAll && profile
     ? supabase
         .from("profiles")
         .select("id, full_name")
         .in("role", ["odontologo_general", "especialista", "admin"])
+        .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name")
     : null;
@@ -80,6 +87,9 @@ export default async function AgendaPage({
     .from("patients")
     .select("id, full_name, national_id")
     .order("full_name");
+  if (profile) {
+    patientsQuery = patientsQuery.eq("clinic_id", profile.clinicId);
+  }
   if (isDoctor && profile) {
     const [{ data: apptP }, { data: workP }] = await Promise.all([
       supabase
