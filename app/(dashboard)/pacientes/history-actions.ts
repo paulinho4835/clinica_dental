@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 
@@ -69,12 +68,12 @@ export async function addPatientPayment(
   if (error) return { error: error.message };
 
   // Si hay doctor, registrar automáticamente en Mis trabajos.
-  // Recepcionistas usan admin client (RLS del doctor_works_own solo permite admin o el propio doctor).
+  // Cliente normal con RLS (ya no service-role): la migración 0055 permite a la
+  // recepcionista insertar trabajos de su clínica.
   // El pago ya se insertó arriba; si esto falla hay que avisar para no dejar el
   // pago sin su trabajo asociado (descuadre entre cuentas y comisiones).
   if (d.doctor_id) {
-    const worksClient = isRecepcionista ? createAdminClient() : supabase;
-    const { error: workError } = await worksClient.from("doctor_works").insert({
+    const { error: workError } = await supabase.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
       patient_id: d.patient_id,

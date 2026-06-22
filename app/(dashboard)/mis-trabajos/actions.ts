@@ -96,17 +96,19 @@ export async function createDoctorWork(
 
   if (canPickDoctor) {
     if (!d.doctor_id) return { error: "Selecciona el doctor que realizó el trabajo." };
-    const admin = createAdminClient();
-    // Verificar que el doctor pertenece a la misma clínica.
-    const { data: doctorProfile } = await admin
+    // Cliente normal con RLS (ya no service-role): la migración 0055 permite a la
+    // recepcionista insertar trabajos de su clínica. La RLS de profiles ya escopa
+    // por clínica, así que esta verificación solo encuentra doctores propios.
+    const supabase = await createClient();
+    const { data: doctorProfile } = await supabase
       .from("profiles")
       .select("clinic_id")
       .eq("id", d.doctor_id)
-      .single();
+      .maybeSingle();
     if (!doctorProfile || doctorProfile.clinic_id !== profile.clinicId)
       return { error: "Doctor no encontrado en tu clínica." };
     actualDoctorId = d.doctor_id;
-    const { error } = await admin.from("doctor_works").insert({
+    const { error } = await supabase.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
       ...insertData,

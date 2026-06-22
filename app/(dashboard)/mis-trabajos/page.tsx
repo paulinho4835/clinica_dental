@@ -1,6 +1,5 @@
 import { Briefcase, Banknote, Percent, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
 import { bs, boliviaTodayISO, fmtBoliviaTime } from "@/lib/format";
@@ -81,8 +80,10 @@ export default async function MisTrabajosPage({
       : doctorParam || (isAdmin ? (profile?.userId ?? "") : "all")
     : "";
 
-  const worksClient = isRecepcionista ? createAdminClient() : supabase;
-  let worksQuery = worksClient
+  // Cliente normal con RLS para todos los roles (ya no service-role): la
+  // migración 0055 da a la recepcionista acceso de lectura por RLS. El
+  // aislamiento por clínica queda doblemente cubierto (RLS + filtro explícito).
+  let worksQuery = supabase
     .from("doctor_works")
     .select(
       "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
