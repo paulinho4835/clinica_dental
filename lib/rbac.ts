@@ -9,9 +9,10 @@ export type Role =
   | "especialista"
   | "asistente";
 
-// Roles con permisos equivalentes a recepcionista (copia funcional para clínicas colaboradoras).
+// Roles con acceso de recepción: ven toda la clínica y pueden asignar trabajos a otros.
+// Colega NO entra aquí: solo ve sus propios datos (como un doctor).
 export function isReceptionistLike(role: Role | undefined): boolean {
-  return role === "recepcionista" || role === "colega";
+  return role === "recepcionista";
 }
 
 // Módulos del menú lateral visibles por rol.
@@ -47,6 +48,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "patients:read", "patients:write", "appointments:write",
     "clinical:write", "billing:write",
   ],
+  // Colega: como doctor pero con billing:write para registrar sus propios cobros.
+  // Solo ve su propia agenda y sus propios trabajos (canViewAll = false).
   colega: [
     "patients:read", "patients:write", "appointments:write",
     "clinical:write", "billing:write",
