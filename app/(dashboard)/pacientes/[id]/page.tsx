@@ -67,12 +67,13 @@ export default async function PatientPage({
   const canDelete = can(profile?.role, "patients:delete");
   const canBilling = can(profile?.role, "billing:write");
   const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
-  // Registro clínico (evolución y odontograma): solo admin y doctores pueden
+  // Registro clínico (evolución y odontograma): admin, doctores y colega pueden
   // modificar (NO recepcionista, aunque ésta tenga clinical:write para otras cosas).
   const canEditClinical =
     profile?.role === "admin" ||
     profile?.role === "odontologo_general" ||
-    profile?.role === "especialista";
+    profile?.role === "especialista" ||
+    profile?.role === "colega";
   // Doctores: vista restringida del paciente (solo lectura de datos personales,
   // editan únicamente alergias y alertas médicas).
   const isDoctor =
