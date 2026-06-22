@@ -70,9 +70,11 @@ export async function addPatientPayment(
 
   // Si hay doctor, registrar automáticamente en Mis trabajos.
   // Recepcionistas usan admin client (RLS del doctor_works_own solo permite admin o el propio doctor).
+  // El pago ya se insertó arriba; si esto falla hay que avisar para no dejar el
+  // pago sin su trabajo asociado (descuadre entre cuentas y comisiones).
   if (d.doctor_id) {
     const worksClient = isRecepcionista ? createAdminClient() : supabase;
-    await worksClient.from("doctor_works").insert({
+    const { error: workError } = await worksClient.from("doctor_works").insert({
       clinic_id: profile.clinicId,
       doctor_id: d.doctor_id,
       patient_id: d.patient_id,
@@ -84,6 +86,10 @@ export async function addPatientPayment(
       performed_at: new Date().toISOString().split("T")[0],
       collected_by_id: d.collected_by_id ?? null,
     });
+    if (workError)
+      return {
+        error: `El pago se registró, pero no se pudo reflejar en Mis trabajos: ${workError.message}`,
+      };
   }
 
   revalidatePath(`/pacientes/${d.patient_id}`);

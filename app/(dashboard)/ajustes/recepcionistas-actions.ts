@@ -36,9 +36,13 @@ export async function removeReceptionista(id: string): Promise<ActionState> {
   if (!profile || profile.role !== "admin") return { error: "Sin permiso." };
 
   const supabase = await createClient();
+  // Soft-delete (active=false), NO delete físico: el FK collected_by_id usa
+  // ON DELETE SET NULL, así que borrarla en duro perdería la atribución de
+  // "cobrado por" de todos sus pagos históricos. La lista y los dropdowns ya
+  // filtran active=true, así que desaparece de la UI igual.
   const { error } = await supabase
     .from("clinic_receptionists")
-    .delete()
+    .update({ active: false })
     .eq("id", id)
     .eq("clinic_id", profile.clinicId);
   if (error) return { error: error.message };

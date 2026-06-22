@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { createDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
 import { toast } from "@/lib/toast";
 import { bs } from "@/lib/format";
+import { computeCommission, netRate as netRateFn } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -79,8 +80,14 @@ export function WorkForm({
   const treatmentLabCostN = planItemLabCostN > 0 ? planItemLabCostN : labCostN;
 
   // Comisión proporcional: cada cuota aporta su fracción de la ganancia neta.
-  const netRate = costN > 0 ? Math.max(0, costN - treatmentLabCostN) / costN : 1;
-  const commission = Math.round(amountPaidN * netRate * pctN) / 100;
+  // Usa la misma fórmula que la columna generada en la DB (lib/commission).
+  const netRate = netRateFn(costN, treatmentLabCostN);
+  const commission = computeCommission({
+    amountPaid: amountPaidN,
+    cost: costN,
+    labCost: treatmentLabCostN,
+    pct: pctN,
+  });
 
   // Buscar pacientes por query.
   const filtered =

@@ -125,9 +125,11 @@ export async function createDoctorWork(
 
   // Si se cobró algo a un paciente registrado, reflejar también en payments
   // para que aparezca en el historial de pagos del paciente.
+  // IMPORTANTE: verificar el error. Un insert fallido silencioso dejaría el
+  // trabajo registrado pero el pago invisible en la ficha/cuentas del paciente.
   if (d.amount_paid > 0 && d.patient_id && paymentMethod) {
     const supabase = await createClient();
-    await supabase.from("payments").insert({
+    const { error: payError } = await supabase.from("payments").insert({
       clinic_id: profile.clinicId,
       patient_id: d.patient_id,
       amount: d.amount_paid,
@@ -139,6 +141,10 @@ export async function createDoctorWork(
       collected_by_id: resolvedCollectedById,
       treatment_item_id: d.treatment_item_id ?? null,
     });
+    if (payError)
+      return {
+        error: `El trabajo se guardó, pero el pago no se registró en la cuenta del paciente: ${payError.message}`,
+      };
   }
 
   // Persistir el % de comisión en el catálogo si aún no tenía uno definido.
