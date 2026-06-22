@@ -15,6 +15,7 @@ import { DateRangeFilter } from "@/components/mis-trabajos/DateRangeFilter";
 import { ExportCsvButton, type CsvWorkRow } from "@/components/mis-trabajos/ExportCsvButton";
 import { PrintPdfButton } from "@/components/mis-trabajos/PrintPdfButton";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
+import { isReceptionistLike } from "@/lib/rbac";
 
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
@@ -61,7 +62,7 @@ export default async function MisTrabajosPage({
   const supabase = await createClient();
   const profile = await getProfile();
   const isAdmin = profile?.role === "admin";
-  const isRecepcionista = profile?.role === "recepcionista";
+  const isRecepcionista = isReceptionistLike(profile?.role);
   const isDoctor = profile?.role === "odontologo_general" || profile?.role === "especialista";
   const canPickDoctor = isAdmin || isRecepcionista;
   const today = boliviaTodayISO();

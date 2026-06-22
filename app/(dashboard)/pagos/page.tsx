@@ -25,6 +25,7 @@ const ROLE_LABEL: Record<string, string> = {
   odontologo_general: "Odontólogo",
   especialista: "Especialista",
   recepcionista: "Recepcionista",
+  colega: "Colega",
   asistente: "Asistente",
 };
 

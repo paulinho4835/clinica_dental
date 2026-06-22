@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, isReceptionistLike } from "@/lib/rbac";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -30,7 +30,7 @@ export async function addPatientPayment(
   if (!can(profile.role, "billing:write"))
     return { error: "Sin permiso para registrar pagos." };
 
-  const isRecepcionista = profile.role === "recepcionista";
+  const isRecepcionista = isReceptionistLike(profile.role);
 
   const parsed = PaymentSchema.safeParse({
     patient_id: formData.get("patient_id"),

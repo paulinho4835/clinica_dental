@@ -17,15 +17,16 @@ export type TeamMember = {
 };
 
 // Roles asignables por el admin de clínica (admin queda fuera a propósito).
-// Solo recepcionista y odontólogo general; especialista/asistente se ocultan.
 const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "recepcionista", label: "Recepcionista" },
+  { value: "colega", label: "Colega" },
   { value: "odontologo_general", label: "Odontólogo general" },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
   recepcionista: "Recepcionista",
+  colega: "Colega",
   odontologo_general: "Odontólogo general",
   especialista: "Especialista",
   asistente: "Asistente",

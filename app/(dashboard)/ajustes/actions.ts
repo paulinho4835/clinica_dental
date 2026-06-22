@@ -75,6 +75,7 @@ export async function toggleDoctorActive(
 // Roles que un admin de clínica puede asignar (admin queda excluido a propósito).
 const TEAM_ROLES = [
   "recepcionista",
+  "colega",
   "odontologo_general",
   "especialista",
   "asistente",

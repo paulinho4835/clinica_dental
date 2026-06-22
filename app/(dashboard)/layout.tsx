@@ -95,6 +95,7 @@ export default async function DashboardLayout({
   const ROLE_LABEL: Record<string, string> = {
     admin: "Administrador",
     recepcionista: "Recepcionista",
+    colega: "Colega",
     odontologo_general: "Odontólogo",
     especialista: "Especialista",
     asistente: "Asistente",

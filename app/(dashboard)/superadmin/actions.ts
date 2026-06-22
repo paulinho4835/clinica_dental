@@ -80,7 +80,7 @@ const addUserSchema = z.object({
   email: z.string().email("Email inválido"),
   fullName: z.string().min(2, "Nombre muy corto"),
   password: z.string().min(8, "Mínimo 8 caracteres"),
-  role: z.enum(["admin", "recepcionista", "odontologo_general", "especialista", "asistente"]),
+  role: z.enum(["admin", "recepcionista", "colega", "odontologo_general", "especialista", "asistente"]),
 });
 
 export async function addClinicUser(_prev: unknown, formData: FormData) {
@@ -127,7 +127,7 @@ export async function updateUserRole(formData: FormData) {
   await assertSuperadmin();
   const userId = String(formData.get("userId") ?? "");
   const role = String(formData.get("role") ?? "");
-  const valid = ["admin", "recepcionista", "odontologo_general", "especialista", "asistente"];
+  const valid = ["admin", "recepcionista", "colega", "odontologo_general", "especialista", "asistente"];
   if (!userId || !valid.includes(role)) return;
   const admin = createAdminClient();
   await admin.from("profiles").update({ role }).eq("id", userId);

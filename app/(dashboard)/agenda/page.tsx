@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, isReceptionistLike } from "@/lib/rbac";
 import { AgendaShell, type AgendaView } from "@/components/agenda/AgendaShell";
 import { RealtimeAppointments } from "@/components/agenda/RealtimeAppointments";
 import { requireFeature } from "@/lib/guard";
@@ -36,7 +36,7 @@ export default async function AgendaPage({
   ]);
   const writable = can(profile?.role, "appointments:write");
   const isAdmin = profile?.role === "admin";
-  const isRecepcionista = profile?.role === "recepcionista";
+  const isRecepcionista = isReceptionistLike(profile?.role);
   // Admin y recepcionista pueden ver y filtrar la agenda de todos los doctores.
   const canViewAll = isAdmin || isRecepcionista;
 

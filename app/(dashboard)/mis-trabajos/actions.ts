@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
-import { canSeeNav } from "@/lib/rbac";
+import { canSeeNav, isReceptionistLike } from "@/lib/rbac";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -39,7 +39,7 @@ export async function createDoctorWork(
   if (!canSeeNav(profile.role, "mis_trabajos"))
     return { error: "Sin permiso para registrar trabajos." };
 
-  const isRecepcionista = profile.role === "recepcionista";
+  const isRecepcionista = isReceptionistLike(profile.role);
   // Admin y recepcionista registran trabajos en nombre de un doctor:
   // deben indicar a quién se le atribuye (la comisión es de ese doctor).
   const canPickDoctor = profile.role === "admin" || isRecepcionista;
