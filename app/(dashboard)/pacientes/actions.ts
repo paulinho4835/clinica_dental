@@ -84,9 +84,12 @@ export async function updatePatient(
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
 
-  // Solo admin y doctores editan pacientes (recepcionista y asistente NO).
+  // Solo admin, doctores y colega editan pacientes (recepcionista y asistente NO).
+  // Colega edita como doctor: solo alergias y alertas médicas.
   const isDoctor =
-    profile.role === "odontologo_general" || profile.role === "especialista";
+    profile.role === "odontologo_general" ||
+    profile.role === "especialista" ||
+    profile.role === "colega";
   const isAdmin = profile.role === "admin";
   if (!isAdmin && !isDoctor)
     return { error: "Sin permiso para editar pacientes." };
@@ -152,8 +155,21 @@ export type EvolutionNote = {
   author_id: string | null;
   author_name: string;
   body: string;
+  note_type: "free" | "soap";
+  appointment_id: string | null;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
   created_at: string;
   updated_at: string;
+};
+
+export type SoapFields = {
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
 };
 
 // Versión anterior de una nota (capturada por el trigger al editar/borrar).
@@ -162,12 +178,17 @@ export type EvolutionNoteHistory = {
   note_id: string;
   author_name: string;
   body: string;
+  note_type: "free" | "soap" | null;
+  subjective: string | null;
+  objective: string | null;
+  assessment: string | null;
+  plan: string | null;
   action: "edited" | "deleted";
   changed_at: string;
 };
 
 // Roles con potestad de anotar evolución clínica (excluye recepcionista/asistente).
-const EVOLUTION_ROLES = ["admin", "odontologo_general", "especialista"] as const;
+const EVOLUTION_ROLES = ["admin", "odontologo_general", "especialista", "colega"] as const;
 function canWriteEvolution(role: string | undefined): boolean {
   return EVOLUTION_ROLES.includes(role as (typeof EVOLUTION_ROLES)[number]);
 }
@@ -175,6 +196,7 @@ function canWriteEvolution(role: string | undefined): boolean {
 export async function addEvolutionNote(
   patientId: string,
   body: string,
+  opts?: { appointmentId?: string | null; soap?: SoapFields },
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
@@ -183,8 +205,17 @@ export async function addEvolutionNote(
   if (await clinicalLocked(profile.role, profile.clinicId))
     return { error: "Fuera del horario de edición permitido. La evolución está en modo lectura." };
 
+  const isSoap = !!opts?.soap;
   const text = body.trim();
-  if (!text) return { error: "La nota no puede estar vacía." };
+
+  if (!isSoap && !text) return { error: "La nota no puede estar vacía." };
+  if (isSoap) {
+    const s = opts!.soap!;
+    const hasContent = [s.subjective, s.objective, s.assessment, s.plan].some(
+      (v) => v.trim(),
+    );
+    if (!hasContent) return { error: "Completa al menos un campo de la nota SOAP." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("patient_evolution_notes").insert({
@@ -192,7 +223,13 @@ export async function addEvolutionNote(
     clinic_id: profile.clinicId,
     author_id: profile.userId,
     author_name: profile.fullName,
-    body: text,
+    body: isSoap ? "" : text,
+    note_type: isSoap ? "soap" : "free",
+    appointment_id: opts?.appointmentId ?? null,
+    subjective: opts?.soap?.subjective?.trim() ?? "",
+    objective: opts?.soap?.objective?.trim() ?? "",
+    assessment: opts?.soap?.assessment?.trim() ?? "",
+    plan: opts?.soap?.plan?.trim() ?? "",
   });
   if (error) return { error: error.message };
 
@@ -204,6 +241,7 @@ export async function updateEvolutionNote(
   noteId: string,
   patientId: string,
   body: string,
+  opts?: { soap?: SoapFields },
 ): Promise<ActionState> {
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
@@ -212,14 +250,27 @@ export async function updateEvolutionNote(
   if (await clinicalLocked(profile.role, profile.clinicId))
     return { error: "Fuera del horario de edición permitido. La evolución está en modo lectura." };
 
+  const isSoap = !!opts?.soap;
   const text = body.trim();
-  if (!text) return { error: "La nota no puede estar vacía." };
+  if (!isSoap && !text) return { error: "La nota no puede estar vacía." };
+
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (isSoap) {
+    updatePayload.subjective = opts!.soap!.subjective.trim();
+    updatePayload.objective  = opts!.soap!.objective.trim();
+    updatePayload.assessment = opts!.soap!.assessment.trim();
+    updatePayload.plan       = opts!.soap!.plan.trim();
+  } else {
+    updatePayload.body = text;
+  }
 
   const supabase = await createClient();
   // RLS ya impide editar notas ajenas; el filtro por author_id es defensa extra.
   const { data, error } = await supabase
     .from("patient_evolution_notes")
-    .update({ body: text, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq("id", noteId)
     .eq("author_id", profile.userId)
     .select("id");
