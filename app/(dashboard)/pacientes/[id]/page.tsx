@@ -311,7 +311,7 @@ export default async function PatientPage({
           anamnesis={parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data)}
           allergies={patient.allergies ?? []}
           medicalAlerts={patient.medical_alerts ?? []}
-          legacyAnamnesis={(patient as { anamnesis?: string | null }).anamnesis ?? null}
+          legacyAnamnesis={(() => { const v = (patient as { anamnesis?: unknown }).anamnesis; return typeof v === "string" ? v : v != null ? JSON.stringify(v) : null; })()}
           canEdit={canEditAnamnesis(profile?.role)}
         />
       </section>

@@ -27,24 +27,27 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ??
       "unknown";
 
-    const { success, remaining, reset } = await rl.limit(ip);
+    try {
+      const { success, remaining, reset } = await rl.limit(ip);
 
-    if (!success) {
-      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
-      return NextResponse.json(
-        { error: `Demasiados intentos. Espera ${Math.ceil(retryAfter / 60)} minuto${retryAfter > 60 ? "s" : ""} antes de volver a intentarlo.` },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(retryAfter),
-            "X-RateLimit-Remaining": "0",
+      if (!success) {
+        const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+        return NextResponse.json(
+          { error: `Demasiados intentos. Espera ${Math.ceil(retryAfter / 60)} minuto${retryAfter > 60 ? "s" : ""} antes de volver a intentarlo.` },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": String(retryAfter),
+              "X-RateLimit-Remaining": "0",
+            },
           },
-        },
-      );
-    }
+        );
+      }
 
-    // Exponer cuántos intentos quedan (útil para debugging, opcional)
-    void remaining;
+      void remaining;
+    } catch {
+      // Si Redis no responde (ej. en local sin conexión), se omite el rate limit.
+    }
   }
 
   // Parsear credenciales
