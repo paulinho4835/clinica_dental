@@ -17,6 +17,7 @@ const PaymentSchema = z.object({
   note: z.string().max(120).optional().nullable(),
   collected_by_id: z.string().uuid().optional().nullable(),
   received_at: z.string().optional().nullable(),
+  treatment_item_id: z.string().uuid().optional().nullable(),
 });
 
 // Registra un pago/adelanto del paciente desde la ficha.
@@ -41,6 +42,7 @@ export async function addPatientPayment(
     note: formData.get("note") || null,
     collected_by_id: formData.get("collected_by_id") || null,
     received_at: formData.get("received_at") || null,
+    treatment_item_id: formData.get("treatment_item_id") || null,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -64,6 +66,7 @@ export async function addPatientPayment(
     commission_pct: d.commission_pct,
     note: d.note ?? null,
     collected_by_id: d.collected_by_id ?? null,
+    treatment_item_id: d.treatment_item_id ?? null,
   });
   if (error) return { error: error.message };
 
@@ -84,6 +87,7 @@ export async function addPatientPayment(
       payment_method: d.method,
       performed_at: new Date().toISOString().split("T")[0],
       collected_by_id: d.collected_by_id ?? null,
+      treatment_item_id: d.treatment_item_id ?? null,
     });
     if (workError)
       return {

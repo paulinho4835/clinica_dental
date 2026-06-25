@@ -36,6 +36,13 @@ export type ApptRow = {
 
 type Recepcionista = { id: string; full_name: string };
 
+type PlanItem = {
+  id: string;
+  name: string;
+  price: number;
+  paidAmount: number;
+};
+
 const initial: ActionState = {};
 
 const PAY_GRID = "grid grid-cols-[10rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_7rem] items-center gap-x-3";
@@ -340,6 +347,19 @@ function PaymentForm({
   const [pct, setPct] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [collectedById, setCollectedById] = useState("");
+  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
+  const [itemId, setItemId] = useState("");
+
+  // Cargar ítems del plan para poder aplicar el pago a un tratamiento concreto
+  // (así sube la barra de progreso de ese ítem).
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/patients/${patientId}/plan-items`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => { if (!cancelled) setPlanItems(d.items ?? []); })
+      .catch(() => { if (!cancelled) setPlanItems([]); });
+    return () => { cancelled = true; };
+  }, [patientId]);
 
   const amountN = Number(amount) || 0;
   const pctN = Number(pct) || 0;
@@ -357,6 +377,7 @@ function PaymentForm({
       setPct("");
       setDoctorId("");
       setCollectedById("");
+      setItemId("");
       router.refresh();
     }
   }, [state, router]);
@@ -454,6 +475,37 @@ function PaymentForm({
               {recepcionistas!.map((r) => (
                 <option key={r.id} value={r.id}>{r.full_name}</option>
               ))}
+            </select>
+          </label>
+        )}
+
+        {planItems.length > 0 && (
+          <label className="text-xs">
+            <span className="mb-1 block text-slate-500">Aplicar a tratamiento (opcional)</span>
+            <select
+              name="treatment_item_id"
+              value={itemId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setItemId(id);
+                const item = planItems.find((p) => p.id === id);
+                if (item) {
+                  const restante = Math.max(0, item.price - item.paidAmount);
+                  if (!amount && restante > 0) setAmount(String(restante));
+                  if (noteRef.current && !noteRef.current.value) noteRef.current.value = item.name;
+                }
+              }}
+              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            >
+              <option value="">— Sin asignar —</option>
+              {planItems.map((p) => {
+                const restante = Math.max(0, p.price - p.paidAmount);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {restante > 0 ? `(debe ${bs(restante)})` : "(saldado)"}
+                  </option>
+                );
+              })}
             </select>
           </label>
         )}
