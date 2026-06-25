@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Pencil, ChevronDown } from "lucide-react";
+import { Lock, Pencil, ChevronDown, Printer } from "lucide-react";
 import {
   updateAnamnesis,
   type ActionState,
@@ -84,12 +84,24 @@ export function AnamnesisPanel({
     <Card className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-medium text-slate-800">Antecedentes médicos</h3>
-        {canEdit && (
-          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Editar antecedentes
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <a
+            href={`/pacientes/${patientId}/imprimir-anamnesis`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="secondary" size="sm" type="button">
+              <Printer className="h-3.5 w-3.5" />
+              Imprimir
+            </Button>
+          </a>
+          {canEdit && (
+            <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">

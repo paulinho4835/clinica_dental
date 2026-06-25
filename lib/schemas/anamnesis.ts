@@ -10,12 +10,22 @@ export const ANTECEDENTES_FIELDS = [
   { key: "vih", label: "VIH" },
   { key: "asma", label: "Asma" },
   { key: "epilepsia", label: "Epilepsia" },
+  { key: "tiroides", label: "Problemas de tiroides" },
+  { key: "artritis", label: "Artritis / reumatismo" },
+  { key: "osteoporosis", label: "Osteoporosis" },
+  { key: "renal", label: "Enfermedades renales" },
+  { key: "anemia", label: "Anemia" },
+  { key: "reaccion_anestesia", label: "Reacción a anestesia" },
+  { key: "alergia_latex", label: "Alergia al látex" },
+  { key: "cancer", label: "Cáncer / tumores" },
+  { key: "transfusion", label: "Transfusiones de sangre" },
 ] as const;
 
 export const HABITOS_FIELDS = [
   { key: "tabaco", label: "Tabaco" },
   { key: "alcohol", label: "Alcohol" },
   { key: "bruxismo", label: "Bruxismo" },
+  { key: "drogas", label: "Drogas" },
 ] as const;
 
 const antecedentesShape = Object.fromEntries(
