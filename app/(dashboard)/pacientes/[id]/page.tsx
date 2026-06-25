@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
-import { can, canSeeNav } from "@/lib/rbac";
+import { can, canSeeNav, canEditAnamnesis } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
@@ -31,6 +31,8 @@ import {
   type ConsentRow,
 } from "@/components/consents/ConsentsPanel";
 import { EvolutionPanel } from "@/components/patients/EvolutionPanel";
+import { AnamnesisPanel } from "@/components/patients/AnamnesisPanel";
+import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import type {
   ConsentTemplate,
   ConsentAppointment,
@@ -46,7 +48,7 @@ export default async function PatientPage({
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis, evolution")
+    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis, anamnesis_data, evolution")
     .eq("id", id)
     .single();
 
@@ -74,17 +76,19 @@ export default async function PatientPage({
     profile?.role === "odontologo_general" ||
     profile?.role === "especialista" ||
     profile?.role === "colega";
-  // Doctores: vista restringida del paciente (solo lectura de datos personales,
-  // editan únicamente alergias y alertas médicas).
+  // Doctores y colega: vista restringida del paciente (solo lectura de datos
+  // personales, editan únicamente alergias y alertas médicas).
   const isDoctor =
-    profile?.role === "odontologo_general" || profile?.role === "especialista";
+    profile?.role === "odontologo_general" ||
+    profile?.role === "especialista" ||
+    profile?.role === "colega";
 
   // Solo doctores activos en el selector de asignación de tratamientos; los
   // trabajos ya registrados conservan el nombre del doctor aunque se desactive.
   let dentistsQuery = supabase
     .from("profiles")
     .select("id, full_name")
-    .in("role", ["odontologo_general", "especialista", "admin"])
+    .in("role", ["odontologo_general", "especialista", "admin", "colega"])
     .eq("clinic_id", patient.clinic_id)
     .eq("active", true)
     .order("full_name");
@@ -299,6 +303,18 @@ export default async function PatientPage({
           <div className="mt-2 text-sm text-amber-700">Alergias: {patient.allergies.join(", ")}</div>
         )}
       </header>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Antecedentes médicos</h2>
+        <AnamnesisPanel
+          patientId={patient.id}
+          anamnesis={parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data)}
+          allergies={patient.allergies ?? []}
+          medicalAlerts={patient.medical_alerts ?? []}
+          legacyAnamnesis={(patient as { anamnesis?: string | null }).anamnesis ?? null}
+          canEdit={canEditAnamnesis(profile?.role)}
+        />
+      </section>
 
       <section className="space-y-3">
         <h2 className="mb-3 text-lg font-semibold">Odontograma</h2>
