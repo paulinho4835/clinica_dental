@@ -63,3 +63,17 @@ export function can(role: Role | undefined, perm: Permission): boolean {
   if (!role) return false;
   return MATRIX[role]?.includes(perm) ?? false;
 }
+
+// Roles que pueden editar el registro clínico del paciente (anamnesis, evolución,
+// odontograma): admin + doctores + colega. NO la recepcionista ni la asistente,
+// aunque la recepcionista tenga clinical:write para otras cosas.
+const CLINICAL_EDIT_ROLES = new Set<Role>([
+  "admin",
+  "odontologo_general",
+  "especialista",
+  "colega",
+]);
+
+export function canEditAnamnesis(role: string | undefined): boolean {
+  return role ? CLINICAL_EDIT_ROLES.has(role as Role) : false;
+}
