@@ -36,4 +36,14 @@ drop policy if exists patients_delete_admin on patients;
 create policy patients_delete_admin on patients for delete
   using ((select auth_role()) in ('admin', 'recepcionista'));
 
+-- Evolución clínica: colega puede insertar notas (firmadas como uno mismo).
+drop policy if exists evolution_insert on patient_evolution_notes;
+create policy evolution_insert on patient_evolution_notes
+  for insert
+  with check (
+    clinic_id = (select auth_clinic_id())
+    and author_id = (select auth.uid())
+    and (select auth_role()) in ('admin', 'odontologo_general', 'especialista', 'colega')
+  );
+
 notify pgrst, 'reload schema';

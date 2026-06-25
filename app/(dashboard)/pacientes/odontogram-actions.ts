@@ -9,8 +9,8 @@ import type { TeethMap } from "@/lib/odontogram/types";
 
 export type ActionState = { error?: string; ok?: boolean };
 
-// Solo admin y doctores pueden modificar el odontograma (NO recepcionista).
-const ODONTOGRAM_ROLES = ["admin", "odontologo_general", "especialista"] as const;
+// Admin, doctores y colega pueden modificar el odontograma (NO recepcionista).
+const ODONTOGRAM_ROLES = ["admin", "odontologo_general", "especialista", "colega"] as const;
 function canEditOdontogram(role: string | undefined): boolean {
   return ODONTOGRAM_ROLES.includes(role as (typeof ODONTOGRAM_ROLES)[number]);
 }

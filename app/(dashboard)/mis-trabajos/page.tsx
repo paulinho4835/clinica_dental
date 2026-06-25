@@ -129,7 +129,7 @@ export default async function MisTrabajosPage({
     ? supabase
         .from("profiles")
         .select("id, full_name, role")
-        .in("role", ["admin", "odontologo_general", "especialista"])
+        .in("role", ["admin", "odontologo_general", "especialista", "colega"])
         .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name")
@@ -146,7 +146,7 @@ export default async function MisTrabajosPage({
     patientsQuery = patientsQuery.eq("clinic_id", profile.clinicId);
   }
   if (!canPickDoctor && profile) {
-    const [{ data: apptP }, { data: workP }] = await Promise.all([
+    const [{ data: apptP }, { data: workP }, { data: planP }] = await Promise.all([
       supabase
         .from("appointments")
         .select("patient_id")
@@ -157,11 +157,29 @@ export default async function MisTrabajosPage({
         .select("patient_id")
         .eq("doctor_id", profile.userId)
         .not("patient_id", "is", null),
+      // También los pacientes con un ítem del plan de tratamiento asignado a
+      // este doctor/colega (aunque aún no haya cita ni trabajo registrado).
+      supabase
+        .from("treatment_items")
+        .select("phase:treatment_phases!inner(plan:treatment_plans!inner(patient_id))")
+        .eq("doctor_id", profile.userId),
     ]);
+    // PostgREST puede devolver las relaciones anidadas como objeto o como array
+    // según infiera la cardinalidad; normalizar a "primer elemento" en ambos casos.
+    const first = <T,>(v: T | T[] | null | undefined): T | undefined =>
+      Array.isArray(v) ? v[0] : (v ?? undefined);
+    const planPatientIds = (planP ?? [])
+      .map((r) => {
+        const phase = first(r.phase as unknown);
+        const plan = first((phase as { plan?: unknown } | undefined)?.plan);
+        return (plan as { patient_id?: string } | undefined)?.patient_id;
+      })
+      .filter((v): v is string => Boolean(v));
     const ids = [
       ...new Set([
         ...(apptP ?? []).map((r) => r.patient_id as string),
         ...(workP ?? []).map((r) => r.patient_id as string),
+        ...planPatientIds,
       ]),
     ];
     patientsQuery =
@@ -220,7 +238,8 @@ export default async function MisTrabajosPage({
     fecha: w.performed_at,
     paciente: w.patients?.full_name ?? w.patient_name ?? "",
     doctor: w.doctor?.full_name ?? "",
-    cobrado_por: w.collected_by?.name ?? "",
+    cobrado_por:
+      w.collected_by?.name ?? (w.amount_paid > 0 ? (w.doctor?.full_name ?? "") : ""),
     trabajo: w.description,
     lab_trabajo: w.lab_work ?? "",
     costo: Number(w.cost),
@@ -416,7 +435,12 @@ export default async function MisTrabajosPage({
                   </span>
                 )}
                 <span className="truncate text-slate-500">
-                  {w.collected_by?.name ?? <span className="text-slate-300">—</span>}
+                  {/* Recepcionista que cobró; si no hubo (doctor/colega cobró
+                      directo), mostrar el doctor cuando hubo monto cobrado. */}
+                  {w.collected_by?.name ??
+                    (w.amount_paid > 0 ? w.doctor?.full_name : undefined) ?? (
+                      <span className="text-slate-300">—</span>
+                    )}
                 </span>
                 <span className="truncate text-slate-600">
                   {w.description}

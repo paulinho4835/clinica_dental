@@ -56,7 +56,7 @@ export default async function CuentasPacientesPage({
   let doctorsQuery = supabase
     .from("profiles")
     .select("id, full_name")
-    .in("role", ["odontologo_general", "especialista", "admin"])
+    .in("role", ["odontologo_general", "especialista", "admin", "colega"])
     .eq("clinic_id", profile!.clinicId)
     .eq("active", true)
     .order("full_name");
