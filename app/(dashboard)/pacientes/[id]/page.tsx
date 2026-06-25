@@ -149,12 +149,12 @@ export default async function PatientPage({
       .order("sort_order"),
     supabase
       .from("patient_evolution_notes")
-      .select("id, author_id, author_name, body, created_at, updated_at")
+      .select("id, author_id, author_name, body, note_type, appointment_id, subjective, objective, assessment, plan, created_at, updated_at")
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("patient_evolution_note_history")
-      .select("id, note_id, author_id, author_name, body, action, changed_at")
+      .select("id, note_id, author_id, author_name, body, note_type, subjective, objective, assessment, plan, action, changed_at")
       .eq("patient_id", id)
       .order("changed_at", { ascending: false }),
     supabase
@@ -341,11 +341,20 @@ export default async function PatientPage({
         <EvolutionPanel
           patientId={patient.id}
           notes={(evolutionNotes ?? []).map((n) => ({
-            ...n,
-            // El superadmin no debe aparecer con su nombre en la clínica.
+            id: n.id as string,
+            author_id: (n.author_id as string | null) ?? null,
             author_name: platformAdminIdSet.has(n.author_id ?? "")
               ? "Sistema"
               : n.author_name as string,
+            body: n.body as string,
+            note_type: ((n.note_type as string) === "soap" ? "soap" : "free") as "free" | "soap",
+            appointment_id: (n.appointment_id as string | null) ?? null,
+            subjective: (n.subjective as string) ?? "",
+            objective: (n.objective as string) ?? "",
+            assessment: (n.assessment as string) ?? "",
+            plan: (n.plan as string) ?? "",
+            created_at: n.created_at as string,
+            updated_at: n.updated_at as string,
           }))}
           history={(evolutionHistory ?? []).map((h) => ({
             id: h.id as string,
@@ -354,6 +363,11 @@ export default async function PatientPage({
               ? "Sistema"
               : h.author_name as string,
             body: h.body as string,
+            note_type: (h.note_type as "free" | "soap" | null) ?? null,
+            subjective: (h.subjective as string | null) ?? null,
+            objective: (h.objective as string | null) ?? null,
+            assessment: (h.assessment as string | null) ?? null,
+            plan: (h.plan as string | null) ?? null,
             action: h.action as "edited" | "deleted",
             changed_at: h.changed_at as string,
           }))}
@@ -361,6 +375,7 @@ export default async function PatientPage({
           canWrite={canEditClinical}
           canSeeHistory={canSeeHistory}
           currentUserId={profile?.userId ?? ""}
+          appointments={apptRows}
         />
       </section>
 
