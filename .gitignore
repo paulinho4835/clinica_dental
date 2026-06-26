@@ -11,6 +11,8 @@ supabase/.branches
 supabase/.temp
 # Snippets del SQL Editor de Supabase (no son parte del código)
 supabase/snippets/
+# Consolidado generado para pegar en el dashboard (no es código fuente)
+supabase/_consolidado.sql
 e2e/.auth/
 test-results/
 playwright-report/
