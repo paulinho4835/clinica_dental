@@ -82,10 +82,15 @@ export default async function DashboardLayout({
   const nav =
     superadmin && !isPreview
       ? []
-      : FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key)).map((f) => ({
-          href: f.href,
-          label: f.label,
-        }));
+      : [
+          // "Inicio" es un panel de bienvenida disponible para todos los roles
+          // de clínica; no depende de ningún módulo, por eso va fijo arriba.
+          { href: "/inicio", label: "Inicio" },
+          ...FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key)).map((f) => ({
+            href: f.href,
+            label: f.label,
+          })),
+        ];
 
   const initials =
     !superadmin && profile?.full_name

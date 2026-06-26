@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
+  Home,
   Calendar,
   Users,
   Package,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/cn";
 export type NavItem = { href: string; label: string; badge?: number };
 
 const ICONS: Record<string, LucideIcon> = {
+  "/inicio": Home,
   "/agenda": Calendar,
   "/pacientes": Users,
   "/mis-trabajos": ClipboardList,

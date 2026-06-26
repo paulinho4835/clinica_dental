@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const { data: appts, error } = await supabase
     .from("appointments")
     .select(
-      "id, starts_at, ends_at, dentist_name, reason, patient_name, patient_id, patients(full_name, phone)"
+      "id, starts_at, ends_at, dentist_name, reason, patient_name, patient_id, confirm_token, patients(full_name, phone)"
     )
     .eq("clinic_id", profile!.clinicId)
     .gte("starts_at", dayStart)
@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
       phone: (a.patients as { phone?: string } | null)?.phone ?? null,
       dentistName: a.dentist_name ?? null,
       reason: a.reason ?? null,
+      confirmToken: (a as { confirm_token?: string | null }).confirm_token ?? null,
     })),
   });
 }

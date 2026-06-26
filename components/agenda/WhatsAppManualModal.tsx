@@ -12,6 +12,7 @@ type ApptEntry = {
   phone: string | null;
   dentistName: string | null;
   reason: string | null;
+  confirmToken: string | null;
 };
 
 type ListData = {
@@ -39,13 +40,25 @@ function buildWaLink(phone: string | null, message: string): string | null {
   return `https://wa.me/${normalized.replace("+", "")}?text=${e}`;
 }
 
-function buildMessage(a: ApptEntry, date: string, clinicName: string): string {
+function buildMessage(
+  a: ApptEntry,
+  date: string,
+  clinicName: string,
+  origin: string,
+): string {
   const time = hhmm(a.starts_at);
   const doctor = a.dentistName ? ` con ${a.dentistName}` : "";
   const motivo = a.reason ? ` (${a.reason})` : "";
+  // Enlace de confirmación: el paciente lo toca y confirma/cancela desde el
+  // sistema (queda reflejado en la agenda). Solo si hay token y URL base.
+  const confirmar =
+    a.confirmToken && origin
+      ? `\n\nConfirma tu asistencia aquí: ${origin}/c/${a.confirmToken}`
+      : "";
   return (
     `Hola ${a.patientName}, le recordamos su cita dental el ${date} a las ${time}${doctor}${motivo}. ` +
-    `${clinicName}. Ante cualquier consulta estamos a su disposición. ¡Hasta pronto! 🦷`
+    `${clinicName}. Ante cualquier consulta estamos a su disposición. ¡Hasta pronto! 🦷` +
+    confirmar
   );
 }
 
@@ -68,6 +81,12 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<ListData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // URL base de la app para el enlace de confirmación (se lee en cliente).
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -154,7 +173,7 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
               {withPhone.length > 0 && (
                 <div className="space-y-2">
                   {withPhone.map((a) => {
-                    const msg = buildMessage(a, data.date, data.clinicName);
+                    const msg = buildMessage(a, data.date, data.clinicName, origin);
                     const url = buildWaLink(a.phone, msg);
                     if (!url) return null;
                     return (

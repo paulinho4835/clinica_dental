@@ -58,6 +58,8 @@ export function apptBlockClass(status: string): string {
     return "ring-2 ring-offset-0 animate-pulse-ring";
   if (status === "waiting")
     return "ring-2 ring-amber-400 ring-offset-0";
+  if (status === "confirmed")
+    return "ring-1 ring-sky-400 ring-offset-0";
   return "";
 }
 

@@ -46,7 +46,9 @@ export function MiniStatus({
             ? "En sillón"
             : status === "waiting"
               ? "En sala"
-              : "Pendiente";
+              : status === "confirmed"
+                ? "Confirmada"
+                : "Pendiente";
     const color =
       status === "finished"
         ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
@@ -56,7 +58,9 @@ export function MiniStatus({
             ? "bg-clinic/10 text-clinic ring-clinic/30"
             : status === "waiting"
               ? "bg-amber-100 text-amber-700 ring-amber-200"
-              : "bg-slate-100 text-slate-600 ring-slate-200";
+              : status === "confirmed"
+                ? "bg-sky-100 text-sky-700 ring-sky-200"
+                : "bg-slate-100 text-slate-600 ring-slate-200";
     return <span className={`rounded-full px-2 py-0.5 text-[11px] ring-1 ${color}`}>{label}</span>;
   }
 
@@ -102,6 +106,14 @@ export function MiniStatus({
 
   return (
     <span className="flex flex-wrap items-center gap-1">
+      {/* El paciente confirmó por WhatsApp: distintivo informativo. El flujo
+          (Llegó → En sillón → Atendido) sigue disponible igual. */}
+      {status === "confirmed" && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-200">
+          <Check className="h-3 w-3" /> {!iconOnly && "Confirmada"}
+        </span>
+      )}
+
       {/* Etapa 1: Llegó / En sala */}
       <button
         type="button"
