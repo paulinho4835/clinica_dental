@@ -263,12 +263,51 @@ export default async function PatientPage({
 
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
+  // Última invitación de historial (estado + propuesta pendiente de revisión).
+  const { data: lastInvite } = await supabase
+    .from("anamnesis_invitations")
+    .select(
+      "id, expires_at, completed_at, reviewed_at, review_action, submitted_data, submitted_allergies, submitted_alerts, created_at",
+    )
+    .eq("patient_id", id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const invitation = lastInvite
+    ? {
+        id: lastInvite.id as string,
+        completedAt: (lastInvite.completed_at as string | null) ?? null,
+        expiresAt: lastInvite.expires_at as string,
+        reviewedAt: (lastInvite.reviewed_at as string | null) ?? null,
+        reviewAction:
+          (lastInvite.review_action as "applied" | "discarded" | null) ?? null,
+        proposed:
+          lastInvite.completed_at && !lastInvite.reviewed_at
+            ? {
+                data: parseAnamnesis(lastInvite.submitted_data),
+                allergies: (lastInvite.submitted_allergies as string[] | null) ?? [],
+                alerts: (lastInvite.submitted_alerts as string[] | null) ?? [],
+              }
+            : null,
+      }
+    : null;
+
   return (
     <div className="space-y-8">
       <header>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
           <div className="flex items-start gap-2">
+            {canEditClinical && (
+              <Link
+                href={`/pacientes/${patient.id}/expediente`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Imprimir expediente
+              </Link>
+            )}
             {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón.
                 Para doctores se omiten teléfono/email/dirección incluso del payload. */}
             {canEditClinical && (
@@ -308,6 +347,10 @@ export default async function PatientPage({
         <h2 className="mb-3 text-lg font-semibold">Antecedentes médicos</h2>
         <AnamnesisPanel
           patientId={patient.id}
+          patientName={patient.full_name}
+          patientPhone={patient.phone ?? null}
+          clinicName={clinicName}
+          invitation={invitation}
           anamnesis={parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data)}
           allergies={patient.allergies ?? []}
           medicalAlerts={patient.medical_alerts ?? []}

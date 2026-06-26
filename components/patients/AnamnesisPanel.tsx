@@ -2,7 +2,10 @@
 
 import { useActionState, useEffect, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Pencil, ChevronDown, Printer } from "lucide-react";
+import { Lock, Pencil, ChevronDown, Printer, Send } from "lucide-react";
+import { RequestAnamnesisModal } from "@/components/patients/RequestAnamnesisModal";
+import { ReviewAnamnesisModal } from "@/components/patients/ReviewAnamnesisModal";
+import { FirmaField } from "@/components/patients/FirmaField";
 import {
   updateAnamnesis,
   type ActionState,
@@ -19,6 +22,15 @@ import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { toast } from "@/lib/toast";
 
 const initial: ActionState = {};
+
+export type Invitation = {
+  id: string;
+  completedAt: string | null;
+  expiresAt: string;
+  reviewedAt: string | null;
+  reviewAction: "applied" | "discarded" | null;
+  proposed: { data: Anamnesis; allergies: string[]; alerts: string[] } | null;
+};
 
 const EMBARAZO_LABEL: Record<Anamnesis["embarazo"], string> = {
   no_aplica: "No aplica",
@@ -39,6 +51,10 @@ function fmt(iso: string) {
 
 export function AnamnesisPanel({
   patientId,
+  patientName,
+  patientPhone,
+  clinicName,
+  invitation,
   anamnesis,
   allergies,
   medicalAlerts,
@@ -46,6 +62,10 @@ export function AnamnesisPanel({
   canEdit,
 }: {
   patientId: string;
+  patientName: string;
+  patientPhone: string | null;
+  clinicName: string;
+  invitation: Invitation | null;
   anamnesis: Anamnesis;
   allergies: string[];
   medicalAlerts: string[];
@@ -54,6 +74,8 @@ export function AnamnesisPanel({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [showLegacy, setShowLegacy] = useState(false);
   const a = parseAnamnesis(anamnesis);
 
@@ -85,6 +107,17 @@ export function AnamnesisPanel({
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-medium text-slate-800">Antecedentes médicos</h3>
         <div className="flex gap-2">
+          {canEdit && (
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={() => setRequesting(true)}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Solicitar historial
+            </Button>
+          )}
           <a
             href={`/pacientes/${patientId}/imprimir-anamnesis`}
             target="_blank"
@@ -103,6 +136,52 @@ export function AnamnesisPanel({
           )}
         </div>
       </div>
+
+      {requesting && (
+        <RequestAnamnesisModal
+          patientId={patientId}
+          patientName={patientName}
+          patientPhone={patientPhone}
+          clinicName={clinicName}
+          onClose={() => setRequesting(false)}
+        />
+      )}
+
+      {invitation?.proposed ? (
+        <div className="mt-3 rounded-lg border border-clinic bg-clinic/5 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-800">
+                El paciente envió su historial
+              </p>
+              <p className="text-xs text-slate-500">
+                Revísalo antes de aplicarlo al expediente.
+              </p>
+            </div>
+            {canEdit && (
+              <Button size="sm" type="button" onClick={() => setReviewing(true)}>
+                Revisar
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <InvitationStatus invitation={invitation} />
+      )}
+
+      {reviewing && invitation?.proposed && (
+        <ReviewAnamnesisModal
+          invitationId={invitation.id}
+          proposed={invitation.proposed}
+          currentAllergies={allergies}
+          currentAlerts={medicalAlerts}
+          onClose={() => setReviewing(false)}
+          onDone={() => {
+            setReviewing(false);
+            router.refresh();
+          }}
+        />
+      )}
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <Row label="Condiciones">
@@ -164,6 +243,18 @@ export function AnamnesisPanel({
         )}
       </dl>
 
+      {a.firma && (
+        <div className="mt-3">
+          <p className="text-xs text-slate-500">Firma del paciente</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={a.firma}
+            alt="Firma del paciente"
+            className="mt-1 h-24 rounded-lg border border-slate-200 bg-white object-contain"
+          />
+        </div>
+      )}
+
       {a.actualizado_en && (
         <p className="mt-3 text-xs text-slate-400">
           Actualizado por {a.actualizado_por || "—"} · {fmt(a.actualizado_en)}
@@ -207,6 +298,42 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function Empty() {
   return <span className="text-slate-400">—</span>;
+}
+
+function InvitationStatus({ invitation }: { invitation: Invitation | null }) {
+  if (!invitation) return null;
+
+  // Ya revisada (la propuesta pendiente se maneja aparte, en la caja de revisión).
+  if (invitation.reviewedAt) {
+    if (invitation.reviewAction === "applied") {
+      return (
+        <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+          ✓ Historial enviado por el paciente y aplicado · {fmt(invitation.reviewedAt)}
+        </p>
+      );
+    }
+    return (
+      <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        Propuesta del paciente descartada · {fmt(invitation.reviewedAt)}
+      </p>
+    );
+  }
+
+  // Solicitada pero el paciente aún no envía.
+  const vigente = new Date(invitation.expiresAt).getTime() > Date.now();
+  if (vigente) {
+    return (
+      <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        ⏳ Historial solicitado · pendiente (vence {fmt(invitation.expiresAt)})
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      Solicitud de historial expirada. Genere un enlace nuevo si lo necesita.
+    </p>
+  );
 }
 
 function AnamnesisForm({
@@ -366,6 +493,16 @@ function AnamnesisForm({
           />
         </label>
       </div>
+
+      <fieldset className="mt-4">
+        <legend className="mb-2 text-xs font-medium uppercase text-slate-400">
+          Firma del paciente (opcional)
+        </legend>
+        <FirmaField
+          value={a.firma}
+          onChange={(v) => setA((p) => ({ ...p, firma: v }))}
+        />
+      </fieldset>
 
       {state.error && <p className="mt-3 text-sm text-red-600">{state.error}</p>}
       <div className="mt-4 flex gap-2">

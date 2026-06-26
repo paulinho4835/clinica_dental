@@ -56,7 +56,22 @@ export function apptBlockClass(status: string): string {
     return "opacity-70 border-dashed !border-slate-300 !bg-slate-100 !text-slate-400";
   if (status === "in_chair")
     return "ring-2 ring-offset-0 animate-pulse-ring";
+  if (status === "waiting")
+    return "ring-2 ring-amber-400 ring-offset-0";
   return "";
 }
 
 export const isFinished = (status: string) => status === "finished";
+
+// ─── Estados visibles en la agenda (leyenda + filtro) ───────────────────────
+// El orden refleja el flujo natural de una cita. `cancelled` se excluye en el
+// servidor, por eso no aparece aquí. El `dot` es solo para la leyenda/filtro:
+// da un color distinto e inequívoco a cada estado.
+export const AGENDA_STATUSES = [
+  { key: "scheduled", label: "Pendiente", dot: "bg-slate-400" },
+  { key: "confirmed", label: "Confirmada", dot: "bg-sky-500" },
+  { key: "waiting", label: "En sala", dot: "bg-amber-400" },
+  { key: "in_chair", label: "En sillón", dot: "bg-violet-500" },
+  { key: "finished", label: "Atendido", dot: "bg-emerald-500" },
+  { key: "no_show", label: "No vino", dot: "bg-rose-400" },
+] as const;

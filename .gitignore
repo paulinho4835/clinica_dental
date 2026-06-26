@@ -20,3 +20,7 @@ playwright-report/
 
 # Knowledge graph generado (graphify)
 graphify-out/
+
+# Cachés de herramientas MCP (Serena, Headroom)
+.serena/
+.headroom/

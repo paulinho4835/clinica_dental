@@ -17,6 +17,9 @@ const ApptSchema = z
     patient_id: z.string().uuid("Paciente inválido").optional().nullable(),
     patient_name: z.string().trim().min(1).optional().nullable(),
     dentist_name: z.string().trim().min(1, "Odontólogo requerido"),
+    // Fuente de verdad del odontólogo (cuando se eligió del select de doctores).
+    // Si llega vacío (doctor escrito a mano / Vapi), se opera solo por nombre.
+    dentist_id: z.string().uuid().optional().nullable(),
     starts_at: z.string().min(1, "Fecha requerida"),
     ends_at: z.string().optional().nullable(),
     reason: z.string().optional().nullable(),
@@ -32,6 +35,28 @@ const ApptSchema = z
     path: ["patient_id"],
   });
 
+// Resuelve el odontólogo de una cita. Si llega `dentistId`, se valida que el
+// perfil exista y pertenezca a la clínica; en ese caso es la fuente de verdad y
+// se devuelve su nombre actual (denormalizado en la cita para display/Vapi). Si
+// el id es inválido, de otra clínica, o no llega, se opera solo por nombre.
+async function resolveDentist(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  dentistId: string | null,
+  dentistName: string,
+): Promise<{ dentistId: string | null; dentistName: string }> {
+  if (!dentistId) return { dentistId: null, dentistName };
+  const { data: doc } = await supabase
+    .from("profiles")
+    .select("full_name, clinic_id")
+    .eq("id", dentistId)
+    .maybeSingle();
+  if (!doc || doc.clinic_id !== clinicId) {
+    return { dentistId: null, dentistName }; // id inválido o de otra clínica
+  }
+  return { dentistId, dentistName: doc.full_name ?? dentistName };
+}
+
 export async function createAppointment(
   _prev: ActionState,
   formData: FormData,
@@ -45,6 +70,7 @@ export async function createAppointment(
     patient_id: formData.get("patient_id") || null,
     patient_name: formData.get("patient_name") || null,
     dentist_name: formData.get("dentist_name"),
+    dentist_id: formData.get("dentist_id") || null,
     starts_at: formData.get("starts_at"),
     ends_at: formData.get("ends_at") || null,
     reason: formData.get("reason") || null,
@@ -65,24 +91,36 @@ export async function createAppointment(
 
   const supabase = await createClient();
 
+  // Resuelve el odontólogo: si llega dentist_id, es la fuente de verdad (se
+  // verifica que pertenezca a la clínica y se toma su nombre actual). Si no, se
+  // opera solo por nombre (doctor escrito a mano / creación vía Vapi).
+  const { dentistId, dentistName } = await resolveDentist(
+    supabase, profile.clinicId, parsed.data.dentist_id ?? null, parsed.data.dentist_name,
+  );
+
   // Choque con otra cita del mismo día (salvo sobre-cupo explícito).
   if (!parsed.data.overbooked) {
     const dayStart = new Date(starts);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const { data: clash } = await supabase
+    let clashQuery = supabase
       .from("appointments")
       .select("id, starts_at, ends_at")
       .gte("starts_at", dayStart.toISOString())
       .lt("starts_at", dayEnd.toISOString())
       .neq("status", "cancelled");
+    // Mismo odontólogo: por id si lo hay (robusto a homónimos), si no por nombre.
+    clashQuery = dentistId
+      ? clashQuery.eq("dentist_id", dentistId)
+      : clashQuery.eq("dentist_name", dentistName);
+    const { data: clash } = await clashQuery;
     const overlaps = (clash ?? []).some((c) => {
       const cs = new Date(c.starts_at).getTime();
       const ce = c.ends_at ? new Date(c.ends_at).getTime() : cs + DEFAULT_DURATION_MIN * 60_000;
       return starts.getTime() < ce && ends.getTime() > cs;
     });
     if (overlaps)
-      return { error: "Ese horario choca con otra cita. Marca sobre-cupo si es a propósito." };
+      return { error: "Ese doctor ya tiene una cita en ese horario. Marca sobre-cupo si es a propósito." };
   }
 
   const { data: appt, error } = await supabase
@@ -91,7 +129,8 @@ export async function createAppointment(
       clinic_id: profile.clinicId,
       patient_id: parsed.data.patient_id ?? null,
       patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
-      dentist_name: parsed.data.dentist_name,
+      dentist_name: dentistName,
+      dentist_id: dentistId,
       starts_at: starts.toISOString(),
       ends_at: ends.toISOString(),
       reason: parsed.data.reason,
@@ -144,6 +183,7 @@ export async function updateAppointment(
     patient_id: formData.get("patient_id") || null,
     patient_name: formData.get("patient_name") || null,
     dentist_name: formData.get("dentist_name"),
+    dentist_id: formData.get("dentist_id") || null,
     starts_at: formData.get("starts_at"),
     ends_at: formData.get("ends_at") || null,
     reason: formData.get("reason") || null,
@@ -163,25 +203,33 @@ export async function updateAppointment(
 
   const supabase = await createClient();
 
+  const { dentistId, dentistName } = await resolveDentist(
+    supabase, profile.clinicId, parsed.data.dentist_id ?? null, parsed.data.dentist_name,
+  );
+
   // Choque con otra cita del mismo día (excluye la propia y los cancelados).
   if (!parsed.data.overbooked) {
     const dayStart = new Date(starts);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const { data: clash } = await supabase
+    let clashQuery = supabase
       .from("appointments")
       .select("id, starts_at, ends_at")
       .gte("starts_at", dayStart.toISOString())
       .lt("starts_at", dayEnd.toISOString())
       .neq("status", "cancelled")
       .neq("id", appointmentId);
+    clashQuery = dentistId
+      ? clashQuery.eq("dentist_id", dentistId)
+      : clashQuery.eq("dentist_name", dentistName);
+    const { data: clash } = await clashQuery;
     const overlaps = (clash ?? []).some((c) => {
       const cs = new Date(c.starts_at).getTime();
       const ce = c.ends_at ? new Date(c.ends_at).getTime() : cs + DEFAULT_DURATION_MIN * 60_000;
       return starts.getTime() < ce && ends.getTime() > cs;
     });
     if (overlaps)
-      return { error: "Ese horario choca con otra cita. Marca sobre-cupo si es a propósito." };
+      return { error: "Ese doctor ya tiene una cita en ese horario. Marca sobre-cupo si es a propósito." };
   }
 
   const { error } = await supabase
@@ -189,7 +237,8 @@ export async function updateAppointment(
     .update({
       patient_id: parsed.data.patient_id ?? null,
       patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
-      dentist_name: parsed.data.dentist_name,
+      dentist_name: dentistName,
+      dentist_id: dentistId,
       starts_at: starts.toISOString(),
       ends_at: ends.toISOString(),
       reason: parsed.data.reason,

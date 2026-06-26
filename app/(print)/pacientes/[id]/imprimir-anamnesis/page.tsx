@@ -200,13 +200,22 @@ export default async function ImprimirAnamnesisPage({
           </p>
           <div className="grid grid-cols-2 gap-16">
             <div>
-              <div className="mb-1 border-b border-slate-800 pb-10" />
-              <p className="text-xs text-slate-600">Firma del paciente</p>
+              <div className="flex h-16 items-end justify-center border-b border-slate-800">
+                {a.firma && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={a.firma}
+                    alt="Firma del paciente"
+                    className="max-h-16 object-contain"
+                  />
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Firma del paciente</p>
               <p className="mt-0.5 text-xs text-slate-400">{patient.full_name}</p>
             </div>
             <div>
-              <div className="mb-1 border-b border-slate-800 pb-10" />
-              <p className="text-xs text-slate-600">Firma del odontólogo</p>
+              <div className="h-16 border-b border-slate-800" />
+              <p className="mt-1 text-xs text-slate-600">Firma del odontólogo</p>
             </div>
           </div>
           <p className="mt-6 text-right text-xs text-slate-400">Fecha: {today}</p>

@@ -9,12 +9,14 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
 import { DeleteWorkButton } from "@/components/mis-trabajos/DeleteWorkButton";
 import { EditWorkButton } from "@/components/mis-trabajos/EditWorkButton";
+import { RequestFeedbackButton } from "@/components/mis-trabajos/RequestFeedbackButton";
 import { DoctorFilter } from "@/components/mis-trabajos/DoctorFilter";
 import { MethodFilter } from "@/components/mis-trabajos/MethodFilter";
 import { DateRangeFilter } from "@/components/mis-trabajos/DateRangeFilter";
 import { ExportCsvButton, type CsvWorkRow } from "@/components/mis-trabajos/ExportCsvButton";
 import { PrintPdfButton } from "@/components/mis-trabajos/PrintPdfButton";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
+import { getClinicFeatures } from "@/lib/superadmin";
 import { isReceptionistLike } from "@/lib/rbac";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -65,6 +67,10 @@ export default async function MisTrabajosPage({
   const isRecepcionista = isReceptionistLike(profile?.role);
   const isDoctor = profile?.role === "odontologo_general" || profile?.role === "especialista";
   const canPickDoctor = isAdmin || isRecepcionista;
+  // Botón "Pedir calificación": solo admin/recepción (ven el teléfono) y solo si
+  // el addon de calificaciones está activo para la clínica.
+  const features = await getClinicFeatures();
+  const canSendFeedback = (isAdmin || isRecepcionista) && features.calificaciones;
   const today = boliviaTodayISO();
 
   const resolvedParams = await searchParams;
@@ -479,6 +485,7 @@ export default async function MisTrabajosPage({
                     : <span className="text-slate-300">—</span>}
                 </span>
                 <div className="flex items-center justify-end gap-1">
+                  {canSendFeedback && <RequestFeedbackButton workId={w.id} />}
                   {isAdmin && <EditWorkButton work={w} />}
                   {isAdmin && <DeleteWorkButton id={w.id} />}
                 </div>
@@ -504,8 +511,8 @@ export default async function MisTrabajosPage({
 
 const GRID = (admin: boolean) =>
   admin
-    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_4rem] items-center gap-x-4"
-    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_2.5rem] items-center gap-x-4";
+    ? "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_6rem] items-center gap-x-4"
+    : "grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_7rem_8rem_8rem_6rem_3.5rem] items-center gap-x-4";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {

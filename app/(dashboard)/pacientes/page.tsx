@@ -4,6 +4,12 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { NewPatientForm } from "@/components/patients/NewPatientForm";
 import { PatientSearch } from "@/components/patients/PatientSearch";
+import {
+  IncomingIntakesPanel,
+  type IntakeItem,
+} from "@/components/patients/IncomingIntakesPanel";
+import { parseAnamnesis } from "@/lib/schemas/anamnesis";
+import { parseIntake } from "@/lib/schemas/patient-intake";
 import { requireFeature } from "@/lib/guard";
 import { getInitials, normalizeSearch } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -47,6 +53,48 @@ export default async function PatientsPage({
 
   const { data: patients } = await query;
 
+  // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
+  const canRegister = can(profile?.role, "patients:write");
+  const intakesReady: IntakeItem[] = [];
+  const intakesAwaiting: IntakeItem[] = [];
+  let clinicName = "la clínica";
+  if (canRegister) {
+    const [{ data: rawIntakes }, { data: clinicRow }] = await Promise.all([
+      supabase
+        .from("anamnesis_invitations")
+        .select(
+          "id, contact_name, contact_phone, completed_at, expires_at, submitted_personal, submitted_data, submitted_allergies, submitted_alerts",
+        )
+        .eq("kind", "new")
+        .is("reviewed_at", null)
+        .order("created_at", { ascending: false }),
+      profile?.clinicId
+        ? supabase.from("clinics").select("name").eq("id", profile.clinicId).single()
+        : Promise.resolve({ data: null }),
+    ]);
+    clinicName = (clinicRow as { name?: string } | null)?.name ?? "la clínica";
+    const now = Date.now();
+    for (const r of rawIntakes ?? []) {
+      const item: IntakeItem = {
+        id: r.id as string,
+        contactName: (r.contact_name as string | null) ?? null,
+        contactPhone: (r.contact_phone as string | null) ?? null,
+        completedAt: (r.completed_at as string | null) ?? null,
+        personal: r.submitted_personal ? parseIntake(r.submitted_personal) : null,
+        proposed: r.completed_at
+          ? {
+              data: parseAnamnesis(r.submitted_data),
+              allergies: (r.submitted_allergies as string[] | null) ?? [],
+              alerts: (r.submitted_alerts as string[] | null) ?? [],
+            }
+          : null,
+      };
+      if (item.completedAt) intakesReady.push(item);
+      else if (new Date(r.expires_at as string).getTime() > now)
+        intakesAwaiting.push(item);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -57,7 +105,15 @@ export default async function PatientsPage({
             : undefined
         }
       />
-      {can(profile?.role, "patients:write") && <NewPatientForm />}
+      {canRegister && <NewPatientForm />}
+
+      {canRegister && (
+        <IncomingIntakesPanel
+          clinicName={clinicName}
+          ready={intakesReady}
+          awaiting={intakesAwaiting}
+        />
+      )}
 
       <PatientSearch initial={q} />
 

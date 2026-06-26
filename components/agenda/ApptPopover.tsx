@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { type MonthAppt, apptName, apptCI, isQuickConsult } from "./apptHelpers";
 import { STEP_MIN } from "@/lib/agenda";
 import { MiniStatus } from "./MiniStatus";
-import { Pencil, Link } from "lucide-react";
+import { cancelAppointment } from "@/app/(dashboard)/agenda/actions";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
+import { Pencil, Link, Trash2 } from "lucide-react";
 
 const hhmm = (d: Date) =>
   d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
@@ -31,6 +35,28 @@ export function ApptPopover({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [canceling, startCancel] = useTransition();
+
+  async function handleCancel() {
+    const ok = await confirm({
+      title: "Cancelar cita",
+      message: `¿Cancelar la cita de ${apptName(appt)}? Esta acción no se puede deshacer.`,
+      confirmText: "Sí, cancelar",
+      cancelText: "Volver",
+      tone: "danger",
+    });
+    if (!ok) return;
+    startCancel(async () => {
+      const res = await cancelAppointment(appt.id);
+      if (res.error) toast(res.error, "error");
+      else {
+        toast("Cita cancelada", "success");
+        router.refresh();
+        onClose();
+      }
+    });
+  }
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -112,6 +138,15 @@ export function ApptPopover({
             className="flex w-full items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
             <Pencil className="h-3.5 w-3.5" /> Editar cita
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={canceling}
+            className="flex w-full items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> {canceling ? "Cancelando…" : "Cancelar cita"}
           </button>
         </div>
       )}

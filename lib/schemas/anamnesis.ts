@@ -46,6 +46,8 @@ export const AnamnesisSchema = z.object({
   embarazo: z.enum(["no_aplica", "embarazada", "lactancia"]).default("no_aplica"),
   ultima_visita_odontologica: z.string().default(""),
   motivo_consulta: z.string().default(""),
+  // Firma digital opcional (imagen PNG en data URL). Vacío = sin firma.
+  firma: z.string().default(""),
   actualizado_por: z.string().default(""),
   actualizado_en: z.string().default(""),
 });

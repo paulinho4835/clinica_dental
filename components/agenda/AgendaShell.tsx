@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Send, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer } from "lucide-react";
 import { STEP_MIN } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
@@ -18,6 +18,7 @@ import {
   apptCI,
 } from "./apptHelpers";
 import { WhatsAppManualModal } from "./WhatsAppManualModal";
+import { StatusLegend } from "./StatusLegend";
 import {
   buildDoctorColorResolver,
   DoctorColorContext,
@@ -79,6 +80,17 @@ export function AgendaShell({
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
+  // Filtro por estado (multi-selección). Vacío = se muestran todos los estados.
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set());
+
+  function toggleStatus(status: string) {
+    setActiveStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }
 
   // Resolver de color por doctor SIN colisiones: cada doctor recibe un color
   // distinto según su posición (ordenado por nombre). Compartido vía contexto.
@@ -109,6 +121,34 @@ export function AgendaShell({
     return map;
   }, [byDay, activeDoctor]);
 
+  // Segunda etapa: filtra por estado encima del filtro de doctor. Alimenta las
+  // tres vistas. Vacío = sin filtro, devuelve filteredByDay tal cual.
+  const visibleByDay = useMemo(() => {
+    if (activeStatuses.size === 0) return filteredByDay;
+    const map = new Map<string, MonthAppt[]>();
+    for (const [k, list] of filteredByDay) {
+      const filtered = list.filter((a) => activeStatuses.has(a.status));
+      if (filtered.length) map.set(k, filtered);
+    }
+    return map;
+  }, [filteredByDay, activeStatuses]);
+
+  // Alcance para los conteos de la leyenda (antes del filtro de estado, para que
+  // los números no cambien al alternar chips). Día → ese día; mes con día
+  // seleccionado → ese día; resto → toda la ventana cargada.
+  const scopeAppts = useMemo<MonthAppt[]>(() => {
+    if (view === "day") return filteredByDay.get(date) ?? [];
+    if (view === "month" && selectedDay)
+      return filteredByDay.get(selectedDay) ?? [];
+    return [...filteredByDay.values()].flat();
+  }, [view, date, selectedDay, filteredByDay]);
+
+  const statusCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const a of scopeAppts) counts[a.status] = (counts[a.status] ?? 0) + 1;
+    return counts;
+  }, [scopeAppts]);
+
   // columnas forzadas para DayView: si es ALL_DOCTORS → una columna por doctor;
   // si hay un doctor específico → una sola columna con su nombre.
   const forcedCols = useMemo<string[] | undefined>(() => {
@@ -135,6 +175,16 @@ export function AgendaShell({
 
   function goToday() {
     router.push(`/agenda?date=${dayKey(new Date())}&view=${view}`);
+  }
+
+  // Abre la hoja imprimible del día enfocado (en mes, el día seleccionado).
+  // Pasa el doctor activo si hay uno específico filtrado.
+  function openPrint() {
+    const printDate = view === "month" && selectedDay ? selectedDay : date;
+    const params = new URLSearchParams();
+    if (activeDoctor && activeDoctor !== ALL_DOCTORS) params.set("doctor", activeDoctor);
+    const qs = params.toString();
+    window.open(`/agenda/${printDate}${qs ? `?${qs}` : ""}`, "_blank");
   }
 
   function runSearch(raw: string) {
@@ -278,8 +328,17 @@ export function AgendaShell({
           {monthLabel}
         </span>
 
+        <button
+          onClick={openPrint}
+          title="Imprimir agenda del día"
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Imprimir día</span>
+        </button>
+
         {canWrite && (whatsappEnabled || whatsappManualEnabled) && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-2">
             {whatsappEnabled && (
               <button
                 onClick={sendReminders}
@@ -303,19 +362,27 @@ export function AgendaShell({
         )}
       </div>
 
+      {/* Leyenda + filtro por estado */}
+      <StatusLegend
+        counts={statusCounts}
+        active={activeStatuses}
+        onToggle={toggleStatus}
+        onReset={() => setActiveStatuses(new Set())}
+      />
+
       {/* Vista Mes: calendario filtrado + DayView del día seleccionado */}
       {view === "month" && (
         <>
           <MonthView
             month={date}
-            byDay={filteredByDay}
+            byDay={visibleByDay}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
           />
           {selectedDay && (
             <DayView
               day={selectedDay}
-              appts={filteredByDay.get(selectedDay) ?? []}
+              appts={visibleByDay.get(selectedDay) ?? []}
               canWrite={canWrite}
               highlightId={highlightId}
               forcedColumns={forcedCols}
@@ -329,7 +396,7 @@ export function AgendaShell({
       {view === "day" && (
         <DayView
           day={date}
-          appts={filteredByDay.get(date) ?? []}
+          appts={visibleByDay.get(date) ?? []}
           canWrite={canWrite}
           highlightId={highlightId}
           forcedColumns={forcedCols}
@@ -341,7 +408,7 @@ export function AgendaShell({
       {view === "week" && (
         <WeekView
           date={date}
-          byDay={filteredByDay}
+          byDay={visibleByDay}
           canWrite={canWrite}
           onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
           onPick={(start, end) => setModal({ start, end })}

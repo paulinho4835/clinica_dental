@@ -26,6 +26,7 @@ import {
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
 import { MiniStatus } from "./MiniStatus";
+import { AgendaList } from "./AgendaList";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { X, Pencil, Link } from "lucide-react";
 
@@ -137,6 +138,19 @@ export function DayView({
     return () => clearInterval(t);
   }, [day]);
 
+  // Auto-scroll a la hora actual: una sola vez, solo cuando el día visible es hoy
+  // y "ahora" cae dentro del horario. Centra la línea roja en la pantalla.
+  const nowRef = useRef<HTMLDivElement>(null);
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    scrolledRef.current = false; // reinicia al cambiar de día
+  }, [day]);
+  useEffect(() => {
+    if (now === null || scrolledRef.current || !nowRef.current) return;
+    scrolledRef.current = true;
+    nowRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [now]);
+
   const slots = useMemo(() => {
     const out: Date[] = [];
     for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
@@ -152,11 +166,33 @@ export function DayView({
     <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold capitalize text-slate-700">{dayLabel}</h2>
-        <span className="text-xs text-slate-400">{localAppts.length} cita(s)</span>
+        <div className="flex items-center gap-2">
+          {localAppts.filter((a) => a.status === "waiting").length > 0 && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">
+              {localAppts.filter((a) => a.status === "waiting").length} en sala
+            </span>
+          )}
+          {localAppts.filter((a) => a.status === "in_chair").length > 0 && (
+            <span className="rounded-full bg-clinic/10 px-2 py-0.5 text-[11px] font-medium text-clinic ring-1 ring-clinic/30">
+              {localAppts.filter((a) => a.status === "in_chair").length} en sillón
+            </span>
+          )}
+          <span className="text-xs text-slate-400">{localAppts.length} cita(s)</span>
+        </div>
       </div>
 
-      {/* ── Grilla horaria ─────────────────────────────────────────────── */}
-      <div className="flex">
+      {/* ── Vista de lista (solo móvil) ──────────────────────────────────── */}
+      <div className="sm:hidden">
+        <AgendaList
+          appts={localAppts}
+          canWrite={canWrite}
+          onEdit={onEdit}
+          onLink={onLink}
+        />
+      </div>
+
+      {/* ── Grilla horaria (oculta en móvil) ─────────────────────────────── */}
+      <div className="hidden sm:flex">
         {/* Eje de horas */}
         <div className="relative z-10 w-12 shrink-0" style={{ height: AXIS_H }}>
           {HOURS.map((h, i) => (
@@ -168,6 +204,10 @@ export function DayView({
               {String(h).padStart(2, "0")}:00
             </div>
           ))}
+          {/* Marcador invisible para el auto-scroll a la hora actual */}
+          {now !== null && (
+            <div ref={nowRef} className="absolute" style={{ top: now * AXIS_H }} />
+          )}
         </div>
 
         {/* Columnas de doctores / columna única */}
@@ -181,6 +221,7 @@ export function DayView({
                       (a) => (a.dentist_name?.trim() || "Sin asignar") === col,
                     );
               const inChair = colAppts.filter((a) => a.status === "in_chair").length;
+              const waiting = colAppts.filter((a) => a.status === "waiting").length;
               const laid = assignLanes(colAppts);
 
               return (
@@ -200,6 +241,11 @@ export function DayView({
                       {isOverview && (
                         <div className="text-[10px] text-slate-400">
                           {colAppts.length} cita{colAppts.length !== 1 ? "s" : ""}
+                          {waiting > 0 && (
+                            <span className="ml-1 font-medium text-amber-600">
+                              · {waiting} en sala
+                            </span>
+                          )}
                           {inChair > 0 && (
                             <span className="ml-1 font-medium text-emerald-600">
                               · {inChair} en sillón
@@ -389,7 +435,7 @@ export function DayView({
       </div>
 
       {!isOverview && localAppts.length === 0 && (
-        <p className="mt-2 text-center text-sm text-slate-500">
+        <p className="mt-2 hidden text-center text-sm text-slate-500 sm:block">
           {canWrite ? "Día libre — haz clic en una franja para agendar." : "Sin citas este día."}
         </p>
       )}

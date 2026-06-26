@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   OPEN_HOUR,
   CLOSE_HOUR,
@@ -28,6 +28,16 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const hhmm = (d: Date) => d.toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit" });
 
+// Fracción [0..1] de la hora actual dentro del eje visible, o null si ahora cae
+// fuera del horario [OPEN_HOUR, CLOSE_HOUR]. Se usa para la línea de "ahora".
+function nowFraction(): number | null {
+  const now = new Date();
+  const total = (CLOSE_HOUR - OPEN_HOUR) * 60;
+  const min = now.getHours() * 60 + now.getMinutes() - OPEN_HOUR * 60;
+  if (min < 0 || min > total) return null;
+  return min / total;
+}
+
 export function WeekView({
   date,
   byDay,
@@ -48,6 +58,14 @@ export function WeekView({
   const getDoctorColor = useDoctorColor();
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
   const todayKey = dayKey(new Date());
+
+  // Línea de "ahora": fracción del eje recalculada cada minuto.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(nowFraction());
+    const t = setInterval(() => setNow(nowFraction()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // ── Optimistic state ──────────────────────────────────────────────────────
   const [localAppts, setLocalAppts] = useState<MonthAppt[]>([]);
@@ -164,6 +182,16 @@ export function WeekView({
                       style={{ top: ((i + 1) / (CLOSE_HOUR - OPEN_HOUR)) * AXIS_H }}
                     />
                   ))}
+
+                  {/* Línea de "ahora" — solo en la columna de hoy */}
+                  {isToday && now !== null && (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 z-20 border-t-2 border-red-400"
+                      style={{ top: now * AXIS_H }}
+                    >
+                      <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400" />
+                    </div>
+                  )}
 
                   {canWrite &&
                     slots.map((s) => {

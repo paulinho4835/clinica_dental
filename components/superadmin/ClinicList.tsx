@@ -134,8 +134,8 @@ function ClinicCard({
         c.active ? "ring-slate-200" : "ring-amber-300"
       }`}
     >
-      {/* Encabezado (siempre visible) */}
-      <div className="flex items-start justify-between gap-4 p-5">
+      {/* Encabezado (siempre visible) — apila en móvil, fila en escritorio */}
+      <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-start gap-2.5">
           <button
             type="button"
@@ -177,7 +177,9 @@ function ClinicCard({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        {/* Acciones: en móvil se envuelven y se alinean bajo el nombre (pl-8
+            salta el ancho del chevron); en escritorio quedan a la derecha. */}
+        <div className="flex flex-wrap items-center gap-2 pl-8 sm:shrink-0 sm:pl-0">
           <EnterClinicButton clinicId={c.id} />
           <PlanSelect clinicId={c.id} plan={c.plan} />
           <SuspendClinicButton clinicId={c.id} clinicName={c.name} active={c.active} />

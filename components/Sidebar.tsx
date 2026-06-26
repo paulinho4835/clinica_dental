@@ -16,6 +16,7 @@ import {
   CreditCard,
   ShieldCheck,
   MessageSquareDashed,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -36,6 +37,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/cuentas": CreditCard,
   "/ajustes": Stethoscope,
   "/auditoria": ShieldCheck,
+  "/calificaciones": Star,
   "/wa-masivo": MessageSquareDashed,
 };
 

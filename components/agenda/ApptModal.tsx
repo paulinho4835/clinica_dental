@@ -64,6 +64,13 @@ export function ApptModal({
   const [patientName, setPatientName] = useState(appt?.patient_name ?? "");
   const [startTime, setStartTime] = useState(hhmmInput(start));
   const [endTime, setEndTime] = useState(hhmmInput(end));
+  // Odontólogo seleccionado (por nombre). El id viaja en un hidden derivado,
+  // resuelto contra la lista de doctores; es la fuente de verdad en el server.
+  const [dentistName, setDentistName] = useState(appt?.dentist_name ?? dentist ?? "");
+  const dentistId = useMemo(
+    () => doctors.find((d) => d.full_name === dentistName)?.id ?? "",
+    [doctors, dentistName],
+  );
   const [price, setPrice] = useState(appt?.consult_price ? String(appt.consult_price) : "");
   const [deposit, setDeposit] = useState(appt?.deposit ? String(appt.deposit) : "");
 
@@ -214,11 +221,14 @@ export function ApptModal({
 
         <label className="block text-sm">
           <span className="mb-1 block text-slate-600">Odontólogo *</span>
+          {/* Fuente de verdad: id del odontólogo (cuando se elige del select). */}
+          <input type="hidden" name="dentist_id" value={dentistId} />
           {doctors.length > 0 ? (
             <select
               name="dentist_name"
               required
-              defaultValue={appt?.dentist_name ?? dentist ?? ""}
+              value={dentistName}
+              onChange={(e) => setDentistName(e.target.value)}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             >
               <option value="" disabled>Selecciona un odontólogo…</option>
@@ -231,7 +241,8 @@ export function ApptModal({
               name="dentist_name"
               type="text"
               required
-              defaultValue={appt?.dentist_name ?? dentist ?? ""}
+              value={dentistName}
+              onChange={(e) => setDentistName(e.target.value)}
               placeholder="Nombre del odontólogo"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />

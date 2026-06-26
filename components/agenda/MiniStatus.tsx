@@ -4,12 +4,15 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setAppointmentStatus } from "@/app/(dashboard)/agenda/actions";
 import { toast } from "@/lib/toast";
-import { RotateCcw, Check, X } from "lucide-react";
+import { RotateCcw, Check, X, Armchair, DoorOpen } from "lucide-react";
 
-// ─── Control de asistencia (simple) ──────────────────────────────────────────
-// Dos resultados: "Atendido" (vino → migra dinero al historial) o "No vino".
-// Mientras está pendiente, muestra ambos botones; ya resuelto, muestra el
-// resultado con opción de deshacer.
+// ─── Control de flujo de la cita ─────────────────────────────────────────────
+// Etapas progresivas y reversibles:
+//   Pendiente → "Llegó" (en sala) → "En sillón" → "Atendido" / "No vino".
+// "En sala" (waiting) y "En sillón" (in_chair) encienden indicadores en el bloque
+// y los contadores de columna. "Atendido" migra el dinero al historial. Cualquier
+// etapa se puede deshacer; los resultados (Atendido/No vino) tienen botón de
+// deshacer que vuelve a Pendiente.
 export function MiniStatus({
   id,
   status,
@@ -35,85 +38,48 @@ export function MiniStatus({
   // Solo lectura para roles sin permiso.
   if (!canWrite) {
     const label =
-      status === "finished" ? "Atendido" : status === "no_show" ? "No vino" : "Pendiente";
+      status === "finished"
+        ? "Atendido"
+        : status === "no_show"
+          ? "No vino"
+          : status === "in_chair"
+            ? "En sillón"
+            : status === "waiting"
+              ? "En sala"
+              : "Pendiente";
     const color =
       status === "finished"
         ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
         : status === "no_show"
           ? "bg-red-100 text-red-700 ring-red-200"
-          : "bg-slate-100 text-slate-600 ring-slate-200";
+          : status === "in_chair"
+            ? "bg-clinic/10 text-clinic ring-clinic/30"
+            : status === "waiting"
+              ? "bg-amber-100 text-amber-700 ring-amber-200"
+              : "bg-slate-100 text-slate-600 ring-slate-200";
     return <span className={`rounded-full px-2 py-0.5 text-[11px] ring-1 ${color}`}>{label}</span>;
   }
 
   const done = status === "finished";
-  const resolved = status === "finished" || status === "no_show";
+  const resolved = done || status === "no_show";
 
-  // Modo icono: sin texto, para bloques pequeños.
-  if (iconOnly) {
-    if (resolved) {
-      return (
-        <span className="flex items-center gap-0.5">
-          <span
-            title={done ? "Atendido" : "No vino"}
-            className={`inline-flex items-center rounded-full p-0.5 ring-1 ${
-              done
-                ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
-                : "bg-red-100 text-red-700 ring-red-200"
-            }`}
-          >
-            {done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-          </span>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => set("scheduled")}
-            aria-label="Deshacer"
-            title="Deshacer"
-            className="rounded p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
-          >
-            <RotateCcw className="h-3 w-3" />
-          </button>
-        </span>
-      );
-    }
-    return (
-      <span className="flex items-center gap-0.5">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => set("finished")}
-          title="Atendido"
-          className="rounded border border-emerald-300 p-0.5 text-emerald-700 hover:bg-emerald-500 hover:text-white disabled:opacity-50"
-        >
-          <Check className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => set("no_show")}
-          title="No vino"
-          className="rounded border border-red-300 p-0.5 text-red-600 hover:bg-red-500 hover:text-white disabled:opacity-50"
-        >
-          <X className="h-3 w-3" />
-        </button>
+  // Resultado final: muestra el resultado + deshacer.
+  if (resolved) {
+    const content = (
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
+          done
+            ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+            : "bg-red-100 text-red-700 ring-red-200"
+        }`}
+      >
+        {done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+        {!iconOnly && (done ? "Atendido" : "No vino")}
       </span>
     );
-  }
-
-  // Modo completo: con texto.
-  if (resolved) {
     return (
       <span className="flex items-center gap-1">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${
-            done
-              ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
-              : "bg-red-100 text-red-700 ring-red-200"
-          }`}
-        >
-          {done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-          {done ? "Atendido" : "No vino"}
-        </span>
+        {content}
         <button
           type="button"
           disabled={pending}
@@ -122,29 +88,72 @@ export function MiniStatus({
           title="Deshacer"
           className="rounded p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className={iconOnly ? "h-3 w-3" : "h-3.5 w-3.5"} />
         </button>
       </span>
     );
   }
 
+  // ── Etapas previas al resultado ────────────────────────────────────────────
+  // 0 = pendiente, 1 = en sala (waiting), 2 = en sillón (in_chair).
+  const stage = status === "in_chair" ? 2 : status === "waiting" ? 1 : 0;
+  const btn =
+    "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium disabled:opacity-50";
+
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex flex-wrap items-center gap-1">
+      {/* Etapa 1: Llegó / En sala */}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => set(stage >= 1 ? "scheduled" : "waiting")}
+        aria-pressed={stage >= 1}
+        title={stage >= 1 ? "En sala (quitar)" : "Marcar que llegó"}
+        className={`${btn} ${
+          stage >= 1
+            ? "border-amber-500 bg-amber-500 text-white"
+            : "border-amber-300 text-amber-700 hover:bg-amber-500 hover:text-white"
+        }`}
+      >
+        <DoorOpen className="h-3 w-3" /> {!iconOnly && (stage >= 1 ? "En sala" : "Llegó")}
+      </button>
+
+      {/* Etapa 2: En sillón */}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => set(stage >= 2 ? "waiting" : "in_chair")}
+        aria-pressed={stage >= 2}
+        title={stage >= 2 ? "En sillón (quitar)" : "Pasar a sillón"}
+        className={`${btn} ${
+          stage >= 2
+            ? "border-clinic bg-clinic text-white"
+            : "border-clinic/40 text-clinic hover:bg-clinic hover:text-white"
+        }`}
+      >
+        <Armchair className="h-3 w-3" /> {!iconOnly && "En sillón"}
+      </button>
+
+      {/* Resultado: Atendido */}
       <button
         type="button"
         disabled={pending}
         onClick={() => set("finished")}
-        className="inline-flex items-center gap-1 rounded border border-emerald-300 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500 hover:text-white disabled:opacity-50"
+        title="Atendido"
+        className={`${btn} border-emerald-300 text-emerald-700 hover:bg-emerald-500 hover:text-white`}
       >
-        <Check className="h-3 w-3" /> Atendido
+        <Check className="h-3 w-3" /> {!iconOnly && "Atendido"}
       </button>
+
+      {/* Resultado: No vino */}
       <button
         type="button"
         disabled={pending}
         onClick={() => set("no_show")}
-        className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-0.5 text-[11px] font-medium text-red-600 hover:bg-red-500 hover:text-white disabled:opacity-50"
+        title="No vino"
+        className={`${btn} border-red-300 text-red-600 hover:bg-red-500 hover:text-white`}
       >
-        <X className="h-3 w-3" /> No vino
+        <X className="h-3 w-3" /> {!iconOnly && "No vino"}
       </button>
     </span>
   );
