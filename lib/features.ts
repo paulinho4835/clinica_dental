@@ -21,6 +21,7 @@ export type FeatureKey =
   | "consentimientos"
   | "recordatorios"
   | "calificaciones"
+  | "fotos"
   | "wa_masivo";
 
 export interface FeatureMeta {
@@ -54,6 +55,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
   { key: "recordatorios", label: "Recordatorios Automáticos", href: "/ajustes", optIn: true },
   { key: "calificaciones", label: "Calificaciones", href: "/calificaciones", optIn: true },
+  { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
 ];
 

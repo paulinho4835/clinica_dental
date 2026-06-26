@@ -16,9 +16,12 @@
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff",
     "db:push": "supabase db push",
-    "db:consolidate": "node scripts/consolidate-migrations.mjs"
+    "db:consolidate": "node scripts/consolidate-migrations.mjs",
+    "r2:setup": "node --env-file=.env.local scripts/r2-setup.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@hookform/resolvers": "^5.4.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
@@ -26,6 +29,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "@vapi-ai/web": "^2.5.2",
+    "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.452.0",

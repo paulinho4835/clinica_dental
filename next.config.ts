@@ -4,6 +4,11 @@ const isDev = process.env.NODE_ENV === "development";
 
 const supabaseConnect = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co`;
 
+// Cloudflare R2: las URLs firmadas usan el subdominio del bucket
+// ({bucket}.{account}.r2.cloudflarestorage.com), por eso el comodín. Se necesita
+// en connect-src para que el navegador pueda subir (PUT) y ver (GET) las fotos.
+const r2Connect = "https://*.r2.cloudflarestorage.com";
+
 // ── CSP estricta (todo el sitio salvo /demo) ─────────────────────────────────
 // 'unsafe-inline' en style-src: necesario para Tailwind. 'unsafe-inline' en
 // script-src: script anti-flash de dark mode. 'unsafe-eval' solo en dev (HMR).
@@ -11,9 +16,12 @@ const cspStrict = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // R2: la galería muestra las fotos con <img src={urlFirmadaDeR2}>.
+  `img-src 'self' data: blob: ${r2Connect}`,
   "font-src 'self'",
-  `connect-src 'self' ${supabaseConnect}`,
+  // blob: para el web worker de compresión de imágenes (browser-image-compression).
+  "worker-src 'self' blob:",
+  `connect-src 'self' ${supabaseConnect} ${r2Connect}`,
   "frame-src 'none'",
   "frame-ancestors 'none'",
   "object-src 'none'",

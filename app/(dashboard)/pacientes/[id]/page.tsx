@@ -32,6 +32,8 @@ import {
 } from "@/components/consents/ConsentsPanel";
 import { EvolutionPanel } from "@/components/patients/EvolutionPanel";
 import { AnamnesisPanel } from "@/components/patients/AnamnesisPanel";
+import { PhotosPanel, type PhotoItem } from "@/components/patients/PhotosPanel";
+import { isR2Configured, presignDownload } from "@/lib/r2";
 import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import type {
   ConsentTemplate,
@@ -232,6 +234,29 @@ export default async function PatientPage({
   const features = normalizeFeatures(clinicRow?.features);
   const recetasEnabled = features.recetas;
   const consentimientosEnabled = features.consentimientos;
+  const fotosEnabled = features.fotos;
+
+  // Fotos del paciente: el binario vive en R2; aquí solo cargamos referencias y
+  // generamos URLs firmadas de lectura (bucket privado). Solo si el addon está
+  // encendido y R2 configurado.
+  const r2Ready = isR2Configured();
+  let photos: PhotoItem[] = [];
+  if (fotosEnabled && r2Ready) {
+    const { data: photoRows } = await supabase
+      .from("patient_photos")
+      .select("id, storage_key, kind, caption, created_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false });
+    photos = await Promise.all(
+      (photoRows ?? []).map(async (p) => ({
+        id: p.id as string,
+        url: await presignDownload(p.storage_key as string),
+        kind: (p.kind as string | null) ?? null,
+        caption: (p.caption as string | null) ?? null,
+        createdAt: p.created_at as string,
+      })),
+    );
+  }
 
   const consentRows: ConsentRow[] = (rawConsents ?? []).map((c) => ({
     id: c.id as string,
@@ -368,6 +393,17 @@ export default async function PatientPage({
         />
         <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
       </section>
+
+      {fotosEnabled && (
+        <section>
+          <PhotosPanel
+            patientId={patient.id}
+            photos={photos}
+            canManage={canEditClinical}
+            configured={r2Ready}
+          />
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>

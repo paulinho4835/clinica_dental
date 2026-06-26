@@ -7,7 +7,7 @@ import {
   deleteWork,
   type ActionState,
 } from "@/app/(dashboard)/pacientes/treatment-actions";
-import { bs } from "@/lib/format";
+import { bs, fmtBoliviaDateTime } from "@/lib/format";
 
 export type Dentist = { id: string; full_name: string };
 
@@ -26,15 +26,7 @@ export type Work = {
 
 const initial: ActionState = {};
 
-const fmtDateTime = (iso: string) =>
-  new Date(iso).toLocaleString("es-BO", {
-    timeZone: "America/La_Paz",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const fmtDateTime = fmtBoliviaDateTime;
 
 export function TreatmentPlanPanel({
   patientId,

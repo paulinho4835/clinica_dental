@@ -4,16 +4,9 @@
 import { useState } from "react";
 import { type PrescriptionRow } from "@/app/(dashboard)/pacientes/prescription-actions";
 import { PrescriptionModal } from "./PrescriptionModal";
+import { fmtBoliviaDateTime } from "@/lib/format";
 
-const fmtDateTime = (iso: string) =>
-  new Date(iso).toLocaleString("es-BO", {
-    timeZone: "America/La_Paz",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const fmtDateTime = fmtBoliviaDateTime;
 
 export function PrescriptionsPanel({
   patientId,
