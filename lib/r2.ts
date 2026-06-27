@@ -8,11 +8,27 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 // por eso conviene frente a Supabase Storage para imágenes que se ven seguido.
 // ============================================================================
 
-const ACCOUNT_ID = process.env.R2_ACCOUNT_ID ?? "";
-const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID ?? "";
-const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY ?? "";
+// Limpia el valor de un env var: quita BOM (U+FEFF), espacios y comillas que a
+// veces se cuelan al pegar credenciales desde archivos guardados como "UTF-8 con
+// BOM" (clásico en Windows). Un BOM invisible al inicio de R2_BUCKET corrompe la
+// URL firmada (el bucket queda como BOM+nombre, R2 no lo encuentra, y el
+// preflight CORS falla sin Access-Control-Allow-Origin).
+function cleanEnv(v: string | undefined): string {
+  // Quita caracteres invisibles que se cuelan al pegar credenciales desde
+  // archivos "UTF-8 con BOM": U+FEFF (BOM) y U+200B (zero-width space).
+  // Filtramos por code point (no por regex con literales invisibles).
+  const noInvisible = (v ?? "")
+    .split("")
+    .filter((c) => c.charCodeAt(0) !== 0xfeff && c.charCodeAt(0) !== 0x200b)
+    .join("");
+  return noInvisible.trim().replace(/^["']|["']$/g, ""); // + comillas envolventes
+}
 
-export const R2_BUCKET = process.env.R2_BUCKET ?? "";
+const ACCOUNT_ID = cleanEnv(process.env.R2_ACCOUNT_ID);
+const ACCESS_KEY_ID = cleanEnv(process.env.R2_ACCESS_KEY_ID);
+const SECRET_ACCESS_KEY = cleanEnv(process.env.R2_SECRET_ACCESS_KEY);
+
+export const R2_BUCKET = cleanEnv(process.env.R2_BUCKET);
 
 // true solo si las 4 variables están configuradas. Las rutas/acciones lo usan
 // para fallar limpio ("almacenamiento no configurado") en vez de explotar.
