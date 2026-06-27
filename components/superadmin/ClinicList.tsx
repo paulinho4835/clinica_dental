@@ -13,6 +13,7 @@ import { EditClinicName } from "@/components/superadmin/EditClinicName";
 import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
 import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
+import { PhotoQuotaInput } from "@/components/superadmin/PhotoQuotaInput";
 import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
 import { RestoreBackupButton } from "@/components/superadmin/RestoreBackupButton";
 import { VapiConfigForm } from "@/components/superadmin/VapiConfigForm";
@@ -25,6 +26,7 @@ export type ClinicRow = {
   name: string;
   plan: string;
   features: Features;
+  photoQuota: number;
   active: boolean;
   max_users: number;
   created_at: string;
@@ -213,7 +215,7 @@ function ClinicCard({
             <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Add-ons
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {addons.map((f) => (
                 <AddonToggle
                   key={f.key}
@@ -223,6 +225,10 @@ function ClinicCard({
                   enabled={c.features[f.key]}
                 />
               ))}
+              {/* Tope de fotos (solo si el addon de fotos está encendido). */}
+              {c.features.fotos && (
+                <PhotoQuotaInput clinicId={c.id} quota={c.photoQuota} />
+              )}
             </div>
           </div>
 

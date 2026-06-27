@@ -106,15 +106,18 @@ export function PhotosPanel({
   photos,
   canManage,
   configured,
-  limit,
+  clinicUsed,
+  clinicQuota,
 }: {
   patientId: string;
   photos: PhotoItem[];
   canManage: boolean;
   /** R2 configurado en el servidor. Si no, mostramos aviso en vez de subir. */
   configured: boolean;
-  /** Tope de fotos por paciente según el addon contratado. */
-  limit: number;
+  /** Fotos ya usadas por TODA la clínica (el tope es por clínica, no por paciente). */
+  clinicUsed: number;
+  /** Tope de fotos de la clínica (configurable por el superadmin). */
+  clinicQuota: number;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,16 +125,17 @@ export function PhotosPanel({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const remaining = Math.max(0, limit - photos.length);
+  const remaining = Math.max(0, clinicQuota - clinicUsed);
   const atLimit = remaining === 0;
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     let list = Array.from(files);
-    // No dejar intentar más de las que caben (el servidor igual lo valida).
+    // No dejar intentar más de las que caben en el tope de la clínica (el
+    // servidor igual lo valida).
     if (list.length > remaining) {
       toast(
-        `Solo quedan ${remaining} de ${limit}. Se subirán las primeras ${remaining}.`,
+        `La clínica solo tiene espacio para ${remaining} foto${remaining !== 1 ? "s" : ""} más. Se subirán las primeras ${remaining}.`,
         "error",
       );
       list = list.slice(0, remaining);
@@ -179,8 +183,11 @@ export function PhotosPanel({
         <div className="flex items-baseline gap-2">
           <h2 className="font-semibold text-slate-800">Fotos</h2>
           {canManage && configured && (
-            <span className="text-xs text-slate-400">
-              {photos.length}/{limit}
+            <span
+              className="text-xs text-slate-400"
+              title="Fotos usadas por toda la clínica"
+            >
+              clínica: {clinicUsed.toLocaleString("es-BO")}/{clinicQuota.toLocaleString("es-BO")}
             </span>
           )}
         </div>
@@ -202,7 +209,7 @@ export function PhotosPanel({
             <button
               type="button"
               disabled={busy || atLimit}
-              title={atLimit ? `Límite de ${limit} fotos alcanzado` : undefined}
+              title={atLimit ? `Tope de la clínica alcanzado (${clinicQuota} fotos)` : undefined}
               onClick={() => inputRef.current?.click()}
               className="flex items-center gap-1.5 rounded-md bg-clinic px-3 py-1.5 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
             >

@@ -22,7 +22,6 @@ export type FeatureKey =
   | "recordatorios"
   | "calificaciones"
   | "fotos"
-  | "fotos_20"
   | "wa_masivo";
 
 export interface FeatureMeta {
@@ -56,26 +55,29 @@ export const FEATURES: FeatureMeta[] = [
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
   { key: "recordatorios", label: "Recordatorios Automáticos", href: "/ajustes", optIn: true },
   { key: "calificaciones", label: "Calificaciones", href: "/calificaciones", optIn: true },
-  { key: "fotos", label: "Fotos de pacientes (10)", href: "/pacientes", optIn: true },
-  { key: "fotos_20", label: "Fotos ampliadas (20)", href: "/pacientes", optIn: true },
+  { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
 ];
 
-// Tope de fotos por paciente según el addon contratado. El upgrade "fotos_20"
-// implica el base: una clínica con fotos_20 no necesita tener "fotos" encendido.
-// 0 = el módulo de fotos no está habilitado para la clínica.
-export const FOTOS_LIMIT_BASE = 10;
-export const FOTOS_LIMIT_PLUS = 20;
+// Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el
+// módulo; el número se configura por clínica desde Superadmin y vive en el mismo
+// jsonb `features` bajo la clave `fotos_max` (así no requiere migración). Si el
+// addon está encendido pero no hay número, se usa este default.
+export const FOTOS_DEFAULT_QUOTA = 2000;
 
-export function photoLimit(features: Features): number {
-  if (features.fotos_20) return FOTOS_LIMIT_PLUS;
-  if (features.fotos) return FOTOS_LIMIT_BASE;
-  return 0;
+// Lee el tope de fotos de una clínica a partir del jsonb crudo de `features`.
+// Devuelve 0 si el módulo de fotos está apagado.
+export function photoQuota(rawFeatures: unknown): number {
+  const obj = (rawFeatures ?? {}) as Record<string, unknown>;
+  if (obj.fotos !== true) return 0;
+  const n = obj.fotos_max;
+  if (typeof n === "number" && Number.isFinite(n) && n > 0) return Math.floor(n);
+  return FOTOS_DEFAULT_QUOTA;
 }
 
-// El módulo de fotos está disponible si tiene cualquiera de los dos addons.
+// El módulo de fotos está disponible si la clínica tiene el addon encendido.
 export function fotosEnabled(features: Features): boolean {
-  return features.fotos || features.fotos_20;
+  return features.fotos;
 }
 
 export type Features = Record<FeatureKey, boolean>;

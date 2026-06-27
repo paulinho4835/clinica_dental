@@ -4,8 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { getClinicFeatures } from "@/lib/superadmin";
-import { fotosEnabled, photoLimit } from "@/lib/features";
+import { getClinicPhotoQuota } from "@/lib/superadmin";
 import { isR2Configured, presignUpload, deleteObject } from "@/lib/r2";
 
 // Solo el personal clínico gestiona fotos (no recepción). Mismo criterio que el
@@ -36,8 +35,8 @@ export async function requestPhotoUpload(
   if (!ALLOWED_TYPES.includes(contentType))
     return { ok: false, error: "Formato no permitido (usa JPG, PNG o WebP)." };
 
-  const features = await getClinicFeatures();
-  if (!fotosEnabled(features))
+  const quota = await getClinicPhotoQuota();
+  if (quota <= 0)
     return { ok: false, error: "El módulo de fotos no está habilitado para esta clínica." };
 
   const supabase = await createClient();
@@ -49,18 +48,16 @@ export async function requestPhotoUpload(
     .maybeSingle();
   if (!patient) return { ok: false, error: "Paciente no encontrado." };
 
-  // Tope por paciente según el addon. Se valida ANTES de firmar la URL para no
-  // dejar objetos huérfanos en R2 si se excede el límite.
-  const limit = photoLimit(features);
+  // Tope POR CLÍNICA. Se valida ANTES de firmar la URL para no dejar objetos
+  // huérfanos en R2 si se excede el tope.
   const { count } = await supabase
     .from("patient_photos")
     .select("id", { count: "exact", head: true })
-    .eq("patient_id", patientId)
     .eq("clinic_id", profile.clinicId);
-  if ((count ?? 0) >= limit)
+  if ((count ?? 0) >= quota)
     return {
       ok: false,
-      error: `Límite alcanzado: máximo ${limit} fotos por paciente.`,
+      error: `Tope de la clínica alcanzado (${quota} fotos). Contacta al administrador para ampliarlo.`,
     };
 
   const ext =

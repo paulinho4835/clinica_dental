@@ -250,6 +250,31 @@ export async function setMaxUsers(_prev: unknown, formData: FormData) {
   return { ok: true };
 }
 
+// ── Tope de fotos por clínica ────────────────────────────────────────────────
+// Se guarda en el jsonb `features` (clave numérica `fotos_max`), junto a los
+// toggles booleanos. No requiere migración. 0 = sin fotos permitidas.
+export async function setPhotoQuota(_prev: unknown, formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  const quota = Number(formData.get("quota"));
+  if (!clinicId || !Number.isInteger(quota) || quota < 0)
+    return { error: "Valor inválido" };
+
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("features")
+    .eq("id", clinicId)
+    .single();
+
+  const features = { ...(clinic?.features as Record<string, unknown> | null) };
+  features.fotos_max = quota;
+
+  await admin.from("clinics").update({ features }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+  return { ok: true };
+}
+
 // ── Cambiar plan ─────────────────────────────────────────────────────────────
 export async function setPlan(formData: FormData) {
   await assertSuperadmin();

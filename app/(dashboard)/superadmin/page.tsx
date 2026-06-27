@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Building2, CheckCircle2, PauseCircle, Users } from "lucide-react";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { FEATURES, normalizeFeatures } from "@/lib/features";
+import { FEATURES, normalizeFeatures, photoQuota } from "@/lib/features";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
 import { ClinicList, type ClinicRow } from "@/components/superadmin/ClinicList";
 import type { ClinicUser } from "@/components/superadmin/ClinicUsers";
@@ -84,6 +84,7 @@ export default async function SuperadminPage({
     name: c.name,
     plan: c.plan,
     features: normalizeFeatures(c.features),
+    photoQuota: photoQuota(c.features),
     active: c.active !== false,
     max_users: c.max_users ?? 10,
     created_at: c.created_at,

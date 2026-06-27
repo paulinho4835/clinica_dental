@@ -20,7 +20,7 @@ import {
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
 import Link from "next/link";
-import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoLimit } from "@/lib/features";
+import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
 import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
 import type {
   PrescriptionRow,
@@ -235,14 +235,22 @@ export default async function PatientPage({
   const recetasEnabled = features.recetas;
   const consentimientosEnabled = features.consentimientos;
   const fotosEnabled = fotosFeatureEnabled(features);
-  const fotosLimit = photoLimit(features);
+  const fotosQuota = photoQuota(clinicRow?.features);
 
   // Fotos del paciente: el binario vive en R2; aquí solo cargamos referencias y
   // generamos URLs firmadas de lectura (bucket privado). Solo si el addon está
   // encendido y R2 configurado.
   const r2Ready = isR2Configured();
   let photos: PhotoItem[] = [];
+  // Fotos usadas por TODA la clínica (el tope es por clínica, no por paciente).
+  let clinicPhotoCount = 0;
   if (fotosEnabled && r2Ready) {
+    const { count: clinicCount } = await supabase
+      .from("patient_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", patient.clinic_id);
+    clinicPhotoCount = clinicCount ?? 0;
+
     const { data: photoRows } = await supabase
       .from("patient_photos")
       .select("id, storage_key, kind, caption, created_at")
@@ -402,7 +410,8 @@ export default async function PatientPage({
             photos={photos}
             canManage={canEditClinical}
             configured={r2Ready}
-            limit={fotosLimit}
+            clinicUsed={clinicPhotoCount}
+            clinicQuota={fotosQuota}
           />
         </section>
       )}
