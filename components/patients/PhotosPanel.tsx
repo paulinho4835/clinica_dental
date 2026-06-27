@@ -68,15 +68,28 @@ async function uploadOne(
   const res = await requestPhotoUpload(patientId, "image/webp");
   if (!res.ok) return { ok: false, error: res.error };
 
+  // DEBUG: loguea el host de la URL firmada para diagnosticar CORS/TLS.
+  // Quitar este bloque cuando el upload funcione en prod.
+  try {
+    const debugUrl = new URL(res.uploadUrl);
+    console.debug("[R2 upload] host:", debugUrl.host, "| path prefix:", debugUrl.pathname.slice(0, 40));
+  } catch { /* no bloquear */ }
+
   try {
     const put = await fetch(res.uploadUrl, {
       method: "PUT",
       body: compressed,
       headers: { "Content-Type": "image/webp" },
     });
-    if (!put.ok) return { ok: false, error: `Falló la subida (HTTP ${put.status}).` };
-  } catch {
-    return { ok: false, error: "Error de red al subir la imagen." };
+    if (!put.ok) {
+      const body = await put.text().catch(() => "");
+      console.error("[R2 upload] HTTP error", put.status, body);
+      return { ok: false, error: `Falló la subida (HTTP ${put.status}). Ver consola.` };
+    }
+  } catch (err) {
+    console.error("[R2 upload] fetch threw:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `Error de red: ${msg}` };
   }
 
   const reg = await registerPhoto({
