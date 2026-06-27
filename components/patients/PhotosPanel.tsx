@@ -52,7 +52,11 @@ async function uploadOne(
       maxSizeMB: 0.3,
       maxWidthOrHeight: 1600,
       fileType: "image/webp",
-      useWebWorker: true,
+      // SIN web worker a propósito: el worker de la librería carga su script
+      // desde cdn.jsdelivr.net (importScripts), lo que viola nuestra CSP
+      // (script-src 'self'). En el hilo principal usa el código ya empaquetado,
+      // sin depender de un CDN externo. Para 1-pocas fotos es instantáneo.
+      useWebWorker: false,
     });
   } catch {
     return { ok: false, error: "No se pudo procesar la imagen." };
