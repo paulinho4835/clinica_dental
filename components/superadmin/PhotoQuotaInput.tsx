@@ -14,9 +14,12 @@ const initial: State = {};
 export function PhotoQuotaInput({
   clinicId,
   quota,
+  used,
 }: {
   clinicId: string;
   quota: number;
+  /** Fotos ya usadas por la clínica (visible solo para el superadmin). */
+  used: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(setPhotoQuota, initial);
@@ -43,7 +46,11 @@ export function PhotoQuotaInput({
         className="group inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-300 transition hover:bg-slate-200"
       >
         <Camera className="h-3.5 w-3.5 text-slate-400" />
-        Tope: {quota.toLocaleString("es-BO")} fotos
+        <span className={used >= quota ? "font-semibold text-red-600" : ""}>
+          {used.toLocaleString("es-BO")}
+        </span>
+        <span className="text-slate-400">/</span>
+        {quota.toLocaleString("es-BO")} fotos
         <Pencil className="h-3 w-3 opacity-0 transition group-hover:opacity-100" />
       </button>
     );
@@ -53,6 +60,7 @@ export function PhotoQuotaInput({
     <form action={formAction} className="inline-flex items-center gap-1">
       <input type="hidden" name="clinicId" value={clinicId} />
       <Camera className="h-3.5 w-3.5 text-slate-400" />
+      <span className="text-xs text-slate-500">{used.toLocaleString("es-BO")} /</span>
       <input
         ref={inputRef}
         name="quota"

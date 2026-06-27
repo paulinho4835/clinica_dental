@@ -57,7 +57,7 @@ export async function requestPhotoUpload(
   if ((count ?? 0) >= quota)
     return {
       ok: false,
-      error: `Tope de la clínica alcanzado (${quota} fotos). Contacta al administrador para ampliarlo.`,
+      error: "Tope de fotos de la clínica alcanzado. Contacta al administrador para ampliarlo.",
     };
 
   const ext =

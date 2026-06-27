@@ -79,12 +79,28 @@ export default async function SuperadminPage({
     label: f.label,
   }));
 
+  // Contador real de fotos por clínica (solo para las que tienen el addon de
+  // fotos; el superadmin siempre lo ve, la clínica solo con su propio addon).
+  const photoCounts = new Map<string, number>();
+  await Promise.all(
+    (clinics ?? [])
+      .filter((c) => normalizeFeatures(c.features).fotos)
+      .map(async (c) => {
+        const { count } = await admin
+          .from("patient_photos")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", c.id);
+        photoCounts.set(c.id, count ?? 0);
+      }),
+  );
+
   const rows: ClinicRow[] = (clinics ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     plan: c.plan,
     features: normalizeFeatures(c.features),
     photoQuota: photoQuota(c.features),
+    photoUsed: photoCounts.get(c.id) ?? 0,
     active: c.active !== false,
     max_users: c.max_users ?? 10,
     created_at: c.created_at,

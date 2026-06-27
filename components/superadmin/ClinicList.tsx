@@ -27,6 +27,7 @@ export type ClinicRow = {
   plan: string;
   features: Features;
   photoQuota: number;
+  photoUsed: number;
   active: boolean;
   max_users: number;
   created_at: string;
@@ -227,7 +228,11 @@ function ClinicCard({
               ))}
               {/* Tope de fotos (solo si el addon de fotos está encendido). */}
               {c.features.fotos && (
-                <PhotoQuotaInput clinicId={c.id} quota={c.photoQuota} />
+                <PhotoQuotaInput
+                  clinicId={c.id}
+                  quota={c.photoQuota}
+                  used={c.photoUsed}
+                />
               )}
             </div>
           </div>

@@ -106,18 +106,24 @@ export function PhotosPanel({
   photos,
   canManage,
   configured,
-  clinicUsed,
+  atLimit,
   clinicQuota,
+  clinicUsed,
+  showCounter,
 }: {
   patientId: string;
   photos: PhotoItem[];
   canManage: boolean;
   /** R2 configurado en el servidor. Si no, mostramos aviso en vez de subir. */
   configured: boolean;
-  /** Fotos ya usadas por TODA la clínica (el tope es por clínica, no por paciente). */
-  clinicUsed: number;
+  /** Tope alcanzado (calculado en servidor; siempre disponible aunque se oculte el número). */
+  atLimit: boolean;
   /** Tope de fotos de la clínica (configurable por el superadmin). */
   clinicQuota: number;
+  /** Fotos usadas por TODA la clínica. Solo llega si el addon de contador está activo. */
+  clinicUsed?: number;
+  /** Mostrar el número de fotos a la clínica (addon "Ver contador de fotos"). */
+  showCounter: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -125,15 +131,17 @@ export function PhotosPanel({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const remaining = Math.max(0, clinicQuota - clinicUsed);
-  const atLimit = remaining === 0;
+  // Si la clínica ve el número, podemos recortar el lote a lo que queda; si no,
+  // dejamos subir y el servidor corta el excedente (sin revelar cifras).
+  const remaining =
+    showCounter && clinicUsed !== undefined
+      ? Math.max(0, clinicQuota - clinicUsed)
+      : null;
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     let list = Array.from(files);
-    // No dejar intentar más de las que caben en el tope de la clínica (el
-    // servidor igual lo valida).
-    if (list.length > remaining) {
+    if (remaining !== null && list.length > remaining) {
       toast(
         `La clínica solo tiene espacio para ${remaining} foto${remaining !== 1 ? "s" : ""} más. Se subirán las primeras ${remaining}.`,
         "error",
@@ -182,7 +190,7 @@ export function PhotosPanel({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="font-semibold text-slate-800">Fotos</h2>
-          {canManage && configured && (
+          {canManage && configured && showCounter && clinicUsed !== undefined && (
             <span
               className="text-xs text-slate-400"
               title="Fotos usadas por toda la clínica"
@@ -209,7 +217,7 @@ export function PhotosPanel({
             <button
               type="button"
               disabled={busy || atLimit}
-              title={atLimit ? `Tope de la clínica alcanzado (${clinicQuota} fotos)` : undefined}
+              title={atLimit ? "Tope de fotos de la clínica alcanzado" : undefined}
               onClick={() => inputRef.current?.click()}
               className="flex items-center gap-1.5 rounded-md bg-clinic px-3 py-1.5 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
             >

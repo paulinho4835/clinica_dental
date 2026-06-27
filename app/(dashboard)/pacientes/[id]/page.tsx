@@ -410,8 +410,12 @@ export default async function PatientPage({
             photos={photos}
             canManage={canEditClinical}
             configured={r2Ready}
-            clinicUsed={clinicPhotoCount}
+            atLimit={clinicPhotoCount >= fotosQuota}
             clinicQuota={fotosQuota}
+            // El número de fotos solo se revela a la clínica si tiene el addon
+            // "Ver contador de fotos". El superadmin lo ve siempre desde su panel.
+            clinicUsed={features.fotos_contador ? clinicPhotoCount : undefined}
+            showCounter={features.fotos_contador}
           />
         </section>
       )}
