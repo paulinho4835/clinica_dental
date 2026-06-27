@@ -27,6 +27,12 @@ function client(): S3Client {
     _client = new S3Client({
       region: "auto",
       endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      // path-style OBLIGATORIO en R2: sin esto el SDK genera URLs virtual-host
+      // (bucket.{account}.r2.cloudflarestorage.com), que son DOS niveles de
+      // subdominio. El cert comodín de R2 (*.r2.cloudflarestorage.com) cubre
+      // un solo nivel → el navegador rechaza el TLS → "Failed to fetch" en el
+      // PUT/GET. Con path-style el host queda en {account}.r2... (un nivel).
+      forcePathStyle: true,
       credentials: {
         accessKeyId: ACCESS_KEY_ID,
         secretAccessKey: SECRET_ACCESS_KEY,
