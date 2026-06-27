@@ -112,6 +112,12 @@ export default async function SuperadminPage({
     settings: (c.settings as Record<string, unknown>) ?? {},
   }));
 
+  // Clínicas que llegaron al 90% de su tope de fotos: candidatas a ampliación
+  // (upsell). Solo las que tienen el addon de fotos y un tope definido.
+  const nearQuota = rows.filter(
+    (c) => c.features.fotos && c.photoQuota > 0 && c.photoUsed >= c.photoQuota * 0.9,
+  );
+
   const total = rows.length;
   const activeCount = rows.filter((c) => c.active).length;
   const suspendedCount = total - activeCount;
@@ -164,6 +170,26 @@ export default async function SuperadminPage({
           </div>
         ))}
       </div>
+
+      {/* Alerta de upsell: clínicas cerca de su tope de fotos */}
+      {nearQuota.length > 0 && (
+        <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-500/10">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+            <Camera className="h-4 w-4" />
+            {nearQuota.length} clínica{nearQuota.length !== 1 ? "s" : ""} cerca de su tope de fotos
+          </div>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {nearQuota.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-full bg-white px-3 py-1 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-night/40 dark:text-amber-200"
+              >
+                {c.name}: {c.photoUsed.toLocaleString("es-BO")}/{c.photoQuota.toLocaleString("es-BO")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Nueva clínica (colapsable) */}
       <details className="group rounded-xl bg-white shadow-sm ring-1 ring-slate-200">

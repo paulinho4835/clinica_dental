@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // ============================================================================
@@ -65,6 +65,25 @@ export async function presignDownload(
 
 export async function deleteObject(key: string): Promise<void> {
   await client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
+// Lista todos los objetos del bucket (key + fecha de modificación), paginando.
+// Lo usa el cron de limpieza para detectar huérfanos (objetos sin fila en la DB).
+export async function listAllObjects(): Promise<
+  { key: string; lastModified: Date | null }[]
+> {
+  const out: { key: string; lastModified: Date | null }[] = [];
+  let token: string | undefined;
+  do {
+    const r = await client().send(
+      new ListObjectsV2Command({ Bucket: R2_BUCKET, ContinuationToken: token }),
+    );
+    for (const o of r.Contents ?? []) {
+      if (o.Key) out.push({ key: o.Key, lastModified: o.LastModified ?? null });
+    }
+    token = r.IsTruncated ? r.NextContinuationToken : undefined;
+  } while (token);
+  return out;
 }
 
 // Tamaño real (bytes) del objeto en R2, o null si no existe / falla. Se usa para

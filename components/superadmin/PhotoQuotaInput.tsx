@@ -46,7 +46,15 @@ export function PhotoQuotaInput({
         className="group inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-300 transition hover:bg-slate-200"
       >
         <Camera className="h-3.5 w-3.5 text-slate-400" />
-        <span className={used >= quota ? "font-semibold text-red-600" : ""}>
+        <span
+          className={
+            used >= quota
+              ? "font-semibold text-red-600"
+              : used >= quota * 0.9
+                ? "font-semibold text-amber-600"
+                : ""
+          }
+        >
           {used.toLocaleString("es-BO")}
         </span>
         <span className="text-slate-400">/</span>

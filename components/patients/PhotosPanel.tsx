@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
-import { ImagePlus, Trash2, Loader2, ExternalLink, Pencil, Check, X } from "lucide-react";
+import { ImagePlus, Trash2, Loader2, ExternalLink, Pencil, Check, X, Camera, ChevronLeft, ChevronRight, Columns2 } from "lucide-react";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import {
@@ -129,9 +129,44 @@ export function PhotosPanel({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState("intraoral");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Filtro por tipo, visor (lightbox) y modo comparación antes/después.
+  const [filterKind, setFilterKind] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSel, setCompareSel] = useState<string[]>([]);
+
+  // Conteo por tipo (para los chips de filtro) y lista visible según el filtro.
+  const countsByKind = photos.reduce<Record<string, number>>((acc, p) => {
+    const k = p.kind ?? "otro";
+    acc[k] = (acc[k] ?? 0) + 1;
+    return acc;
+  }, {});
+  const visiblePhotos = filterKind
+    ? photos.filter((p) => (p.kind ?? "otro") === filterKind)
+    : photos;
+
+  function onThumbClick(p: PhotoItem, idx: number) {
+    if (compareMode) {
+      setCompareSel((sel) =>
+        sel.includes(p.id)
+          ? sel.filter((x) => x !== p.id)
+          : sel.length < 2
+            ? [...sel, p.id]
+            : [sel[1], p.id],
+      );
+    } else {
+      setLightboxIndex(idx);
+    }
+  }
+
+  const comparePair = compareSel
+    .map((id) => photos.find((p) => p.id === id))
+    .filter((p): p is PhotoItem => Boolean(p));
 
   // Si la clínica ve el número, podemos recortar el lote a lo que queda; si no,
   // dejamos subir y el servidor corta el excedente (sin revelar cifras).
@@ -270,6 +305,24 @@ export function PhotosPanel({
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
             />
+            {/* Captura directa: en tablet/móvil abre la cámara trasera (chairside). */}
+            <button
+              type="button"
+              disabled={busy || atLimit}
+              title="Tomar foto con la cámara"
+              onClick={() => cameraRef.current?.click()}
+              className="flex items-center justify-center rounded-md border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
           </div>
         )}
       </div>
@@ -286,24 +339,74 @@ export function PhotosPanel({
           Sin fotos para este paciente.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {photos.map((p) => (
+        <>
+          {/* Filtro por tipo + comparación antes/después */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <FilterChip
+              label="Todas"
+              count={photos.length}
+              active={filterKind === null}
+              onClick={() => setFilterKind(null)}
+            />
+            {KIND_OPTIONS.filter((o) => countsByKind[o.value]).map((o) => (
+              <FilterChip
+                key={o.value}
+                label={o.label}
+                count={countsByKind[o.value]}
+                active={filterKind === o.value}
+                onClick={() => setFilterKind(o.value)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setCompareMode((v) => !v);
+                setCompareSel([]);
+              }}
+              className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${
+                compareMode
+                  ? "bg-clinic text-white ring-clinic"
+                  : "bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200"
+              }`}
+            >
+              <Columns2 className="h-3.5 w-3.5" />
+              {compareMode ? "Comparando…" : "Comparar"}
+            </button>
+          </div>
+          {compareMode && (
+            <p className="mb-2 text-xs text-slate-500">
+              Elige 2 fotos para verlas lado a lado ({compareSel.length}/2).
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          {visiblePhotos.map((p, idx) => (
             <div
               key={p.id}
-              className="group relative overflow-hidden rounded-lg ring-1 ring-slate-200"
+              className={`group relative overflow-hidden rounded-lg ring-1 transition ${
+                compareMode && compareSel.includes(p.id)
+                  ? "ring-2 ring-clinic"
+                  : "ring-slate-200"
+              }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.url}
                 alt={p.caption ?? KIND_LABEL[p.kind ?? ""] ?? "Foto"}
                 loading="lazy"
+                onClick={() => editingId !== p.id && onThumbClick(p, idx)}
                 title={
                   p.uploaderName
                     ? `Subida por ${p.uploaderName} · ${new Date(p.createdAt).toLocaleDateString("es-BO")}`
                     : new Date(p.createdAt).toLocaleDateString("es-BO")
                 }
-                className="aspect-square w-full object-cover"
+                className="aspect-square w-full cursor-pointer object-cover"
               />
+              {compareMode && compareSel.includes(p.id) && (
+                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-clinic text-[11px] font-bold text-white">
+                  {compareSel.indexOf(p.id) + 1}
+                </span>
+              )}
               {p.kind && (
                 <span className="absolute left-1 top-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   {KIND_LABEL[p.kind] ?? p.kind}
@@ -389,8 +492,152 @@ export function PhotosPanel({
               )}
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
+
+      {/* Visor (lightbox) de una foto con navegación */}
+      {lightboxIndex !== null && visiblePhotos[lightboxIndex] && (
+        <Lightbox
+          photos={visiblePhotos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNav={(i) => setLightboxIndex(i)}
+        />
+      )}
+
+      {/* Comparación antes/después lado a lado */}
+      {compareMode && comparePair.length === 2 && (
+        <CompareOverlay
+          left={comparePair[0]}
+          right={comparePair[1]}
+          onClose={() => setCompareSel([])}
+        />
+      )}
+    </div>
+  );
+}
+
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+        active
+          ? "bg-clinic text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+    >
+      {label} <span className={active ? "text-white/70" : "text-slate-400"}>{count}</span>
+    </button>
+  );
+}
+
+function Lightbox({
+  photos,
+  index,
+  onClose,
+  onNav,
+}: {
+  photos: PhotoItem[];
+  index: number;
+  onClose: () => void;
+  onNav: (i: number) => void;
+}) {
+  const p = photos[index];
+  const prev = () => onNav((index - 1 + photos.length) % photos.length);
+  const next = () => onNav((index + 1) % photos.length);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        title="Cerrar"
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); prev(); }}
+            title="Anterior"
+            className="absolute left-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); next(); }}
+            title="Siguiente"
+            className="absolute right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </>
+      )}
+      <figure className="flex max-h-full max-w-full flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={p.url} alt={p.caption ?? "Foto"} className="max-h-[80vh] max-w-full rounded-lg object-contain" />
+        <figcaption className="text-center text-xs text-white/80">
+          {p.kind && <span className="mr-2 rounded bg-white/15 px-1.5 py-0.5">{KIND_LABEL[p.kind] ?? p.kind}</span>}
+          {p.caption && <span>{p.caption} · </span>}
+          {p.uploaderName && <span>{p.uploaderName} · </span>}
+          {new Date(p.createdAt).toLocaleDateString("es-BO")}
+        </figcaption>
+      </figure>
+    </div>
+  );
+}
+
+function CompareOverlay({
+  left,
+  right,
+  onClose,
+}: {
+  left: PhotoItem;
+  right: PhotoItem;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" onClick={onClose}>
+      <button
+        type="button"
+        onClick={onClose}
+        title="Cerrar"
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <div className="grid w-full max-w-5xl grid-cols-2 gap-3" onClick={(e) => e.stopPropagation()}>
+        {[left, right].map((p, i) => (
+          <figure key={p.id} className="flex flex-col items-center gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.url} alt={p.caption ?? "Foto"} className="max-h-[78vh] w-full rounded-lg object-contain" />
+            <figcaption className="text-center text-xs text-white/80">
+              <span className="mr-1 rounded bg-white/15 px-1.5 py-0.5">{i === 0 ? "Izquierda" : "Derecha"}</span>
+              {p.kind && <span className="mr-1">{KIND_LABEL[p.kind] ?? p.kind}</span>}
+              {new Date(p.createdAt).toLocaleDateString("es-BO")}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
     </div>
   );
 }
