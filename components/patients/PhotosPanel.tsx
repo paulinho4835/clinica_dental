@@ -68,12 +68,9 @@ async function uploadOne(
   const res = await requestPhotoUpload(patientId, "image/webp");
   if (!res.ok) return { ok: false, error: res.error };
 
-  // DEBUG: loguea el host de la URL firmada para diagnosticar CORS/TLS.
-  // Quitar este bloque cuando el upload funcione en prod.
-  try {
-    const debugUrl = new URL(res.uploadUrl);
-    console.debug("[R2 upload] host:", debugUrl.host, "| path prefix:", debugUrl.pathname.slice(0, 40));
-  } catch { /* no bloquear */ }
+  // DEBUG: loguea la URL firmada completa para diagnosticar CORS/TLS/path.
+  // Quitar cuando el upload funcione en prod.
+  console.log("[R2 upload] uploadUrl:", res.uploadUrl);
 
   try {
     const put = await fetch(res.uploadUrl, {
