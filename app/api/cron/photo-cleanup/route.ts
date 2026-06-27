@@ -45,6 +45,9 @@ export async function GET(req: Request) {
   let deleted = 0;
   let skippedRecent = 0;
   for (const o of objects) {
+    // Los respaldos automáticos (cron/backup) viven bajo backups/ en el mismo
+    // bucket: NO son fotos huérfanas, nunca borrarlos aquí.
+    if (o.key.startsWith("backups/")) continue;
     if (liveKeys.has(o.key)) continue; // tiene fila → válido
     // Sin fila pero reciente: probablemente una subida en curso → no tocar.
     if (o.lastModified && o.lastModified.getTime() > cutoff) {

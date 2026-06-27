@@ -1,13 +1,16 @@
 import { redirect } from "next/navigation";
-import { Building2, CheckCircle2, PauseCircle, Users, Camera, Database, HardDrive } from "lucide-react";
+import { Building2, CheckCircle2, PauseCircle, Users, Camera, Database, HardDrive, AlertTriangle, DatabaseBackup } from "lucide-react";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEATURES, normalizeFeatures, photoQuota } from "@/lib/features";
 import {
   getSupabaseStorageStats,
   formatBytes,
+  usageLevel,
+  type UsageLevel,
   SUPABASE_FREE_DB_BYTES,
   SUPABASE_FREE_STORAGE_BYTES,
+  R2_FREE_PHOTO_BYTES,
 } from "@/lib/storage";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
 import { ClinicList, type ClinicRow } from "@/components/superadmin/ClinicList";
@@ -35,30 +38,45 @@ export default async function SuperadminPage({
 
   const admin = createAdminClient();
 
-  let query = admin
+  let clinicsQuery = admin
     .from("clinics")
     .select("id, name, plan, features, active, max_users, created_at, settings");
-  if (sort === "antiguas") query = query.order("created_at", { ascending: true });
-  else if (sort === "nombre") query = query.order("name", { ascending: true });
-  else query = query.order("created_at", { ascending: false }); // recientes
+  if (sort === "antiguas") clinicsQuery = clinicsQuery.order("created_at", { ascending: true });
+  else if (sort === "nombre") clinicsQuery = clinicsQuery.order("name", { ascending: true });
+  else clinicsQuery = clinicsQuery.order("created_at", { ascending: false }); // recientes
 
-  const { data: clinics } = await query;
-
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("id, clinic_id, full_name, role, active");
+  // Todas estas lecturas son independientes entre sí → en paralelo para no
+  // encadenar ~7 viajes a la base (antes corrían en secuencia, una por await).
+  // Las que tocan tablas/funciones que podrían no existir aún en prod (storage
+  // stats, backup_runs) resuelven con error suave, no rechazan el Promise.all.
+  const [
+    { data: clinics },
+    { data: profiles },
+    { data: authList },
+    { data: platformAdmins },
+    { data: allPhotos },
+    supaStats,
+    { data: backupRows },
+  ] = await Promise.all([
+    clinicsQuery,
+    admin.from("profiles").select("id, clinic_id, full_name, role, active"),
+    admin.auth.admin.listUsers({ perPage: 1000 }),
+    admin.from("platform_admins").select("user_id"),
+    admin.from("patient_photos").select("clinic_id, size_bytes"),
+    getSupabaseStorageStats(),
+    admin
+      .from("backup_runs")
+      .select("clinic_id, status, size_bytes, created_at")
+      .order("created_at", { ascending: false }),
+  ]);
 
   // Emails desde auth.users (service_role tiene acceso completo)
   const emailMap = new Map<string, string>();
-  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 });
   for (const u of authList?.users ?? []) {
     emailMap.set(u.id, u.email ?? "");
   }
 
   // Excluir platform admins en modo vista previa del listado de usuarios de la clínica
-  const { data: platformAdmins } = await admin
-    .from("platform_admins")
-    .select("user_id");
   const platformAdminIds = new Set((platformAdmins ?? []).map((p) => p.user_id));
 
   const usersByClinic = new Map<string, ClinicUser[]>();
@@ -91,22 +109,50 @@ export default async function SuperadminPage({
   const photoCounts = new Map<string, number>();
   let totalPhotoBytes = 0;
   let totalPhotos = 0;
-  {
-    const { data: allPhotos } = await admin
-      .from("patient_photos")
-      .select("clinic_id, size_bytes");
-    for (const ph of allPhotos ?? []) {
-      const cid = ph.clinic_id as string;
-      photoCounts.set(cid, (photoCounts.get(cid) ?? 0) + 1);
-      totalPhotoBytes += Number(ph.size_bytes) || 0;
-      totalPhotos += 1;
-    }
+  for (const ph of allPhotos ?? []) {
+    const cid = ph.clinic_id as string;
+    photoCounts.set(cid, (photoCounts.get(cid) ?? 0) + 1);
+    totalPhotoBytes += Number(ph.size_bytes) || 0;
+    totalPhotos += 1;
   }
   const totalPhotoGB = totalPhotoBytes / 1024 ** 3;
 
-  // Uso real de Supabase (base de datos + Storage) para avisar antes de superar
-  // el free tier y tener que pagar. null si la migración 0067 aún no está en prod.
-  const supaStats = await getSupabaseStorageStats();
+  // Alertas de almacenamiento: recursos que cruzaron el 80% de su límite gratuito.
+  // Se muestran como banner arriba del todo (canal de aviso "en-app").
+  const usageItems: { label: string; used: number; limit: number }[] = [
+    ...(supaStats
+      ? [
+          { label: "Base de datos (Supabase)", used: supaStats.databaseBytes, limit: SUPABASE_FREE_DB_BYTES },
+          { label: "Storage (Supabase)", used: supaStats.storageBytes, limit: SUPABASE_FREE_STORAGE_BYTES },
+        ]
+      : []),
+    { label: "Fotos (Cloudflare R2)", used: totalPhotoBytes, limit: R2_FREE_PHOTO_BYTES },
+  ];
+  const usageAlerts = usageItems
+    .map((it) => ({ ...it, level: usageLevel(it.used, it.limit) }))
+    .filter((it) => it.level !== "ok");
+  const worstLevel: UsageLevel = usageAlerts.some((a) => a.level === "danger")
+    ? "danger"
+    : usageAlerts.length > 0
+      ? "warn"
+      : "ok";
+
+  // Último respaldo automático por clínica (de backupRows, ya cargado arriba).
+  // Si la migración 0068 aún no está en prod, backupRows es null y el mapa queda
+  // vacío (la sección muestra "sin respaldo aún").
+  const lastBackup = new Map<
+    string,
+    { status: string; created_at: string; size_bytes: number | null }
+  >();
+  for (const b of backupRows ?? []) {
+    const cid = b.clinic_id as string;
+    if (!cid || lastBackup.has(cid)) continue; // ya tengo el más reciente
+    lastBackup.set(cid, {
+      status: b.status as string,
+      created_at: b.created_at as string,
+      size_bytes: (b.size_bytes as number | null) ?? null,
+    });
+  }
 
   const rows: ClinicRow[] = (clinics ?? []).map((c) => ({
     id: c.id,
@@ -163,6 +209,44 @@ export default async function SuperadminPage({
         </p>
       </div>
 
+      {/* Banner de alerta de almacenamiento (canal "en-app") */}
+      {usageAlerts.length > 0 && (
+        <div
+          className={`rounded-xl p-4 ring-1 ${
+            worstLevel === "danger"
+              ? "bg-red-50 ring-red-200 dark:bg-red-500/10"
+              : "bg-amber-50 ring-amber-200 dark:bg-amber-500/10"
+          }`}
+        >
+          <div
+            className={`flex items-center gap-2 text-sm font-semibold ${
+              worstLevel === "danger" ? "text-red-700 dark:text-red-300" : "text-amber-800 dark:text-amber-300"
+            }`}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            {worstLevel === "danger"
+              ? "Almacenamiento cerca del límite — riesgo de tener que pagar"
+              : "Almacenamiento alto — conviene vigilar"}
+          </div>
+          <ul className="mt-2 space-y-1 text-sm">
+            {usageAlerts.map((a) => (
+              <li
+                key={a.label}
+                className={
+                  a.level === "danger"
+                    ? "text-red-700 dark:text-red-200"
+                    : "text-amber-800 dark:text-amber-200"
+                }
+              >
+                <span className="font-medium">{a.label}:</span>{" "}
+                {formatBytes(a.used)} de {formatBytes(a.limit)} (
+                {((a.used / a.limit) * 100).toFixed(0)}%)
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Métricas */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {stats.map((s) => (
@@ -206,6 +290,72 @@ export default async function SuperadminPage({
             />
           </div>
         </section>
+      )}
+
+      {/* Respaldos automáticos por clínica (cron semanal → R2) */}
+      {rows.length > 0 && (
+        <details className="group rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-5 [&::-webkit-details-marker]:hidden">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <DatabaseBackup className="h-4 w-4 text-clinic-fg" />
+              Respaldos automáticos
+              <span className="ml-1 text-xs font-normal text-slate-400">
+                (semanal · verificados · en Cloudflare R2)
+              </span>
+            </h2>
+            {rows.some((c) => lastBackup.get(c.id)?.status === "error") ? (
+              <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-500/10">
+                Hay fallos
+              </span>
+            ) : rows.every((c) => lastBackup.has(c.id)) ? (
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:bg-emerald-500/10">
+                Todas al día
+              </span>
+            ) : (
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                {rows.filter((c) => lastBackup.has(c.id)).length}/{rows.length} con respaldo
+              </span>
+            )}
+          </summary>
+          <div className="border-t border-slate-100">
+            <ul className="divide-y divide-slate-100 text-sm">
+              {rows.map((c) => {
+                const b = lastBackup.get(c.id);
+                return (
+                  <li key={c.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
+                    <span className="min-w-0 truncate font-medium text-slate-700">{c.name}</span>
+                    {!b ? (
+                      <span className="text-xs text-slate-400">Sin respaldo aún</span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-xs">
+                        <span className="text-slate-500">
+                          {new Date(b.created_at).toLocaleString("es-BO", {
+                            timeZone: "America/La_Paz",
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                        {b.size_bytes != null && (
+                          <span className="text-slate-400">{formatBytes(b.size_bytes)}</span>
+                        )}
+                        {b.status === "ok" ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-600 dark:bg-emerald-500/10">
+                            OK
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-600 dark:bg-red-500/10">
+                            Error
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </details>
       )}
 
       {/* Alerta de upsell: clínicas cerca de su tope de fotos */}
@@ -268,7 +418,7 @@ function StorageBar({
 }) {
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
   const danger = pct >= 90;
-  const warn = pct >= 75 && !danger;
+  const warn = pct >= 80 && !danger;
   const barTone = danger ? "bg-red-500" : warn ? "bg-amber-500" : "bg-clinic";
   const pctTone = danger
     ? "text-red-600"

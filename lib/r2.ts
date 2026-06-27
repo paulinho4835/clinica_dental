@@ -90,6 +90,24 @@ export async function deleteObject(key: string): Promise<void> {
   await client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }
 
+// Sube un objeto directo desde el servidor (sin URL firmada). Lo usa el cron de
+// respaldos para guardar el JSON del backup. NO usar para fotos (esas suben
+// directo del navegador con presignUpload, sin pasar el binario por Vercel).
+export async function putObject(
+  key: string,
+  body: Buffer | Uint8Array | string,
+  contentType: string,
+): Promise<void> {
+  await client().send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
 // Lista todos los objetos del bucket (key + fecha de modificación), paginando.
 // Lo usa el cron de limpieza para detectar huérfanos (objetos sin fila en la DB).
 export async function listAllObjects(): Promise<
