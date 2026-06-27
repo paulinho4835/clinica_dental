@@ -3,13 +3,14 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
-import { ImagePlus, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { ImagePlus, Trash2, Loader2, ExternalLink, Pencil, Check, X } from "lucide-react";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import {
   requestPhotoUpload,
   registerPhoto,
   deletePhoto,
+  updatePhotoMeta,
 } from "@/app/(dashboard)/pacientes/photo-actions";
 
 export type PhotoItem = {
@@ -18,6 +19,7 @@ export type PhotoItem = {
   kind: string | null;
   caption: string | null;
   createdAt: string;
+  uploaderName?: string | null;
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -185,6 +187,30 @@ export function PhotosPanel({
     }
   }
 
+  // Edición de etiqueta/descripción de una foto ya subida.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editKind, setEditKind] = useState("intraoral");
+  const [editCaption, setEditCaption] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function startEdit(p: PhotoItem) {
+    setEditingId(p.id);
+    setEditKind(p.kind ?? "otro");
+    setEditCaption(p.caption ?? "");
+  }
+
+  async function saveEdit(id: string) {
+    setSavingEdit(true);
+    const res = await updatePhotoMeta({ photoId: id, kind: editKind, caption: editCaption });
+    setSavingEdit(false);
+    if (res.error) toast(res.error, "error");
+    else {
+      setEditingId(null);
+      toast("Foto actualizada", "success");
+      router.refresh();
+    }
+  }
+
   return (
     <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -271,6 +297,11 @@ export function PhotosPanel({
                 src={p.url}
                 alt={p.caption ?? KIND_LABEL[p.kind ?? ""] ?? "Foto"}
                 loading="lazy"
+                title={
+                  p.uploaderName
+                    ? `Subida por ${p.uploaderName} · ${new Date(p.createdAt).toLocaleDateString("es-BO")}`
+                    : new Date(p.createdAt).toLocaleDateString("es-BO")
+                }
                 className="aspect-square w-full object-cover"
               />
               {p.kind && (
@@ -278,27 +309,84 @@ export function PhotosPanel({
                   {KIND_LABEL[p.kind] ?? p.kind}
                 </span>
               )}
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/55 to-transparent p-1 opacity-0 transition group-hover:opacity-100">
-                <a
-                  href={p.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Ver tamaño completo"
-                  className="rounded p-1 text-white hover:bg-white/20"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(p.id)}
-                    title="Eliminar"
-                    className="rounded p-1 text-white hover:bg-red-500/70"
+              {p.caption && editingId !== p.id && (
+                <span className="absolute inset-x-0 top-0 truncate bg-black/45 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+                  {p.caption}
+                </span>
+              )}
+
+              {/* Editor inline de etiqueta + descripción. */}
+              {editingId === p.id ? (
+                <div className="absolute inset-0 flex flex-col gap-1 bg-black/70 p-1.5">
+                  <select
+                    value={editKind}
+                    onChange={(e) => setEditKind(e.target.value)}
+                    className="rounded bg-white/95 px-1 py-1 text-xs text-slate-700"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+                    {KIND_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={editCaption}
+                    onChange={(e) => setEditCaption(e.target.value)}
+                    placeholder="Descripción…"
+                    maxLength={200}
+                    className="rounded bg-white/95 px-1.5 py-1 text-xs text-slate-700"
+                  />
+                  <div className="mt-auto flex justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => saveEdit(p.id)}
+                      disabled={savingEdit}
+                      title="Guardar"
+                      className="rounded bg-clinic p-1 text-white hover:bg-clinic-fg disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      title="Cancelar"
+                      className="rounded bg-white/20 p-1 text-white hover:bg-white/30"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/55 to-transparent p-1 opacity-0 transition group-hover:opacity-100">
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Ver tamaño completo"
+                    className="rounded p-1 text-white hover:bg-white/20"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(p)}
+                      title="Editar etiqueta/descripción"
+                      className="rounded p-1 text-white hover:bg-white/20"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(p.id)}
+                      title="Eliminar"
+                      className="rounded p-1 text-white hover:bg-red-500/70"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

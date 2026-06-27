@@ -8,6 +8,7 @@ import { can } from "@/lib/rbac";
 import { PatientSchema } from "@/lib/schemas/patient";
 import { withinClinicalHours } from "@/lib/clinicalHours";
 import { getClinicFeatures } from "@/lib/superadmin";
+import { isR2Configured, deleteObject } from "@/lib/r2";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -315,6 +316,26 @@ export async function deletePatient(id: string): Promise<ActionState> {
     return { error: "Sin permiso para eliminar pacientes." };
 
   const supabase = await createClient();
+
+  // Antes de borrar al paciente: borrar sus fotos en R2. El `on delete cascade`
+  // limpia las filas de patient_photos, pero NO los objetos en R2 → quedarían
+  // huérfanos pagando almacenamiento. Se hace ANTES del delete (después ya no
+  // tendríamos los storage_key).
+  if (isR2Configured()) {
+    const { data: photoRows } = await supabase
+      .from("patient_photos")
+      .select("storage_key")
+      .eq("patient_id", id)
+      .eq("clinic_id", profile.clinicId);
+    await Promise.all(
+      (photoRows ?? []).map((p) =>
+        deleteObject(p.storage_key as string).catch(() => {
+          /* si un objeto falla, seguimos: no bloquear el borrado del paciente */
+        }),
+      ),
+    );
+  }
+
   const { error } = await supabase
     .from("patients")
     .delete()

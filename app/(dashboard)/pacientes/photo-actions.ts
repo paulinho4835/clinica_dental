@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { getClinicPhotoQuota } from "@/lib/superadmin";
-import { isR2Configured, presignUpload, deleteObject } from "@/lib/r2";
+import { isR2Configured, presignUpload, deleteObject, headObjectSize } from "@/lib/r2";
 
 // Solo el personal clínico gestiona fotos (no recepción). Mismo criterio que el
 // resto del registro clínico: admin, doctores y colega.
@@ -15,6 +15,10 @@ function canManage(role?: string): boolean {
 
 const ALLOWED_TYPES = ["image/webp", "image/jpeg", "image/png"];
 const KINDS = ["intraoral", "radiografia", "antes", "despues", "otro"];
+// Tope de peso por foto. El front comprime a ~300 KB; esto es el techo de
+// seguridad por si alguien sube saltándose la compresión (la URL firmada de PUT
+// no limita tamaño). 6 MB deja margen para radiografías sin permitir abusos.
+const MAX_PHOTO_BYTES = 6 * 1024 * 1024;
 
 export type PhotoUploadState =
   | { ok: true; uploadUrl: string; key: string }
@@ -99,6 +103,16 @@ export async function registerPhoto(input: {
   if (!input.key.startsWith(`${profile.clinicId}/${input.patientId}/`))
     return { error: "Referencia de archivo inválida." };
 
+  // Validar el peso REAL subido (no el reportado por el cliente). Si excede el
+  // tope o no existe, se borra el objeto y se rechaza: así un PUT gigante a la
+  // URL firmada no queda almacenado ni registrado.
+  const realSize = await headObjectSize(input.key);
+  if (realSize === null) return { error: "No se encontró la imagen subida." };
+  if (realSize > MAX_PHOTO_BYTES) {
+    await deleteObject(input.key).catch(() => {});
+    return { error: "La imagen supera el tamaño máximo permitido (6 MB)." };
+  }
+
   const kind = KINDS.includes(input.kind ?? "") ? input.kind : null;
 
   const { error } = await supabase.from("patient_photos").insert({
@@ -109,13 +123,48 @@ export async function registerPhoto(input: {
     caption: input.caption?.trim().slice(0, 200) || null,
     width: input.width ?? null,
     height: input.height ?? null,
-    size_bytes: input.sizeBytes ?? null,
+    size_bytes: realSize,
     taken_at: input.takenAt || null,
     uploaded_by: profile.userId,
   });
   if (error) return { error: error.message };
 
   revalidatePath(`/pacientes/${input.patientId}`);
+  return { ok: true };
+}
+
+// Editar la etiqueta (kind) y/o la descripción (caption) de una foto ya subida.
+export async function updatePhotoMeta(input: {
+  photoId: string;
+  kind?: string;
+  caption?: string;
+}): Promise<PhotoActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!canManage(profile.role)) return { error: "Sin permiso." };
+
+  const supabase = await createClient();
+  const { data: photo } = await supabase
+    .from("patient_photos")
+    .select("id, patient_id, clinic_id")
+    .eq("id", input.photoId)
+    .maybeSingle();
+  if (!photo || photo.clinic_id !== profile.clinicId)
+    return { error: "Foto no encontrada." };
+
+  const kind = KINDS.includes(input.kind ?? "") ? input.kind : null;
+
+  const { error } = await supabase
+    .from("patient_photos")
+    .update({
+      kind,
+      caption: input.caption?.trim().slice(0, 200) || null,
+    })
+    .eq("id", input.photoId)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${photo.patient_id}`);
   return { ok: true };
 }
 

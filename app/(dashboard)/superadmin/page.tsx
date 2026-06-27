@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Building2, CheckCircle2, PauseCircle, Users } from "lucide-react";
+import { Building2, CheckCircle2, PauseCircle, Users, Camera } from "lucide-react";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEATURES, normalizeFeatures, photoQuota } from "@/lib/features";
@@ -79,20 +79,24 @@ export default async function SuperadminPage({
     label: f.label,
   }));
 
-  // Contador real de fotos por clínica (solo para las que tienen el addon de
-  // fotos; el superadmin siempre lo ve, la clínica solo con su propio addon).
+  // Contador real de fotos por clínica + almacenamiento total de la plataforma.
+  // Una sola consulta (clinic_id, size_bytes) para no hacer N queries; el
+  // superadmin ve el contador de cada clínica y el total contra el free tier.
   const photoCounts = new Map<string, number>();
-  await Promise.all(
-    (clinics ?? [])
-      .filter((c) => normalizeFeatures(c.features).fotos)
-      .map(async (c) => {
-        const { count } = await admin
-          .from("patient_photos")
-          .select("id", { count: "exact", head: true })
-          .eq("clinic_id", c.id);
-        photoCounts.set(c.id, count ?? 0);
-      }),
-  );
+  let totalPhotoBytes = 0;
+  let totalPhotos = 0;
+  {
+    const { data: allPhotos } = await admin
+      .from("patient_photos")
+      .select("clinic_id, size_bytes");
+    for (const ph of allPhotos ?? []) {
+      const cid = ph.clinic_id as string;
+      photoCounts.set(cid, (photoCounts.get(cid) ?? 0) + 1);
+      totalPhotoBytes += Number(ph.size_bytes) || 0;
+      totalPhotos += 1;
+    }
+  }
+  const totalPhotoGB = totalPhotoBytes / 1024 ** 3;
 
   const rows: ClinicRow[] = (clinics ?? []).map((c) => ({
     id: c.id,
@@ -122,6 +126,15 @@ export default async function SuperadminPage({
     { label: "Activas", value: activeCount, icon: CheckCircle2, tone: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" },
     { label: "Suspendidas", value: suspendedCount, icon: PauseCircle, tone: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" },
     { label: "Usuarios", value: totalUsers, icon: Users, tone: "text-slate-600 bg-slate-100" },
+    {
+      label: `Fotos · ${totalPhotoGB.toFixed(2)} GB / 10 GB`,
+      value: totalPhotos,
+      icon: Camera,
+      tone:
+        totalPhotoGB >= 8
+          ? "text-red-600 bg-red-50 dark:bg-red-500/10"
+          : "text-sky-600 bg-sky-50 dark:bg-sky-500/10",
+    },
   ];
 
   return (
@@ -135,7 +148,7 @@ export default async function SuperadminPage({
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {stats.map((s) => (
           <div
             key={s.label}

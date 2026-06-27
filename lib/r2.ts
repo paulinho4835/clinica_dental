@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // ============================================================================
@@ -65,4 +65,18 @@ export async function presignDownload(
 
 export async function deleteObject(key: string): Promise<void> {
   await client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
+// Tamaño real (bytes) del objeto en R2, o null si no existe / falla. Se usa para
+// validar el peso REAL subido (la URL firmada de PUT no limita tamaño; un cliente
+// malicioso podría subir un archivo gigante saltándose la compresión del front).
+export async function headObjectSize(key: string): Promise<number | null> {
+  try {
+    const r = await client().send(
+      new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+    );
+    return r.ContentLength ?? null;
+  } catch {
+    return null;
+  }
 }

@@ -253,7 +253,7 @@ export default async function PatientPage({
 
     const { data: photoRows } = await supabase
       .from("patient_photos")
-      .select("id, storage_key, kind, caption, created_at")
+      .select("id, storage_key, kind, caption, created_at, uploader:uploaded_by(full_name)")
       .eq("patient_id", id)
       .order("created_at", { ascending: false });
     photos = await Promise.all(
@@ -263,6 +263,8 @@ export default async function PatientPage({
         kind: (p.kind as string | null) ?? null,
         caption: (p.caption as string | null) ?? null,
         createdAt: p.created_at as string,
+        uploaderName:
+          ((p.uploader as { full_name?: string } | null)?.full_name) ?? null,
       })),
     );
   }
