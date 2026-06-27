@@ -106,12 +106,15 @@ export function PhotosPanel({
   photos,
   canManage,
   configured,
+  limit,
 }: {
   patientId: string;
   photos: PhotoItem[];
   canManage: boolean;
   /** R2 configurado en el servidor. Si no, mostramos aviso en vez de subir. */
   configured: boolean;
+  /** Tope de fotos por paciente según el addon contratado. */
+  limit: number;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,9 +122,21 @@ export function PhotosPanel({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const remaining = Math.max(0, limit - photos.length);
+  const atLimit = remaining === 0;
+
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const list = Array.from(files);
+    let list = Array.from(files);
+    // No dejar intentar más de las que caben (el servidor igual lo valida).
+    if (list.length > remaining) {
+      toast(
+        `Solo quedan ${remaining} de ${limit}. Se subirán las primeras ${remaining}.`,
+        "error",
+      );
+      list = list.slice(0, remaining);
+    }
+    if (list.length === 0) return;
     setBusy(true);
     setProgress({ done: 0, total: list.length });
     let okCount = 0;
@@ -161,14 +176,21 @@ export function PhotosPanel({
   return (
     <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-slate-800">Fotos</h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-semibold text-slate-800">Fotos</h2>
+          {canManage && configured && (
+            <span className="text-xs text-slate-400">
+              {photos.length}/{limit}
+            </span>
+          )}
+        </div>
 
         {canManage && configured && (
           <div className="flex items-center gap-2">
             <select
               value={kind}
               onChange={(e) => setKind(e.target.value)}
-              disabled={busy}
+              disabled={busy || atLimit}
               className="rounded-md border border-slate-200 bg-white py-1.5 pl-2 pr-7 text-sm text-slate-700 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
             >
               {KIND_OPTIONS.map((o) => (
@@ -179,7 +201,8 @@ export function PhotosPanel({
             </select>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || atLimit}
+              title={atLimit ? `Límite de ${limit} fotos alcanzado` : undefined}
               onClick={() => inputRef.current?.click()}
               className="flex items-center gap-1.5 rounded-md bg-clinic px-3 py-1.5 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
             >
@@ -187,6 +210,10 @@ export function PhotosPanel({
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {progress ? `${progress.done}/${progress.total}` : "Subiendo…"}
+                </>
+              ) : atLimit ? (
+                <>
+                  <ImagePlus className="h-4 w-4" /> Límite alcanzado
                 </>
               ) : (
                 <>

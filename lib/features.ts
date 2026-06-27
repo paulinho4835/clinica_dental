@@ -22,6 +22,7 @@ export type FeatureKey =
   | "recordatorios"
   | "calificaciones"
   | "fotos"
+  | "fotos_20"
   | "wa_masivo";
 
 export interface FeatureMeta {
@@ -55,9 +56,27 @@ export const FEATURES: FeatureMeta[] = [
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
   { key: "recordatorios", label: "Recordatorios Automáticos", href: "/ajustes", optIn: true },
   { key: "calificaciones", label: "Calificaciones", href: "/calificaciones", optIn: true },
-  { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
+  { key: "fotos", label: "Fotos de pacientes (10)", href: "/pacientes", optIn: true },
+  { key: "fotos_20", label: "Fotos ampliadas (20)", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
 ];
+
+// Tope de fotos por paciente según el addon contratado. El upgrade "fotos_20"
+// implica el base: una clínica con fotos_20 no necesita tener "fotos" encendido.
+// 0 = el módulo de fotos no está habilitado para la clínica.
+export const FOTOS_LIMIT_BASE = 10;
+export const FOTOS_LIMIT_PLUS = 20;
+
+export function photoLimit(features: Features): number {
+  if (features.fotos_20) return FOTOS_LIMIT_PLUS;
+  if (features.fotos) return FOTOS_LIMIT_BASE;
+  return 0;
+}
+
+// El módulo de fotos está disponible si tiene cualquiera de los dos addons.
+export function fotosEnabled(features: Features): boolean {
+  return features.fotos || features.fotos_20;
+}
 
 export type Features = Record<FeatureKey, boolean>;
 

@@ -20,7 +20,7 @@ import {
 import type { TeethMap } from "@/lib/odontogram/types";
 import { bs } from "@/lib/format";
 import Link from "next/link";
-import { normalizeFeatures } from "@/lib/features";
+import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoLimit } from "@/lib/features";
 import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
 import type {
   PrescriptionRow,
@@ -234,7 +234,8 @@ export default async function PatientPage({
   const features = normalizeFeatures(clinicRow?.features);
   const recetasEnabled = features.recetas;
   const consentimientosEnabled = features.consentimientos;
-  const fotosEnabled = features.fotos;
+  const fotosEnabled = fotosFeatureEnabled(features);
+  const fotosLimit = photoLimit(features);
 
   // Fotos del paciente: el binario vive en R2; aquí solo cargamos referencias y
   // generamos URLs firmadas de lectura (bucket privado). Solo si el addon está
@@ -401,6 +402,7 @@ export default async function PatientPage({
             photos={photos}
             canManage={canEditClinical}
             configured={r2Ready}
+            limit={fotosLimit}
           />
         </section>
       )}
