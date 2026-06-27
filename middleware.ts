@@ -10,6 +10,9 @@ export const config = {
     // Excluir archivos estáticos, rutas internas de Next.js y todas las API routes.
     // Las API routes manejan su propio auth; además en local el Edge sandbox no puede
     // hacer fetch a 127.0.0.1, así que excluirlas aquí evita el "fetch failed".
-    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // También se excluyen los assets PWA públicos sin extensión de archivo:
+    // manifest.webmanifest y /icons/* (los PNG generados). Si no, el middleware
+    // los redirige a /login y Chrome no puede leerlos para "Instalar app".
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
