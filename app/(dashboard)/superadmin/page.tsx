@@ -1,8 +1,14 @@
 import { redirect } from "next/navigation";
-import { Building2, CheckCircle2, PauseCircle, Users, Camera } from "lucide-react";
+import { Building2, CheckCircle2, PauseCircle, Users, Camera, Database, HardDrive } from "lucide-react";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEATURES, normalizeFeatures, photoQuota } from "@/lib/features";
+import {
+  getSupabaseStorageStats,
+  formatBytes,
+  SUPABASE_FREE_DB_BYTES,
+  SUPABASE_FREE_STORAGE_BYTES,
+} from "@/lib/storage";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
 import { ClinicList, type ClinicRow } from "@/components/superadmin/ClinicList";
 import type { ClinicUser } from "@/components/superadmin/ClinicUsers";
@@ -98,6 +104,10 @@ export default async function SuperadminPage({
   }
   const totalPhotoGB = totalPhotoBytes / 1024 ** 3;
 
+  // Uso real de Supabase (base de datos + Storage) para avisar antes de superar
+  // el free tier y tener que pagar. null si la migración 0067 aún no está en prod.
+  const supaStats = await getSupabaseStorageStats();
+
   const rows: ClinicRow[] = (clinics ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -171,6 +181,33 @@ export default async function SuperadminPage({
         ))}
       </div>
 
+      {/* Almacenamiento de Supabase (free tier) — avisa antes de tener que pagar */}
+      {supaStats && (
+        <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Database className="h-4 w-4 text-clinic-fg" />
+            Almacenamiento de Supabase
+            <span className="ml-1 text-xs font-normal text-slate-400">
+              (las fotos de pacientes van aparte, en Cloudflare R2)
+            </span>
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StorageBar
+              icon={Database}
+              label="Base de datos"
+              used={supaStats.databaseBytes}
+              limit={SUPABASE_FREE_DB_BYTES}
+            />
+            <StorageBar
+              icon={HardDrive}
+              label="Storage (archivos)"
+              used={supaStats.storageBytes}
+              limit={SUPABASE_FREE_STORAGE_BYTES}
+            />
+          </div>
+        </section>
+      )}
+
       {/* Alerta de upsell: clínicas cerca de su tope de fotos */}
       {nearQuota.length > 0 && (
         <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-500/10">
@@ -212,6 +249,50 @@ export default async function SuperadminPage({
         sort={sort}
         sorts={SORTS}
       />
+    </div>
+  );
+}
+
+// Barra de uso de un recurso de Supabase contra su límite del free tier. Cambia
+// de color al acercarse (≥75% ámbar, ≥90% rojo) para avisar antes de tener que pagar.
+function StorageBar({
+  icon: Icon,
+  label,
+  used,
+  limit,
+}: {
+  icon: typeof Database;
+  label: string;
+  used: number;
+  limit: number;
+}) {
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  const danger = pct >= 90;
+  const warn = pct >= 75 && !danger;
+  const barTone = danger ? "bg-red-500" : warn ? "bg-amber-500" : "bg-clinic";
+  const pctTone = danger
+    ? "text-red-600"
+    : warn
+      ? "text-amber-600"
+      : "text-slate-500";
+
+  return (
+    <div className="rounded-lg bg-slate-50 p-4 dark:bg-night/40">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <Icon className="h-4 w-4 text-slate-400" />
+          {label}
+        </span>
+        <span className={`text-xs font-semibold ${pctTone}`}>{pct.toFixed(0)}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-night">
+        <div className={`h-full rounded-full ${barTone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-slate-500">
+        {formatBytes(used)} de {formatBytes(limit)}
+        {danger && <span className="ml-1 font-medium text-red-600">· cerca del límite</span>}
+        {warn && <span className="ml-1 font-medium text-amber-600">· vigilar</span>}
+      </p>
     </div>
   );
 }
