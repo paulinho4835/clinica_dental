@@ -27,12 +27,13 @@ function client(): S3Client {
     _client = new S3Client({
       region: "auto",
       endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      // path-style OBLIGATORIO en R2: sin esto el SDK genera URLs virtual-host
-      // (bucket.{account}.r2.cloudflarestorage.com), que son DOS niveles de
-      // subdominio. El cert comodín de R2 (*.r2.cloudflarestorage.com) cubre
-      // un solo nivel → el navegador rechaza el TLS → "Failed to fetch" en el
-      // PUT/GET. Con path-style el host queda en {account}.r2... (un nivel).
       forcePathStyle: true,
+      // SDK v3.600+ agrega x-amz-checksum-crc32 automáticamente en PutObject.
+      // R2 no lo exige y el navegador no lo envía → el preflight CORS falla.
+      // WHEN_REQUIRED desactiva el checksum automático para subidas desde el
+      // navegador (presign PUT).
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       credentials: {
         accessKeyId: ACCESS_KEY_ID,
         secretAccessKey: SECRET_ACCESS_KEY,
