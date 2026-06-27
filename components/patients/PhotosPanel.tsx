@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
-import { ImagePlus, Trash2, Loader2, ExternalLink, Pencil, Check, X, Camera, ChevronLeft, ChevronRight, Columns2 } from "lucide-react";
+import { ImagePlus, Trash2, Loader2, ExternalLink, Pencil, Check, X, Camera, ChevronLeft, ChevronRight, Columns2, Printer } from "lucide-react";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import {
@@ -258,6 +258,17 @@ export function PhotosPanel({
             >
               clínica: {clinicUsed.toLocaleString("es-BO")}/{clinicQuota.toLocaleString("es-BO")}
             </span>
+          )}
+          {canManage && configured && photos.length > 0 && (
+            <a
+              href={`/pacientes/${patientId}/fotos`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Imprimir informe fotográfico (antes/después)"
+              className="inline-flex items-center gap-1 text-xs font-medium text-clinic hover:underline"
+            >
+              <Printer className="h-3.5 w-3.5" /> Informe
+            </a>
           )}
         </div>
 
