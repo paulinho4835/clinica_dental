@@ -13,6 +13,8 @@ export const config = {
     // También se excluyen los assets PWA públicos sin extensión de archivo:
     // manifest.webmanifest y /icons/* (los PNG generados). Si no, el middleware
     // los redirige a /login y Chrome no puede leerlos para "Instalar app".
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // /monitoring es el tunnelRoute de Sentry: debe ser público para que los
+    // eventos del navegador no se rediretan a /login y se pierdan.
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|monitoring|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

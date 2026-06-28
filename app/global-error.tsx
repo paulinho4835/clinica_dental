@@ -1,17 +1,16 @@
 "use client";
+// Boundary de último recurso: captura errores lanzados en el propio layout raíz
+// (que app/error.tsx no alcanza). Reemplaza por completo la UI, por eso trae su
+// propio <html>/<body>. Reporta a Sentry (no-op sin DSN).
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
-    // Reporta el error a Sentry (no-op si no hay DSN configurado).
     Sentry.captureException(error);
   }, [error]);
 
@@ -22,15 +21,10 @@ export default function GlobalError({
           <h1 className="mb-2 text-xl font-semibold text-slate-800">
             Algo salió mal
           </h1>
-          <p className="mb-6 text-sm text-slate-500">
-            Ocurrió un error inesperado. Si el problema persiste, contacta al soporte.
+          <p className="text-sm text-slate-500">
+            Ocurrió un error inesperado. Recarga la página; si el problema
+            persiste, contacta al soporte.
           </p>
-          <button
-            onClick={reset}
-            className="rounded-md bg-night px-4 py-2 text-sm font-medium text-white hover:bg-night-soft"
-          >
-            Intentar de nuevo
-          </button>
         </div>
       </body>
     </html>

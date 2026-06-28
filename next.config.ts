@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -66,6 +67,10 @@ const baseSecurityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Fija la raíz del workspace a este proyecto. Sin esto, Next 15.5 detecta otros
+  // package-lock.json en carpetas superiores (p. ej. Felipillo) e infiere mal la
+  // raíz, arrastrando archivos ajenos al file-tracing del build.
+  outputFileTracingRoot: process.cwd(),
   async headers() {
     return [
       {
@@ -94,4 +99,20 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// withSentryConfig añade la subida de source maps en build y el tunnelRoute
+// (/monitoring) para que los eventos del navegador salgan por nuestro dominio,
+// esquivando ad-blockers sin abrir la CSP estricta hacia sentry.io. Sin
+// SENTRY_AUTH_TOKEN no sube source maps (CI/local no fallan); en runtime, si no
+// hay DSN, el SDK no hace nada.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Silencioso salvo en CI, donde sí queremos ver el log de la subida.
+  silent: !process.env.CI,
+  tunnelRoute: "/monitoring",
+  widenClientFileUpload: true,
+  // Quita el logger de Sentry del bundle de cliente para ahorrar peso.
+  webpack: { treeshake: { removeDebugLogging: true } },
+  // No intentar subir source maps si no hay token (evita warnings/fallos en CI).
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});
