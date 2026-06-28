@@ -11,6 +11,7 @@ import {
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isReceptionistLike } from "@/lib/rbac";
+import { requireNavAccess } from "@/lib/guard";
 import { boliviaTodayISO, BOLIVIA_TZ, bs, fmtBoliviaTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,9 @@ function greeting(): string {
 }
 
 export default async function InicioPage() {
+  // Addon opt-in: si la clínica no lo tiene activo (o el rol no lo ve), fuera.
+  await requireNavAccess("inicio");
+
   const profile = await getProfile();
   if (!profile) return null;
 

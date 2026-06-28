@@ -3,6 +3,7 @@
 // módulos vía clinics.features. La fuente de verdad es la columna jsonb.
 
 export type FeatureKey =
+  | "inicio"
   | "agenda"
   | "pacientes"
   | "mis_trabajos"
@@ -37,6 +38,8 @@ export interface FeatureMeta {
 
 // Orden = orden en el menú lateral.
 export const FEATURES: FeatureMeta[] = [
+  // Addon: panel de bienvenida con métricas del día. Opt-in (apagado por defecto).
+  { key: "inicio", label: "Inicio", href: "/inicio", optIn: true },
   { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "pacientes", label: "Pacientes", href: "/pacientes" },
   { key: "mis_trabajos", label: "Mis trabajos", href: "/mis-trabajos" },
