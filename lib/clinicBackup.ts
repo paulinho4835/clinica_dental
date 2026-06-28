@@ -87,6 +87,17 @@ function topoSort(tables: string[], schema: BackupSchema): string[] {
   return order;
 }
 
+// Columnas con índice ÚNICO GLOBAL (no escopadas por clínica) que se copiarían
+// tal cual y chocarían con la clínica original al restaurar. Son tokens secretos
+// de una sola fila (enlaces públicos /c, /h, /r): se REGENERAN en el clon. Además
+// de evitar el "duplicate key", es lo correcto en seguridad: compartir el token
+// entre dos clínicas cruzaría los enlaces de confirmación/anamnesis/calificación.
+const REGENERATE_TOKEN_COLUMNS: Record<string, Set<string>> = {
+  appointments: new Set(["confirm_token"]),
+  anamnesis_invitations: new Set(["token"]),
+  work_feedback: new Set(["token"]),
+};
+
 // Construye el payload remapeado para restore_clinic_apply, o devuelve las
 // violaciones del caso borde (FK NOT NULL a una cuenta inexistente).
 export function buildRestorePayload(
@@ -136,6 +147,7 @@ export function buildRestorePayload(
     const fkByCol = new Map<string, string>();
     for (const fk of meta.fks) fkByCol.set(fk.column, fk.parent);
 
+    const tokenCols = REGENERATE_TOKEN_COLUMNS[t];
     let nullViolations = 0;
     const rows: Row[] = [];
 
@@ -143,6 +155,13 @@ export function buildRestorePayload(
       const next: Row = {};
       for (const [col, val] of Object.entries(row)) {
         if (generated.has(col)) continue; // no se insertan columnas generadas
+
+        // Tokens únicos globales: regenerar para no chocar con la clínica origen
+        // (y no compartir el enlace público entre ambas).
+        if (tokenCols?.has(col)) {
+          next[col] = randomUUID();
+          continue;
+        }
 
         if (col === "id") {
           next.id = idMap.get(t)!.get(String(val));
