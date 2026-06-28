@@ -13,6 +13,7 @@ import {
   R2_FREE_PHOTO_BYTES,
 } from "@/lib/storage";
 import { NewClinicForm } from "@/components/superadmin/NewClinicForm";
+import { R2RestoreButton } from "@/components/superadmin/R2RestoreButton";
 import { ClinicList, type ClinicRow } from "@/components/superadmin/ClinicList";
 import type { ClinicUser } from "@/components/superadmin/ClinicUsers";
 
@@ -66,7 +67,7 @@ export default async function SuperadminPage({
     getSupabaseStorageStats(),
     admin
       .from("backup_runs")
-      .select("clinic_id, status, size_bytes, created_at")
+      .select("clinic_id, status, size_bytes, created_at, storage_key")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -142,7 +143,7 @@ export default async function SuperadminPage({
   // vacío (la sección muestra "sin respaldo aún").
   const lastBackup = new Map<
     string,
-    { status: string; created_at: string; size_bytes: number | null }
+    { status: string; created_at: string; size_bytes: number | null; storage_key: string | null }
   >();
   for (const b of backupRows ?? []) {
     const cid = b.clinic_id as string;
@@ -151,6 +152,7 @@ export default async function SuperadminPage({
       status: b.status as string,
       created_at: b.created_at as string,
       size_bytes: (b.size_bytes as number | null) ?? null,
+      storage_key: (b.storage_key as string | null) ?? null,
     });
   }
 
@@ -327,7 +329,7 @@ export default async function SuperadminPage({
                     {!b ? (
                       <span className="text-xs text-slate-400">Sin respaldo aún</span>
                     ) : (
-                      <span className="flex items-center gap-2 text-xs">
+                      <span className="flex flex-wrap items-center justify-end gap-2 text-xs">
                         <span className="text-slate-500">
                           {new Date(b.created_at).toLocaleString("es-BO", {
                             timeZone: "America/La_Paz",
@@ -347,6 +349,9 @@ export default async function SuperadminPage({
                           <span className="rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-600 dark:bg-red-500/10">
                             Error
                           </span>
+                        )}
+                        {b.status === "ok" && b.storage_key && (
+                          <R2RestoreButton storageKey={b.storage_key} clinicName={c.name} />
                         )}
                       </span>
                     )}

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildInboundAssistant, type VapiClinicConfig } from "@/lib/vapi";
 import { BOLIVIA_TZ } from "@/lib/format";
 import { parseArgs, normalizeTime, normalizeDate, normalizeVapiPhone, buildSlots } from "@/lib/vapi-helpers";
+import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 
 // Vapi envía todos los eventos de llamada a esta URL:
 //   - assistant-request  → devuelve el asistente dinámico para llamadas entrantes
@@ -24,6 +25,17 @@ function isAuthorized(req: NextRequest): boolean {
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  // Defensa en profundidad (la barrera primaria es VAPI_WEBHOOK_SECRET). Techo
+  // alto: Vapi envía varios eventos por llamada desde sus IPs, así que esto solo
+  // corta floods, no llamadas reales.
+  const { ok, retryAfterSeconds } = await checkRateLimit("vapi-webhook", clientIp(req.headers));
+  if (!ok) {
+    return NextResponse.json(
+      { error: tooManyRequestsMessage(retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+    );
   }
 
   const body = await req.json().catch(() => null);

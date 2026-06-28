@@ -154,18 +154,24 @@ export async function createDoctorWork(
   if (d.treatment_item_id && d.commission_pct > 0) {
     try {
       const admin = createAdminClient();
-      // Obtener el procedure_id del ítem del plan.
+      // Obtener el procedure_id del ítem del plan. El treatment_item_id viene del
+      // formulario (cliente): acotar por clinic_id es OBLIGATORIO, si no un usuario
+      // podría pasar el id de otra clínica y, abajo, escribirle el % de comisión a
+      // un procedimiento ajeno (escritura cross-tenant con el cliente service-role).
       const { data: itemRow } = await admin
         .from("treatment_items")
         .select("procedure_id")
         .eq("id", d.treatment_item_id)
+        .eq("clinic_id", profile.clinicId)
         .maybeSingle();
       if (itemRow?.procedure_id) {
         // Solo actualizar si el catálogo aún tiene 0 (primera vez que se usa).
+        // Doble barrera: el update también se acota a la clínica propia.
         await admin
           .from("procedure_catalog")
           .update({ default_commission_pct: d.commission_pct })
           .eq("id", itemRow.procedure_id)
+          .eq("clinic_id", profile.clinicId)
           .eq("default_commission_pct", 0);
       }
     } catch {

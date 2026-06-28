@@ -1,8 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AnamnesisSchema, parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { PatientIntakeSchema } from "@/lib/schemas/patient-intake";
+import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 
 export type SubmitState = { error?: string; ok?: boolean };
 
@@ -26,6 +28,10 @@ export async function submitPublicAnamnesis(
   formData: FormData,
 ): Promise<SubmitState> {
   if (!token) return { error: "Enlace inválido." };
+
+  // Sin sesión: limitar por IP para frenar el sondeo de tokens.
+  const { ok, retryAfterSeconds } = await checkRateLimit("public-form", clientIp(await headers()));
+  if (!ok) return { error: tooManyRequestsMessage(retryAfterSeconds) };
 
   const admin = createAdminClient();
 

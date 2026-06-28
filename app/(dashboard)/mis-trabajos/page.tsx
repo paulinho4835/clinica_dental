@@ -99,9 +99,9 @@ export default async function MisTrabajosPage({
     .order("created_at", { ascending: false });
 
   // Aislamiento por clínica EXPLÍCITO (defensa en profundidad), no opcional:
-  // el cliente de recepcionista usa service_role y NO aplica RLS, así que este
-  // filtro es la ÚNICA barrera contra ver trabajos de otras clínicas. Para los
-  // demás roles refuerza la RLS por si el claim clinic_id del JWT no estuviera.
+  // aunque ahora todos los roles usan el cliente con RLS, este filtro refuerza
+  // la RLS por si el claim clinic_id del JWT no estuviera, y es la barrera que
+  // garantiza no ver trabajos de otras clínicas.
   if (profile) {
     worksQuery = worksQuery.eq("clinic_id", profile.clinicId);
   }

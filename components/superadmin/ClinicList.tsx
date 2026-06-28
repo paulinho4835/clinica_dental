@@ -16,6 +16,7 @@ import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
 import { PhotoQuotaInput } from "@/components/superadmin/PhotoQuotaInput";
 import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
 import { RestoreBackupButton } from "@/components/superadmin/RestoreBackupButton";
+import { BackupNowButton } from "@/components/superadmin/BackupNowButton";
 import { VapiConfigForm } from "@/components/superadmin/VapiConfigForm";
 import type { VapiClinicConfig } from "@/lib/vapi";
 
@@ -252,17 +253,21 @@ function ClinicCard({
               Backup
             </h3>
             <p className="mb-2 text-xs text-slate-500">
-              Descarga una copia completa de los datos de esta clínica (.json).
-              Para restaurarla, usa "Restaurar backup" arriba: se creará una
-              clínica nueva sin afectar a esta.
+              <strong>Descargar:</strong> baja una copia completa (.json) a tu
+              computadora. <strong>Respaldar ahora:</strong> guarda una copia en
+              R2 (se suma al historial de respaldos automáticos). Para restaurar,
+              usa "Restaurar backup" arriba o el botón de cada respaldo en R2.
             </p>
-            <a
-              href={`/api/superadmin/backup?clinicId=${c.id}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Descargar backup
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={`/api/superadmin/backup?clinicId=${c.id}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Descargar backup
+              </a>
+              <BackupNowButton clinicId={c.id} />
+            </div>
           </div>
 
           {/* Recepcionista IA (Vapi) */}

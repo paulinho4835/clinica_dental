@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand, HeadBucketCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // ============================================================================
@@ -125,6 +125,29 @@ export async function listAllObjects(): Promise<
     token = r.IsTruncated ? r.NextContinuationToken : undefined;
   } while (token);
   return out;
+}
+
+// Descarga el contenido de un objeto de R2 como texto (UTF-8). Lo usa la
+// restauración "desde R2": el JSON del backup vive en R2 y se trae al servidor
+// para restaurarlo, sin que el usuario tenga que descargarlo y re-subirlo.
+export async function getObjectText(key: string): Promise<string> {
+  const r = await client().send(
+    new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+  );
+  if (!r.Body) throw new Error("El objeto de R2 vino vacío.");
+  return r.Body.transformToString("utf-8");
+}
+
+// Chequeo de salud: verifica conectividad + credenciales contra el bucket sin
+// leer/escribir objetos (HeadBucket es la operación más barata). Lo usa
+// /api/health. Devuelve true si R2 responde, false ante cualquier fallo.
+export async function pingR2(): Promise<boolean> {
+  try {
+    await client().send(new HeadBucketCommand({ Bucket: R2_BUCKET }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Tamaño real (bytes) del objeto en R2, o null si no existe / falla. Se usa para

@@ -1,53 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-
-let ratelimit: Ratelimit | null = null;
-
-function getRatelimit(): Ratelimit | null {
-  if (ratelimit) return ratelimit;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  ratelimit = new Ratelimit({
-    redis: new Redis({ url, token }),
-    // 5 intentos por IP cada 2 minutos (ventana fija)
-    limiter: Ratelimit.fixedWindow(5, "2 m"),
-    prefix: "rl:login",
-  });
-  return ratelimit;
-}
+import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
-  const rl = getRatelimit();
-
-  if (rl) {
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      req.headers.get("x-real-ip") ??
-      "unknown";
-
-    try {
-      const { success, remaining, reset } = await rl.limit(ip);
-
-      if (!success) {
-        const retryAfter = Math.ceil((reset - Date.now()) / 1000);
-        return NextResponse.json(
-          { error: `Demasiados intentos. Espera ${Math.ceil(retryAfter / 60)} minuto${retryAfter > 60 ? "s" : ""} antes de volver a intentarlo.` },
-          {
-            status: 429,
-            headers: {
-              "Retry-After": String(retryAfter),
-              "X-RateLimit-Remaining": "0",
-            },
-          },
-        );
-      }
-
-      void remaining;
-    } catch {
-      // Si Redis no responde (ej. en local sin conexión), se omite el rate limit.
-    }
+  const { ok, retryAfterSeconds } = await checkRateLimit(
+    "login",
+    clientIp(req.headers),
+  );
+  if (!ok) {
+    return NextResponse.json(
+      { error: tooManyRequestsMessage(retryAfterSeconds) },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds),
+          "X-RateLimit-Remaining": "0",
+        },
+      },
+    );
   }
 
   // Parsear credenciales

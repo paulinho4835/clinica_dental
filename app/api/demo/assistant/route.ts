@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildInboundAssistant, type VapiClinicConfig } from "@/lib/vapi";
+import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 
 export async function GET(req: Request) {
+  // Endpoint público sin sesión que pega a la DB: limitar por IP para evitar abuso.
+  const { ok, retryAfterSeconds } = await checkRateLimit("demo", clientIp(req.headers));
+  if (!ok) {
+    return NextResponse.json(
+      { error: tooManyRequestsMessage(retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const clinicId = searchParams.get("clinicId") ?? process.env.VAPI_CLINIC_ID ?? "";
 

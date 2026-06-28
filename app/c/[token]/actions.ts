@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cancelPendingReminders } from "@/lib/reminders";
+import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 
 export type ConfirmState = { ok?: boolean; error?: string; status?: string };
 
@@ -13,6 +15,10 @@ export async function respondToAppointment(
   action: "confirm" | "cancel",
 ): Promise<ConfirmState> {
   if (!token) return { error: "Enlace no válido." };
+
+  // Sin sesión: limitar por IP para frenar el sondeo de tokens.
+  const { ok, retryAfterSeconds } = await checkRateLimit("public-form", clientIp(await headers()));
+  if (!ok) return { error: tooManyRequestsMessage(retryAfterSeconds) };
 
   const admin = createAdminClient();
 
