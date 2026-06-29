@@ -5,7 +5,9 @@ import { PublicAnamnesisForm } from "./PublicAnamnesisForm";
 export const dynamic = "force-dynamic";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-slate-50">{children}</div>;
+  // theme-light: el paciente abre este enlace desde su celular; forzamos tema
+  // claro para que no se vea en oscuro (controles nativos con bajo contraste).
+  return <div className="theme-light min-h-screen bg-slate-50">{children}</div>;
 }
 
 function Notice({ title, message }: { title: string; message: string }) {

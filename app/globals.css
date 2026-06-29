@@ -67,6 +67,35 @@
   color: #fff;
 }
 
+/*
+  Tema claro forzado para páginas públicas que el paciente abre desde su celular
+  (registro / historial clínico vía enlace de WhatsApp). No tienen selector de
+  tema ni fueron pensadas para oscuro; si el teléfono está en modo oscuro, el
+  script anti-flash agrega `.dark` al <html> y los controles nativos (date,
+  select) y algunos pasteles quedaban con muy bajo contraste. Esta clase reescribe
+  las variables a sus valores claros en su subárbol y fija color-scheme: light
+  (para que los controles nativos también se rendericen en claro). Mismo criterio
+  que @media print: estas vistas se ven siempre claras, sin importar el tema del
+  dispositivo. */
+.theme-light {
+  color-scheme: light;
+  --white: 255 255 255;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  color: var(--foreground);
+}
+
 /* Realce sutil al pasar sobre una cara editable del odontograma. */
 .odo-surface {
   transition: filter 0.1s ease;

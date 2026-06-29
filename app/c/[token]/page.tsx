@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+    <div className="theme-light flex min-h-screen items-center justify-center bg-slate-50 px-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
         {children}
       </div>
