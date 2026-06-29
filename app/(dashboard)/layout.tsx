@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
 import { getInitials } from "@/lib/format";
 import { ExitPreviewBanner } from "@/components/superadmin/ExitPreviewBanner";
+import { TermsGate } from "@/components/legal/TermsGate";
 
 export default async function DashboardLayout({
   children,
@@ -20,7 +21,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, active, clinics(name, features, active)")
+    .select("full_name, role, active, terms_accepted_at, clinics(name, features, active)")
     .eq("id", user.id)
     .single();
 
@@ -69,6 +70,20 @@ export default async function DashboardLayout({
       </main>
     );
   }
+  // Aceptación de Términos: la primera vez que el admin de la clínica entra (sin
+  // terms_accepted_at) ve un aviso bloqueante. No aplica al superadmin ni en
+  // vista previa: el admin acepta en nombre de toda su clínica.
+  const termsAccepted = !!(profile as { terms_accepted_at?: string | null } | null)
+    ?.terms_accepted_at;
+  if (!superadmin && profile && profile.role === "admin" && !termsAccepted) {
+    return (
+      <>
+        <TermsGate clinicName={clinic?.name ?? "tu clínica"} />
+        <Toaster />
+      </>
+    );
+  }
+
   const clinicName = isPreview
     ? (clinic?.name ?? "Clínica")
     : superadmin
