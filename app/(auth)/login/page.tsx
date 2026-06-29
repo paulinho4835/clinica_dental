@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/Field";
@@ -87,11 +88,32 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
+        <div className="text-right">
+          <Link
+            href="/recuperar"
+            className="text-sm font-medium text-clinic hover:text-clinic-fg"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
+
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? "Entrando…" : "Entrar"}
         </Button>
+
+        <p className="pt-2 text-center text-xs text-slate-400">
+          Al ingresar aceptas los{" "}
+          <a href="/terminos" className="text-clinic hover:underline">
+            Términos
+          </a>{" "}
+          y la{" "}
+          <a href="/privacidad" className="text-clinic hover:underline">
+            Política de Privacidad
+          </a>
+          .
+        </p>
       </form>
     </main>
   );
