@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "../../imprimir/AutoPrint";
 
 const fmtDate = (iso: string) =>
@@ -42,6 +44,8 @@ export default async function ConsentPrintPage({
 
   if (!patient) notFound();
 
+  const logoUrl = await getClinicLogoUrl(consent.clinic_id);
+
   return (
     <>
       <AutoPrint />
@@ -58,30 +62,20 @@ export default async function ConsentPrintPage({
 
         {/* Encabezado clínica */}
         <div className="mb-6 flex items-start justify-between border-b-2 border-slate-800 pb-4">
-          <div className="flex items-start gap-4">
-            {clinic?.logo_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={clinic.logo_url}
-                alt="Logo"
-                className="h-16 w-16 object-contain"
-              />
+          <PrintBrand logoUrl={logoUrl}>
+            <p className="text-xl font-bold uppercase tracking-wide">
+              {clinic?.name ?? "Clínica Dental"}
+            </p>
+            {clinic?.address && (
+              <p className="text-sm text-slate-500">{clinic.address}</p>
             )}
-            <div>
-              <p className="text-xl font-bold uppercase tracking-wide">
-                {clinic?.name ?? "Clínica Dental"}
-              </p>
-              {clinic?.address && (
-                <p className="text-sm text-slate-500">{clinic.address}</p>
-              )}
-              {clinic?.phone && (
-                <p className="text-sm text-slate-500">Tel.: {clinic.phone}</p>
-              )}
-              {clinic?.nit && (
-                <p className="text-sm text-slate-500">NIT: {clinic.nit}</p>
-              )}
-            </div>
-          </div>
+            {clinic?.phone && (
+              <p className="text-sm text-slate-500">Tel.: {clinic.phone}</p>
+            )}
+            {clinic?.nit && (
+              <p className="text-sm text-slate-500">NIT: {clinic.nit}</p>
+            )}
+          </PrintBrand>
           <div className="text-right text-sm text-slate-500">
             <p className="font-semibold uppercase">Consentimiento Informado</p>
             <p className="mt-1">Emitido: {fmtDate(consent.created_at as string)}</p>

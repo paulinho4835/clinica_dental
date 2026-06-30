@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { canEditAnamnesis } from "@/lib/rbac";
 import { parseAnamnesis, ANTECEDENTES_FIELDS, HABITOS_FIELDS } from "@/lib/schemas/anamnesis";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "../imprimir/AutoPrint";
 
 export default async function ImprimirAnamnesisPage({
@@ -34,6 +36,7 @@ export default async function ImprimirAnamnesisPage({
 
   const a = parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data);
   const clinic = clinicRow as { name?: string; address?: string; phone?: string } | null;
+  const logoUrl = await getClinicLogoUrl(patient.clinic_id);
 
   const today = new Date().toLocaleDateString("es-BO", {
     day: "2-digit",
@@ -59,18 +62,20 @@ export default async function ImprimirAnamnesisPage({
 
         {/* Encabezado clínica */}
         <div className="mb-6 border-b-2 border-slate-800 pb-4">
-          <p className="text-xl font-bold uppercase tracking-wide">
-            {clinic?.name ?? "Clínica Dental"}
-          </p>
-          {clinic?.address && (
-            <p className="text-xs text-slate-500">{clinic.address}</p>
-          )}
-          {clinic?.phone && (
-            <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>
-          )}
-          <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
-            Historia Clínica — Anamnesis
-          </p>
+          <PrintBrand logoUrl={logoUrl}>
+            <p className="text-xl font-bold uppercase tracking-wide">
+              {clinic?.name ?? "Clínica Dental"}
+            </p>
+            {clinic?.address && (
+              <p className="text-xs text-slate-500">{clinic.address}</p>
+            )}
+            {clinic?.phone && (
+              <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>
+            )}
+            <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Historia Clínica — Anamnesis
+            </p>
+          </PrintBrand>
         </div>
 
         {/* Datos del paciente */}

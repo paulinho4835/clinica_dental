@@ -39,6 +39,17 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const liveKeys = new Set((rows ?? []).map((r) => r.storage_key as string));
 
+  // Los logos de clínica también viven en R2 (bajo {clinicId}/branding/) y NO
+  // tienen fila en patient_photos: si no los marcamos como vivos, el cron los
+  // borraría como huérfanos. Agregamos las referencias de clinics.logo_storage_key.
+  const { data: logoRows } = await supabase
+    .from("clinics")
+    .select("logo_storage_key")
+    .not("logo_storage_key", "is", null);
+  for (const r of logoRows ?? []) {
+    if (r.logo_storage_key) liveKeys.add(r.logo_storage_key as string);
+  }
+
   const cutoff = Date.now() - GRACE_HOURS * 3600 * 1000;
   const objects = await listAllObjects();
 

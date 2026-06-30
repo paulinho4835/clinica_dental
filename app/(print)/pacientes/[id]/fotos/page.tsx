@@ -4,6 +4,8 @@ import { getProfile } from "@/lib/auth";
 import { canEditAnamnesis } from "@/lib/rbac";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled } from "@/lib/features";
 import { isR2Configured, presignDownload } from "@/lib/r2";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "../imprimir/AutoPrint";
 
 const KIND_LABEL: Record<string, string> = {
@@ -85,6 +87,8 @@ export default async function FotosInformePage({
     })),
   );
 
+  const logoUrl = await getClinicLogoUrl(patient.clinic_id);
+
   const antes = photos.filter((p) => p.kind === "antes");
   const despues = photos.filter((p) => p.kind === "despues");
   // Todo lo demás (intraoral, radiografía, otro, sin etiqueta) va a la galería.
@@ -115,14 +119,16 @@ export default async function FotosInformePage({
 
         {/* Encabezado */}
         <div className="mb-6 border-b-2 border-slate-800 pb-4">
-          <p className="text-xl font-bold uppercase tracking-wide">
-            {clinic?.name ?? "Clínica Dental"}
-          </p>
-          {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
-          {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
-          <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
-            Informe Fotográfico
-          </p>
+          <PrintBrand logoUrl={logoUrl}>
+            <p className="text-xl font-bold uppercase tracking-wide">
+              {clinic?.name ?? "Clínica Dental"}
+            </p>
+            {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
+            {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
+            <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Informe Fotográfico
+            </p>
+          </PrintBrand>
         </div>
 
         {/* Datos del paciente */}

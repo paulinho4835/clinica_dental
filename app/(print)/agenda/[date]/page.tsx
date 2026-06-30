@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, isReceptionistLike } from "@/lib/rbac";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "./PrintControls";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -81,6 +83,7 @@ export default async function AgendaPrintPage({
   const { data } = await query;
   const rows = (data ?? []) as unknown as Row[];
   const clinic = clinicRow as { name?: string; address?: string; phone?: string } | null;
+  const logoUrl = await getClinicLogoUrl(profile.clinicId);
 
   const dayLabel = new Date(`${date}T12:00:00`).toLocaleDateString("es-BO", {
     weekday: "long",
@@ -109,14 +112,16 @@ export default async function AgendaPrintPage({
 
         {/* Encabezado */}
         <div className="mb-5 border-b-2 border-slate-800 pb-4">
-          <p className="text-xl font-bold uppercase tracking-wide">
-            {clinic?.name ?? "Clínica Dental"}
-          </p>
-          {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
-          {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
-          <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
-            Agenda del día
-          </p>
+          <PrintBrand logoUrl={logoUrl}>
+            <p className="text-xl font-bold uppercase tracking-wide">
+              {clinic?.name ?? "Clínica Dental"}
+            </p>
+            {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
+            {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
+            <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Agenda del día
+            </p>
+          </PrintBrand>
           <p className="mt-1 text-base font-medium capitalize text-slate-700">
             {dayLabel}
             {doctor ? ` · ${doctor}` : ""}

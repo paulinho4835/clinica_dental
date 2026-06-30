@@ -24,7 +24,8 @@ export type FeatureKey =
   | "calificaciones"
   | "fotos"
   | "fotos_contador"
-  | "wa_masivo";
+  | "wa_masivo"
+  | "logo";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -62,6 +63,9 @@ export const FEATURES: FeatureMeta[] = [
   { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
   { key: "fotos_contador", label: "Ver contador de fotos", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
+  // Addon: subir el logo de la clínica para que aparezca en los documentos
+  // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
+  { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },
 ];
 
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el

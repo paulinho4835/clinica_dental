@@ -8,6 +8,8 @@ import {
   HABITOS_FIELDS,
 } from "@/lib/schemas/anamnesis";
 import type { TeethMap } from "@/lib/odontogram/types";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { Odontogram } from "@/components/odontogram/Odontogram";
 import { bs } from "@/lib/format";
 import { AutoPrint, PrintButtons } from "../imprimir/AutoPrint";
@@ -78,6 +80,7 @@ export default async function ExpedientePage({
     ]);
 
   const clinic = clinicRow as { name?: string; address?: string; phone?: string } | null;
+  const logoUrl = await getClinicLogoUrl(patient.clinic_id);
   const a = parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data);
   const teeth = ((odo?.teeth as TeethMap) ?? {}) as TeethMap;
 
@@ -134,14 +137,16 @@ export default async function ExpedientePage({
 
         {/* Encabezado */}
         <div className="mb-6 border-b-2 border-slate-800 pb-4">
-          <p className="text-xl font-bold uppercase tracking-wide">
-            {clinic?.name ?? "Clínica Dental"}
-          </p>
-          {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
-          {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
-          <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
-            Expediente Clínico
-          </p>
+          <PrintBrand logoUrl={logoUrl}>
+            <p className="text-xl font-bold uppercase tracking-wide">
+              {clinic?.name ?? "Clínica Dental"}
+            </p>
+            {clinic?.address && <p className="text-xs text-slate-500">{clinic.address}</p>}
+            {clinic?.phone && <p className="text-xs text-slate-500">Tel.: {clinic.phone}</p>}
+            <p className="mt-2 text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Expediente Clínico
+            </p>
+          </PrintBrand>
         </div>
 
         {/* Datos del paciente */}

@@ -19,6 +19,8 @@ import {
   ReceptionistasPanel,
   type ReceptionistaRow,
 } from "@/components/ajustes/ReceptionistasPanel";
+import { LogoUploader } from "@/components/ajustes/LogoUploader";
+import { isR2Configured, presignDownload } from "@/lib/r2";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -38,6 +40,20 @@ export default async function SettingsPage() {
       .eq("id", profile.clinicId)
       .single();
     clinicProfile = data as ClinicProfile | null;
+  }
+
+  // Logo de la clínica para documentos impresos (addon "logo").
+  let logoCurrentUrl: string | null = null;
+  if (isClinicAdmin && features.logo && profile) {
+    const { data } = await supabase
+      .from("clinics")
+      .select("logo_storage_key")
+      .eq("id", profile.clinicId)
+      .single();
+    const key = data?.logo_storage_key as string | null;
+    if (key && isR2Configured()) {
+      logoCurrentUrl = await presignDownload(key, 600).catch(() => null);
+    }
   }
 
   // Recordatorios WhatsApp (addon "recordatorios").
@@ -170,6 +186,24 @@ export default async function SettingsPage() {
             presupuestos y reportes.
           </p>
           <ClinicProfilePanel profile={clinicProfile} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.logo && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Logo de la clínica
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Sube el logo de tu clínica para que aparezca en el encabezado de los
+            documentos impresos: presupuestos, recetas, consentimientos y
+            reportes. Le da un aspecto más profesional.
+          </p>
+          <LogoUploader
+            currentLogoUrl={logoCurrentUrl}
+            canWrite={canWrite}
+            configured={isR2Configured()}
+          />
         </section>
       )}
 

@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "../../imprimir/AutoPrint";
 import type { Medication } from "@/app/(dashboard)/pacientes/prescription-actions";
 
@@ -39,6 +41,8 @@ export default async function RecetaPage({
     .eq("id", patient.clinic_id)
     .single();
 
+  const logoUrl = await getClinicLogoUrl(patient.clinic_id);
+
   const medications = rx.medications as Medication[];
   const doctorName =
     (rx.doctor as { full_name?: string } | null)?.full_name ?? null;
@@ -59,7 +63,7 @@ export default async function RecetaPage({
 
         {/* Encabezado */}
         <div className="mb-6 flex items-start justify-between border-b-2 border-slate-800 pb-4">
-          <div>
+          <PrintBrand logoUrl={logoUrl}>
             <p className="text-xl font-bold uppercase tracking-wide">
               {clinic?.name ?? "Clínica Dental"}
             </p>
@@ -71,7 +75,7 @@ export default async function RecetaPage({
                 Dr./Dra. {doctorName}
               </p>
             )}
-          </div>
+          </PrintBrand>
           <div className="text-right text-sm text-slate-500">
             <p>Fecha de emisión:</p>
             <p className="font-medium text-slate-700">{fmtDate(rx.issued_at as string)}</p>

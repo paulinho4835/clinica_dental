@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { bs } from "@/lib/format";
+import { getClinicLogoUrl } from "@/lib/clinicLogo";
+import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "./AutoPrint";
 
 const fmtDate = (iso: string) =>
@@ -76,6 +78,8 @@ export default async function ImprimirPlanPage({
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
+  const logoUrl = await getClinicLogoUrl(patient.clinic_id);
+
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
   const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
   const saldo = totalQuoted - totalPaid;
@@ -97,14 +101,14 @@ export default async function ImprimirPlanPage({
 
         {/* Encabezado */}
         <div className="mb-6 flex items-start justify-between border-b-2 border-slate-800 pb-4">
-          <div>
+          <PrintBrand logoUrl={logoUrl}>
             <p className="text-xl font-bold uppercase tracking-wide">
               {clinic?.name ?? "Clínica Dental"}
             </p>
             <p className="mt-1 text-sm font-semibold uppercase text-slate-500">
               Presupuesto de Tratamiento
             </p>
-          </div>
+          </PrintBrand>
           <div className="text-right text-sm text-slate-500">
             <p>Fecha de emisión:</p>
             <p className="font-medium text-slate-700">{now()}</p>
