@@ -37,13 +37,12 @@ export function NewClinicForm() {
         </label>
         <Field name="adminName" label="Nombre del admin *" required />
         <Field name="adminEmail" label="Email del admin *" type="email" required />
-        <Field
-          name="password"
-          label="Contraseña inicial *"
-          type="text"
-          required
-        />
       </div>
+
+      <p className="rounded-lg bg-clinic/5 px-3 py-2 text-xs text-slate-500">
+        Se enviará un correo de invitación al admin para que cree su propia
+        contraseña y active su cuenta.
+      </p>
 
       {/* Add-on WhatsApp */}
       <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 hover:bg-slate-100">
@@ -70,7 +69,7 @@ export function NewClinicForm() {
         disabled={pending}
         className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
       >
-        {pending ? "Creando…" : "Crear clínica + admin"}
+        {pending ? "Creando…" : "Crear clínica e invitar admin"}
       </button>
     </form>
   );

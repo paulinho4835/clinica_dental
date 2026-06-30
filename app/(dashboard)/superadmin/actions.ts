@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
 import { FEATURES, type FeatureKey } from "@/lib/features";
+import { inviteClinicUser } from "@/lib/inviteUser";
 import type { VapiClinicConfig } from "@/lib/vapi";
 
 async function assertSuperadmin() {
@@ -18,7 +19,6 @@ const newClinicSchema = z.object({
   clinicName: z.string().min(2, "Nombre de clínica muy corto"),
   adminEmail: z.string().email("Email inválido"),
   adminName: z.string().min(2, "Nombre del admin muy corto"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   plan: z.enum(["starter", "pro", "premium"]).default("starter"),
 });
 
@@ -29,11 +29,10 @@ export async function createClinic(_prev: unknown, formData: FormData) {
     clinicName: formData.get("clinicName"),
     adminEmail: formData.get("adminEmail"),
     adminName: formData.get("adminName"),
-    password: formData.get("password"),
     plan: formData.get("plan") || "starter",
   });
   if (!parsed.success) return { error: parsed.error.errors[0].message };
-  const { clinicName, adminEmail, adminName, password, plan } = parsed.data;
+  const { clinicName, adminEmail, adminName, plan } = parsed.data;
 
   const whatsappAddon = formData.get("whatsapp_addon") === "true";
 
@@ -48,30 +47,21 @@ export async function createClinic(_prev: unknown, formData: FormData) {
     return { error: `No se pudo crear la clínica: ${clinicErr?.message}` };
   }
 
-  const { data: created, error: userErr } = await admin.auth.admin.createUser({
+  // El admin se crea por INVITACIÓN: Supabase le envía un correo y él define su
+  // propia contraseña en /bienvenida. Si falla, se revierte la clínica.
+  const invite = await inviteClinicUser(admin, {
     email: adminEmail,
-    password,
-    email_confirm: true,
-  });
-  if (userErr || !created.user) {
-    await admin.from("clinics").delete().eq("id", clinic.id);
-    return { error: `No se pudo crear el usuario: ${userErr?.message}` };
-  }
-
-  const { error: profErr } = await admin.from("profiles").insert({
-    id: created.user.id,
-    clinic_id: clinic.id,
+    fullName: adminName,
+    clinicId: clinic.id,
     role: "admin",
-    full_name: adminName,
   });
-  if (profErr) {
-    await admin.auth.admin.deleteUser(created.user.id);
+  if (!invite.ok) {
     await admin.from("clinics").delete().eq("id", clinic.id);
-    return { error: `No se pudo crear el perfil: ${profErr.message}` };
+    return { error: invite.error };
   }
 
   revalidatePath("/superadmin");
-  return { ok: `Clínica "${clinicName}" creada. Admin: ${adminEmail}` };
+  return { ok: `Clínica "${clinicName}" creada. Invitación enviada a ${adminEmail}.` };
 }
 
 // ── Añadir usuario a clínica existente ──────────────────────────────────────
@@ -79,7 +69,6 @@ const addUserSchema = z.object({
   clinicId: z.string().uuid("Clínica inválida"),
   email: z.string().email("Email inválido"),
   fullName: z.string().min(2, "Nombre muy corto"),
-  password: z.string().min(8, "Mínimo 8 caracteres"),
   role: z.enum(["admin", "recepcionista", "colega", "odontologo_general", "especialista", "asistente"]),
 });
 
@@ -90,36 +79,17 @@ export async function addClinicUser(_prev: unknown, formData: FormData) {
     clinicId: formData.get("clinicId"),
     email: formData.get("email"),
     fullName: formData.get("fullName"),
-    password: formData.get("password"),
     role: formData.get("role"),
   });
   if (!parsed.success) return { error: parsed.error.errors[0].message };
-  const { clinicId, email, fullName, password, role } = parsed.data;
+  const { clinicId, email, fullName, role } = parsed.data;
 
   const admin = createAdminClient();
-
-  const { data: created, error: userErr } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (userErr || !created.user) {
-    return { error: `Error creando usuario: ${userErr?.message}` };
-  }
-
-  const { error: profErr } = await admin.from("profiles").insert({
-    id: created.user.id,
-    clinic_id: clinicId,
-    role,
-    full_name: fullName,
-  });
-  if (profErr) {
-    await admin.auth.admin.deleteUser(created.user.id);
-    return { error: `Error creando perfil: ${profErr.message}` };
-  }
+  const invite = await inviteClinicUser(admin, { email, fullName, clinicId, role });
+  if (!invite.ok) return { error: invite.error };
 
   revalidatePath("/superadmin");
-  return { ok: `Usuario ${email} añadido` };
+  return { ok: `Invitación enviada a ${email}` };
 }
 
 // ── Cambiar rol de usuario ────────────────────────────────────────────────────

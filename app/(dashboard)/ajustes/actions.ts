@@ -5,8 +5,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, type Role } from "@/lib/rbac";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
+import { inviteClinicUser } from "@/lib/inviteUser";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -93,7 +94,6 @@ async function assertClinicAdmin() {
 const NewUserSchema = z.object({
   email: z.string().trim().email("Email inválido"),
   full_name: z.string().trim().min(2, "Nombre muy corto"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   role: z.enum(TEAM_ROLES, { errorMap: () => ({ message: "Rol inválido" }) }),
 });
 
@@ -108,12 +108,11 @@ export async function createTeamUser(
   const parsed = NewUserSchema.safeParse({
     email: formData.get("email"),
     full_name: formData.get("full_name"),
-    password: formData.get("password"),
     role: formData.get("role"),
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
-  const { email, full_name, password, role } = parsed.data;
+  const { email, full_name, role } = parsed.data;
 
   const admin = createAdminClient();
 
@@ -138,25 +137,15 @@ export async function createTeamUser(
     return { error: `Límite de ${maxUsers} usuarios alcanzado. Contacta al administrador de la plataforma.` };
   }
 
-  const { data: created, error: userErr } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (userErr || !created.user)
-    return { error: `No se pudo crear el usuario: ${userErr?.message}` };
-
+  // Invitación por correo: el usuario define su propia contraseña en /bienvenida.
   // clinic_id forzado al del admin: nunca se confía en el formulario.
-  const { error: profErr } = await admin.from("profiles").insert({
-    id: created.user.id,
-    clinic_id: profile.clinicId,
-    role,
-    full_name,
+  const invite = await inviteClinicUser(admin, {
+    email,
+    fullName: full_name,
+    clinicId: profile.clinicId,
+    role: role as Role,
   });
-  if (profErr) {
-    await admin.auth.admin.deleteUser(created.user.id); // rollback
-    return { error: `No se pudo crear el perfil: ${profErr.message}` };
-  }
+  if (!invite.ok) return { error: invite.error };
 
   revalidatePath("/ajustes");
   return { ok: true };

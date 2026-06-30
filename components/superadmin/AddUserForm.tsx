@@ -51,7 +51,6 @@ export function AddUserForm({ clinicId }: { clinicId: string }) {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Field name="fullName" label="Nombre completo" required />
             <Field name="email" label="Email" type="email" required />
-            <Field name="password" label="Contraseña inicial" type="text" required />
             <label className="block text-xs">
               <span className="mb-1 block text-slate-500">Rol</span>
               <select
@@ -73,7 +72,7 @@ export function AddUserForm({ clinicId }: { clinicId: string }) {
             disabled={pending}
             className="rounded bg-clinic px-3 py-1.5 text-xs font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
           >
-            {pending ? "Creando…" : "Crear usuario"}
+            {pending ? "Enviando…" : "Enviar invitación"}
           </button>
         </form>
       )}

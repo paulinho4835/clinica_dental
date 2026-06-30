@@ -18,6 +18,7 @@ const PUBLIC_PATHS = [
   "/privacidad",
   "/recuperar",
   "/restablecer",
+  "/bienvenida",
   "/auth/callback",
 ];
 

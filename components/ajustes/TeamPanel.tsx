@@ -186,17 +186,6 @@ function AddUserForm() {
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
-          <span className="mb-1 block text-slate-500">Contraseña temporal *</span>
-          <input
-            name="password"
-            type="text"
-            required
-            minLength={8}
-            placeholder="mínimo 8 caracteres"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
-          />
-        </label>
-        <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
           <span className="mb-1 block text-slate-500">Rol *</span>
           <select
             name="role"
@@ -212,13 +201,16 @@ function AddUserForm() {
           </select>
         </label>
       </div>
+      <p className="text-xs text-slate-500">
+        Le enviaremos un correo de invitación para que cree su propia contraseña.
+      </p>
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={pending}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
-          {pending ? "Creando…" : "Crear usuario"}
+          {pending ? "Enviando…" : "Enviar invitación"}
         </button>
         <button
           type="button"
