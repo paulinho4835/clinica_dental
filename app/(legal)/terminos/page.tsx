@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { LEGAL_LAST_UPDATED } from "@/lib/legal";
+import {
+  LEGAL_LAST_UPDATED,
+  PLATFORM_NAME,
+  OPERATOR_NAME,
+  CONTACT_EMAIL,
+  GOVERNING_LAW,
+} from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Términos y Condiciones",
@@ -21,11 +27,12 @@ export default function TerminosPage() {
       </p>
 
       <P>
-        Estos Términos y Condiciones regulan el acceso y uso del sistema de
-        gestión para clínicas dentales (en adelante, &ldquo;la Plataforma&rdquo;).
-        Al crear una cuenta, aceptar este aviso o utilizar la Plataforma, la
-        clínica y sus usuarios aceptan quedar obligados por estos términos. Si no
-        está de acuerdo, debe abstenerse de usar el servicio.
+        Estos Términos y Condiciones regulan el acceso y uso de {PLATFORM_NAME}{" "}
+        (en adelante, &ldquo;la Plataforma&rdquo;), un sistema de gestión para
+        clínicas dentales operado por {OPERATOR_NAME}. Al crear una cuenta,
+        aceptar este aviso o utilizar la Plataforma, la clínica y sus usuarios
+        aceptan quedar obligados por estos términos. Si no está de acuerdo, debe
+        abstenerse de usar el servicio.
       </P>
 
       <H2>1. Objeto del servicio</H2>
@@ -47,17 +54,7 @@ export default function TerminosPage() {
         la clínica.
       </P>
 
-      <H2>3. Uso aceptable</H2>
-      <P>
-        El usuario se compromete a utilizar la Plataforma conforme a la ley y a
-        no: (a) acceder a datos de clínicas o pacientes ajenos; (b) intentar
-        vulnerar la seguridad o el aislamiento entre clínicas; (c) usar el
-        servicio para fines ilícitos; ni (d) cargar contenido que infrinja
-        derechos de terceros. El incumplimiento puede dar lugar a la suspensión
-        de la cuenta.
-      </P>
-
-      <H2>4. Datos de pacientes y rol de la clínica</H2>
+      <H2>3. Datos de pacientes y rol de la clínica</H2>
       <P>
         La clínica es la responsable del tratamiento de los datos de sus
         pacientes y garantiza contar con la base legal y los consentimientos
@@ -70,12 +67,26 @@ export default function TerminosPage() {
         .
       </P>
 
+      <H2>4. Propiedad intelectual</H2>
+      <P>
+        El software, el diseño, la marca y todos los componentes de la Plataforma
+        son propiedad de {OPERATOR_NAME} y están protegidos por la ley. El uso del
+        servicio no transfiere ningún derecho sobre ellos. A su vez, los datos que
+        la clínica carga &mdash;información de pacientes, citas, tratamientos,
+        cobros y documentos&mdash; son y seguirán siendo propiedad de la clínica;
+        la Plataforma solo los procesa para prestar el servicio y la clínica puede
+        solicitar una copia o su eliminación al darse de baja.
+      </P>
+
       <H2>5. Disponibilidad y respaldos</H2>
       <P>
-        Procuramos una alta disponibilidad del servicio y realizamos respaldos
-        periódicos de la información, pero no garantizamos un funcionamiento
-        ininterrumpido ni libre de errores. Se recomienda a la clínica conservar
-        sus propios respaldos cuando la información sea crítica.
+        Trabajamos para mantener la Plataforma disponible de forma continua y
+        realizamos respaldos periódicos de la información para protegerla. Como
+        todo servicio en línea, pueden presentarse interrupciones ocasionales por
+        mantenimiento o causas ajenas a nuestro control; en esos casos hacemos lo
+        posible por restablecer el servicio a la brevedad. Para mayor tranquilidad,
+        la clínica también puede conservar sus propias copias de la información que
+        considere crítica.
       </P>
 
       <H2>6. Limitación de responsabilidad</H2>
@@ -91,20 +102,38 @@ export default function TerminosPage() {
       <P>
         La clínica puede solicitar la baja de su cuenta en cualquier momento. La
         Plataforma puede suspender cuentas que incumplan estos términos o que
-        comprometan la seguridad del servicio o de otras clínicas.
+        comprometan la seguridad del servicio o de otras clínicas. Asimismo, si el
+        plan o los módulos contratados no se mantienen al día en su pago, la
+        Plataforma puede suspender o limitar el acceso tras un aviso previo,
+        conservando la información de la clínica durante un plazo razonable para
+        que pueda regularizar su situación o solicitar una copia de sus datos.
       </P>
 
-      <H2>8. Modificaciones</H2>
+      <H2>8. Ley aplicable y jurisdicción</H2>
+      <P>
+        Estos términos se rigen por las leyes de {GOVERNING_LAW}. Cualquier
+        controversia que no pueda resolverse de común acuerdo se someterá a los
+        tribunales competentes de {GOVERNING_LAW}.
+      </P>
+
+      <H2>9. Modificaciones</H2>
       <P>
         Podemos actualizar estos términos. Cuando los cambios sean sustanciales,
         se notificará y podrá solicitarse una nueva aceptación antes de continuar
         usando la Plataforma.
       </P>
 
-      <H2>9. Contacto</H2>
+      <H2>10. Contacto</H2>
       <P>
-        Para consultas sobre estos términos, la clínica puede comunicarse con el
-        soporte de la Plataforma a través de los canales habilitados.
+        Para consultas sobre estos términos, la clínica puede comunicarse con{" "}
+        {OPERATOR_NAME} al correo{" "}
+        <a
+          href={`mailto:${CONTACT_EMAIL}`}
+          className="font-medium text-clinic hover:underline"
+        >
+          {CONTACT_EMAIL}
+        </a>
+        .
       </P>
     </div>
   );

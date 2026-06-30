@@ -2,6 +2,7 @@
 
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { LEGAL_VERSION } from "@/lib/legal";
 
 // Registra la aceptación de los Términos y Condiciones por parte del admin de la
 // clínica. Solo el rol 'admin' acepta (en nombre de toda la clínica). La policy
@@ -16,7 +17,10 @@ export async function acceptTerms(): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ terms_accepted_at: new Date().toISOString() })
+    .update({
+      terms_accepted_at: new Date().toISOString(),
+      terms_accepted_version: LEGAL_VERSION,
+    })
     .eq("id", profile.userId);
 
   if (error) {

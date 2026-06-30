@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { LEGAL_LAST_UPDATED } from "@/lib/legal";
+import {
+  LEGAL_LAST_UPDATED,
+  PLATFORM_NAME,
+  OPERATOR_NAME,
+  CONTACT_EMAIL,
+} from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Política de Privacidad",
@@ -24,7 +29,8 @@ export default function PrivacidadPage() {
       </p>
 
       <P>
-        Esta Política explica cómo la Plataforma trata la información de las
+        Esta Política explica cómo {PLATFORM_NAME}, operada por {OPERATOR_NAME}{" "}
+        (en adelante, &ldquo;la Plataforma&rdquo;), trata la información de las
         clínicas usuarias y de sus pacientes. La clínica es la responsable de los
         datos de sus pacientes; la Plataforma los procesa por cuenta de la clínica
         para prestar el servicio.
@@ -55,14 +61,23 @@ export default function PrivacidadPage() {
         lo habilita, y garantizar la seguridad de la cuenta.
       </P>
 
-      <H2>3. Aislamiento entre clínicas</H2>
+      <H2>3. Cookies y sesión</H2>
       <P>
-        Cada clínica accede exclusivamente a su propia información. La Plataforma
-        aplica controles de aislamiento por clínica para impedir que una clínica
-        vea o modifique datos de otra.
+        La Plataforma utiliza únicamente cookies esenciales para mantener tu
+        sesión iniciada y proteger la cuenta. No usamos cookies de publicidad ni
+        de seguimiento con fines comerciales. Si cierras sesión o las eliminas
+        desde tu navegador, deberás volver a iniciar sesión.
       </P>
 
-      <H2>4. Encargados y almacenamiento</H2>
+      <H2>4. No comercializamos los datos</H2>
+      <P>
+        No vendemos, alquilamos ni cedemos los datos de las clínicas ni de sus
+        pacientes a terceros con fines comerciales o publicitarios. Los datos solo
+        se comparten con los proveedores estrictamente necesarios para operar el
+        servicio (ver sección siguiente) o cuando lo exija la ley.
+      </P>
+
+      <H2>5. Encargados y almacenamiento</H2>
       <P>
         Para operar, la Plataforma se apoya en proveedores de infraestructura
         (alojamiento de la base de datos, almacenamiento de archivos y envío de
@@ -72,7 +87,7 @@ export default function PrivacidadPage() {
         almacenamiento de objetos con acceso restringido.
       </P>
 
-      <H2>5. Conservación</H2>
+      <H2>6. Conservación</H2>
       <P>
         Los datos se conservan mientras la clínica mantenga su cuenta activa y
         según las obligaciones legales de conservación de información clínica
@@ -80,15 +95,17 @@ export default function PrivacidadPage() {
         que exija la ley y luego eliminarse o anonimizarse.
       </P>
 
-      <H2>6. Seguridad</H2>
+      <H2>7. Seguridad</H2>
       <P>
-        Aplicamos medidas técnicas y organizativas razonables: control de acceso
-        por rol, cifrado en tránsito, limitación de intentos de acceso y
-        respaldos periódicos. Ningún sistema es completamente infalible, por lo
-        que no podemos garantizar una seguridad absoluta.
+        Protegemos tu información con medidas técnicas y organizativas acordes a su
+        sensibilidad: control de acceso por rol, cifrado en tránsito, aislamiento
+        de los datos de cada clínica (cada una accede únicamente a su propia
+        información), limitación de intentos de acceso y respaldos periódicos.
+        Revisamos y mejoramos de forma continua estas medidas para mantener tu
+        información protegida.
       </P>
 
-      <H2>7. Derechos de los pacientes</H2>
+      <H2>8. Derechos de los pacientes</H2>
       <P>
         Los pacientes pueden ejercer sus derechos de acceso, rectificación y
         eliminación de sus datos ante la clínica que los atiende, que es la
@@ -96,16 +113,23 @@ export default function PrivacidadPage() {
         atender esas solicitudes.
       </P>
 
-      <H2>8. Cambios</H2>
+      <H2>9. Cambios</H2>
       <P>
         Podemos actualizar esta Política. Los cambios relevantes se comunicarán a
         través de la Plataforma.
       </P>
 
-      <H2>9. Contacto</H2>
+      <H2>10. Contacto</H2>
       <P>
-        Para consultas sobre privacidad, la clínica puede comunicarse con el
-        soporte de la Plataforma a través de los canales habilitados.
+        Para consultas sobre privacidad, puedes comunicarte con {OPERATOR_NAME} al
+        correo{" "}
+        <a
+          href={`mailto:${CONTACT_EMAIL}`}
+          className="font-medium text-clinic hover:underline"
+        >
+          {CONTACT_EMAIL}
+        </a>
+        .
       </P>
     </div>
   );
