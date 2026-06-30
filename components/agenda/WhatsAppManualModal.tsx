@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ExternalLink, PhoneOff, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ExternalLink, PhoneOff, Phone, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { useDismissable } from "@/components/ui/useDismissable";
 import { normalizePhone } from "@/lib/phone-utils";
 
@@ -27,6 +27,30 @@ function hhmm(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Hora local (Bolivia) en que se marcó "Enviado" desde un timestamp en ms.
+function sentHhmm(ms: number) {
+  return new Date(ms).toLocaleTimeString("es-BO", {
+    timeZone: "America/La_Paz",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Marcadores "ya envié" guardados por fecha en localStorage. Son un recordatorio
+// visual del propio recepcionista (por dispositivo): clic en "Enviar" solo ABRE
+// WhatsApp con el texto listo, no confirma la entrega. El botón sigue clickeable
+// para reenviar. Clave por fecha → { [apptId]: timestampMs }.
+const SENT_KEY_PREFIX = "wa-manual-sent:";
+
+function readSent(date: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(SENT_KEY_PREFIX + date);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
 }
 
 // Construye un enlace wa.me SOLO si el teléfono es válido (normalizePhone de
@@ -83,10 +107,29 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   // URL base de la app para el enlace de confirmación (se lee en cliente).
   const [origin, setOrigin] = useState("");
+  // Citas a las que ya se les abrió el mensaje (marcador local por fecha).
+  const [sent, setSent] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
+
+  // Recargar los marcadores cada vez que cambia la fecha seleccionada.
+  useEffect(() => {
+    setSent(readSent(selectedDate));
+  }, [selectedDate]);
+
+  function markSent(id: string) {
+    setSent((prev) => {
+      const next = { ...prev, [id]: Date.now() };
+      try {
+        localStorage.setItem(SENT_KEY_PREFIX + selectedDate, JSON.stringify(next));
+      } catch {
+        /* almacenamiento no disponible: el marcador queda solo en memoria */
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -176,6 +219,7 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
                     const msg = buildMessage(a, data.date, data.clinicName, origin);
                     const url = buildWaLink(a.phone, msg);
                     if (!url) return null;
+                    const sentAt = sent[a.id];
                     return (
                       <div
                         key={a.id}
@@ -204,10 +248,29 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex shrink-0 items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                          onClick={() => markSent(a.id)}
+                          title={
+                            sentAt
+                              ? `Enviado ${sentHhmm(sentAt)} · clic para reenviar`
+                              : undefined
+                          }
+                          className={
+                            sentAt
+                              ? "flex shrink-0 items-center gap-1.5 rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
+                              : "flex shrink-0 items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                          }
                         >
-                          <ExternalLink className="h-3 w-3" />
-                          Enviar
+                          {sentAt ? (
+                            <>
+                              <Check className="h-3 w-3" />
+                              Enviado · {sentHhmm(sentAt)}
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="h-3 w-3" />
+                              Enviar
+                            </>
+                          )}
                         </a>
                       </div>
                     );
@@ -245,7 +308,12 @@ export function WhatsAppManualModal({ onClose }: { onClose: () => void }) {
 
         {/* Footer */}
         {!loading && !error && withPhone.length > 1 && (
-          <div className="border-t border-slate-100 px-5 py-3">
+          <div className="space-y-1.5 border-t border-slate-100 px-5 py-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-green-700">
+              <Check className="h-3 w-3" />
+              {withPhone.filter((a) => sent[a.id]).length} de {withPhone.length}{" "}
+              enviados
+            </p>
             <p className="text-[11px] text-slate-400">
               Haz clic en <strong>Enviar</strong> en cada fila para abrir WhatsApp Web
               con el mensaje listo. Solo debes presionar{" "}
