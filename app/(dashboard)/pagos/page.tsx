@@ -67,6 +67,23 @@ function fmtShortDate(d: string) {
   });
 }
 
+// Un pago apunta a un empleado (profiles) O a una recepcionista sin cuenta
+// (clinic_receptionists). Devuelve un destinatario unificado {id, full_name, role}.
+function resolvePayee(p: {
+  employee?: unknown;
+  receptionist?: unknown;
+}): { id: string; full_name: string; role: string } | null {
+  const emp = (Array.isArray(p.employee) ? p.employee[0] : p.employee) as
+    | { id: string; full_name: string; role: string }
+    | null;
+  if (emp) return emp;
+  const rec = (Array.isArray(p.receptionist) ? p.receptionist[0] : p.receptionist) as
+    | { id: string; name: string }
+    | null;
+  if (rec) return { id: rec.id, full_name: rec.name, role: "recepcionista" };
+  return null;
+}
+
 export default async function PagosPage({
   searchParams,
 }: {
@@ -98,10 +115,19 @@ export default async function PagosPage({
     empQuery = empQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
+  // Recepcionistas sin cuenta de login (tabla clinic_receptionists). Se les puede
+  // registrar pagos (sueldo) aunque no hagan trabajos clínicos.
+  const recepQuery = supabase
+    .from("clinic_receptionists")
+    .select("id, name")
+    .eq("clinic_id", profile!.clinicId)
+    .eq("active", true)
+    .order("name");
+
   let paymentsQuery = supabase
     .from("staff_payments")
     .select(
-      "id, amount, method, concept, paid_at, created_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role)",
+      "id, amount, method, concept, paid_at, created_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role), receptionist:clinic_receptionists!staff_payments_receptionist_id_fkey(id, name)",
     )
     .order("paid_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -110,14 +136,39 @@ export default async function PagosPage({
     paymentsQuery = paymentsQuery.gte("paid_at", monthStart).lt("paid_at", nextMonthStart);
   }
 
+  // El filtro de persona usa IDs compuestos: "p:<uuid>" (perfil) y "r:<uuid>"
+  // (recepcionista). Compat: un valor sin prefijo se asume perfil.
   if (selectedEmployee !== "all") {
-    paymentsQuery = paymentsQuery.eq("employee_id", selectedEmployee);
+    if (selectedEmployee.startsWith("r:")) {
+      paymentsQuery = paymentsQuery.eq("receptionist_id", selectedEmployee.slice(2));
+    } else {
+      const empId = selectedEmployee.startsWith("p:")
+        ? selectedEmployee.slice(2)
+        : selectedEmployee;
+      paymentsQuery = paymentsQuery.eq("employee_id", empId);
+    }
   }
 
-  const [{ data: employees }, { data: rawPayments }] = await Promise.all([
-    empQuery,
-    paymentsQuery,
-  ]);
+  const [{ data: employees }, { data: receptionists }, { data: rawPayments }] =
+    await Promise.all([empQuery, recepQuery, paymentsQuery]);
+
+  // Lista unificada de destinatarios para el formulario y el filtro.
+  const payees = [
+    ...(employees ?? []).map((e) => ({
+      key: `p:${e.id}`,
+      id: e.id as string,
+      full_name: e.full_name as string,
+      role: e.role as string,
+      kind: "profile" as const,
+    })),
+    ...(receptionists ?? []).map((r) => ({
+      key: `r:${r.id}`,
+      id: r.id as string,
+      full_name: r.name as string,
+      role: "recepcionista",
+      kind: "receptionist" as const,
+    })),
+  ];
 
   const baseRows = (rawPayments ?? []).map((p) => ({
     id: p.id as string,
@@ -127,7 +178,7 @@ export default async function PagosPage({
     paid_at: p.paid_at as string,
     created_at: p.created_at as string,
     disbursed: Boolean(p.disbursed),
-    employee: (Array.isArray(p.employee) ? p.employee[0] : p.employee) as { id: string; full_name: string; role: string } | null,
+    employee: resolvePayee(p),
   }));
 
   // Traer los works asociados a los pagos visibles
@@ -209,7 +260,7 @@ export default async function PagosPage({
         subtitle="Registra y controla los pagos realizados a doctores, recepcionistas y personal de la clínica."
       />
 
-      <StaffPaymentForm employees={employees ?? []} today={today} />
+      <StaffPaymentForm payees={payees} today={today} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat
@@ -270,7 +321,7 @@ export default async function PagosPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PagosFilter
-            employees={employees ?? []}
+            payees={payees}
             selectedEmployee={selectedEmployee}
             selectedMonth={selectedMonth}
           />

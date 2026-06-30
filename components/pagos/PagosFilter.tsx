@@ -2,14 +2,14 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-type Employee = { id: string; full_name: string };
+type Payee = { key: string; full_name: string };
 
 export function PagosFilter({
-  employees,
+  payees,
   selectedEmployee,
   selectedMonth,
 }: {
-  employees: Employee[];
+  payees: Payee[];
   selectedEmployee: string;
   selectedMonth: string;
 }) {
@@ -43,8 +43,8 @@ export function PagosFilter({
           className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-clinic/40"
         >
           <option value="all">Todos</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>{e.full_name}</option>
+          {payees.map((e) => (
+            <option key={e.key} value={e.key}>{e.full_name}</option>
           ))}
         </select>
       </div>
