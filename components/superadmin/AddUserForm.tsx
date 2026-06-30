@@ -56,7 +56,7 @@ export function AddUserForm({ clinicId }: { clinicId: string }) {
               <select
                 name="role"
                 defaultValue="recepcionista"
-                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none"
+                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none"
               >
                 {ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -98,7 +98,7 @@ function Field({
         name={name}
         type={type}
         required={required}
-        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none"
+        className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none"
       />
     </label>
   );

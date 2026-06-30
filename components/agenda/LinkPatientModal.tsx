@@ -113,7 +113,7 @@ export function LinkPatientModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Nombre y apellido"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
               />
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -124,7 +124,7 @@ export function LinkPatientModal({
                   value={ci}
                   onChange={(e) => setCi(e.target.value)}
                   placeholder="Cédula"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
               </label>
               <label className="block text-sm">
@@ -134,7 +134,7 @@ export function LinkPatientModal({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Celular"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
               </label>
             </div>

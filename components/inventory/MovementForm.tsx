@@ -50,7 +50,7 @@ export function MovementForm({ items }: { items: Item[] }) {
           <select
             name="type"
             defaultValue="in"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           >
             <option value="in">Entrada</option>
             <option value="out">Salida</option>
@@ -66,7 +66,7 @@ export function MovementForm({ items }: { items: Item[] }) {
             step="0.01"
             min="0"
             required
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
         <label className="block text-sm">
@@ -74,7 +74,7 @@ export function MovementForm({ items }: { items: Item[] }) {
           <input
             name="reason"
             type="text"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
       </div>

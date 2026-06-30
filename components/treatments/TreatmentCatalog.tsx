@@ -22,7 +22,7 @@ export type CatalogItem = {
 
 const initial: ActionState = {};
 const inputClass =
-  "w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic";
+  "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic";
 
 export function TreatmentCatalog({ items }: { items: CatalogItem[] }) {
   const router = useRouter();

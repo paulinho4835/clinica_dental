@@ -191,7 +191,7 @@ export function StaffPaymentForm({
             required
             value={employeeId}
             onChange={(e) => onEmployeeChange(e.target.value)}
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
           >
             <option value="" disabled>— Selecciona persona —</option>
             {employees.map((e) => (
@@ -209,7 +209,7 @@ export function StaffPaymentForm({
             type="date"
             defaultValue={today}
             required
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
           />
         </label>
       </div>
@@ -330,7 +330,7 @@ export function StaffPaymentForm({
             placeholder="0.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-28 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
 
@@ -339,7 +339,7 @@ export function StaffPaymentForm({
           <select
             name="method"
             defaultValue="cash"
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
           >
             <option value="cash">Efectivo</option>
             <option value="qr">QR</option>
@@ -356,7 +356,7 @@ export function StaffPaymentForm({
             placeholder="ej. Salario junio, Bono, Comisión semana..."
             value={concept}
             onChange={(e) => setConcept(e.target.value)}
-            className="w-full min-w-[200px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full min-w-[200px] rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
       </div>

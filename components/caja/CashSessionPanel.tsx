@@ -74,7 +74,7 @@ export function CashSessionPanel({ session }: { session: OpenSession }) {
           step="0.01"
           min="0"
           defaultValue={0}
-          className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          className="w-32 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
       </label>
       <button

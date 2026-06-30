@@ -108,7 +108,7 @@ function AddDoctorForm() {
           type="text"
           required
           placeholder="ej. Dr. Ramírez"
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
       </label>
       <label className="text-xs" style={{ minWidth: "140px" }}>
@@ -117,7 +117,7 @@ function AddDoctorForm() {
           name="specialty"
           type="text"
           placeholder="ej. Endodoncia"
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
       </label>
       <button

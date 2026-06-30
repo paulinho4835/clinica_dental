@@ -152,7 +152,7 @@ export function ApptModal({
               required
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />
           </label>
           <label className="block text-sm">
@@ -212,7 +212,7 @@ export function ApptModal({
               value={patientName}
               onChange={(e) => setPatientName(e.target.value)}
               placeholder="ej. Carlos Ruiz (sin registrar)"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />
             {/* Nombre suelto: viaja como patient_name; sin patient_id. */}
             <input type="hidden" name="patient_name" value={patientName.trim()} />
@@ -229,7 +229,7 @@ export function ApptModal({
               required
               value={dentistName}
               onChange={(e) => setDentistName(e.target.value)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             >
               <option value="" disabled>Selecciona un odontólogo…</option>
               {doctors.map((d) => (
@@ -244,7 +244,7 @@ export function ApptModal({
               value={dentistName}
               onChange={(e) => setDentistName(e.target.value)}
               placeholder="Nombre del odontólogo"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />
           )}
         </label>
@@ -276,7 +276,7 @@ export function ApptModal({
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="0.00"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
               />
             </label>
             <label className="block text-sm">
@@ -289,7 +289,7 @@ export function ApptModal({
                 value={deposit}
                 onChange={(e) => setDeposit(e.target.value)}
                 placeholder="0.00"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
               />
             </label>
           </div>
@@ -299,7 +299,7 @@ export function ApptModal({
               <select
                 name="deposit_method"
                 defaultValue={appt?.deposit_method ?? "cash"}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
               >
                 <option value="cash">Efectivo</option>
                 <option value="qr">QR</option>

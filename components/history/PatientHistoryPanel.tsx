@@ -397,7 +397,7 @@ function PaymentForm({
             type="date"
             defaultValue={today}
             required
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
         <label className="text-xs">
@@ -411,7 +411,7 @@ function PaymentForm({
             placeholder="0.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-28 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
         <label className="text-xs">
@@ -419,7 +419,7 @@ function PaymentForm({
           <select
             name="method"
             defaultValue="cash"
-            className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
           >
             <option value="cash">Efectivo</option>
             <option value="qr">QR</option>
@@ -434,7 +434,7 @@ function PaymentForm({
               name="doctor_id"
               value={doctorId}
               onChange={(e) => { setDoctorId(e.target.value); if (!e.target.value) setPct(""); }}
-              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
             >
               <option value="">— Sin asignar —</option>
               {doctors.map((d) => (
@@ -456,7 +456,7 @@ function PaymentForm({
               placeholder="ej. 40"
               value={pct}
               onChange={(e) => setPct(e.target.value)}
-              className="w-20 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-20 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />
           </label>
         )}
@@ -469,7 +469,7 @@ function PaymentForm({
               required
               value={collectedById}
               onChange={(e) => setCollectedById(e.target.value)}
-              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
             >
               <option value="">— Selecciona recepcionista —</option>
               {recepcionistas!.map((r) => (
@@ -495,7 +495,7 @@ function PaymentForm({
                   if (noteRef.current && !noteRef.current.value) noteRef.current.value = item.name;
                 }
               }}
-              className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
             >
               <option value="">— Sin asignar —</option>
               {planItems.map((p) => {
@@ -518,7 +518,7 @@ function PaymentForm({
             type="text"
             maxLength={120}
             placeholder="ej. Cuota ortodoncia, Adelanto endodoncia…"
-            className="w-full min-w-[180px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full min-w-[180px] rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
       </div>

@@ -110,7 +110,7 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
               value={member.role}
               disabled={pending}
               onChange={(e) => changeRole(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
             >
               {ROLE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -170,7 +170,7 @@ function AddUserForm() {
             type="text"
             required
             placeholder="ej. Rita Recepción"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
         <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
@@ -180,7 +180,7 @@ function AddUserForm() {
             type="email"
             required
             placeholder="usuario@clinica.com"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
         </label>
       </div>
@@ -191,7 +191,7 @@ function AddUserForm() {
             name="role"
             required
             defaultValue="recepcionista"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           >
             {ROLE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

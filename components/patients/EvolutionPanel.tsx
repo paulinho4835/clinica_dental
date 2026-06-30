@@ -318,7 +318,7 @@ function NoteForm({
           <select
             value={apptId}
             onChange={(e) => setApptId(e.target.value)}
-            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none"
+            className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-clinic focus:outline-none"
           >
             <option value="">— Sin cita asignada —</option>
             {appointments.map((a) => (

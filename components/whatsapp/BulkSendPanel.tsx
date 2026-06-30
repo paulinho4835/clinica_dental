@@ -141,7 +141,7 @@ export function BulkSendPanel({ connected }: { connected: boolean }) {
               type="date"
               value={date}
               onChange={(e) => { setDate(e.target.value); setListData(null); setResult(null); }}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div className="space-y-1">
@@ -149,7 +149,7 @@ export function BulkSendPanel({ connected }: { connected: boolean }) {
             <select
               value={delayMs}
               onChange={(e) => setDelayMs(Number(e.target.value))}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               {DELAY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>

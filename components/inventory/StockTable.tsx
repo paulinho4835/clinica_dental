@@ -42,7 +42,7 @@ export function StockTable({ items, canWrite }: { items: InvItem[]; canWrite: bo
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar insumo o categoría…"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />
           {canWrite && (
             <button

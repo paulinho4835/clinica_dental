@@ -45,7 +45,7 @@ export function ClinicProfilePanel({
             required
             defaultValue={profile.name}
             disabled={!canWrite}
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
 
@@ -58,7 +58,7 @@ export function ClinicProfilePanel({
             defaultValue={profile.address ?? ""}
             disabled={!canWrite}
             placeholder="ej. Av. América 123, Cochabamba"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
 
@@ -71,7 +71,7 @@ export function ClinicProfilePanel({
             defaultValue={profile.phone ?? ""}
             disabled={!canWrite}
             placeholder="ej. 71234567"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
 
@@ -84,7 +84,7 @@ export function ClinicProfilePanel({
             defaultValue={profile.nit ?? ""}
             disabled={!canWrite}
             placeholder="ej. 1234567890"
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
 
@@ -97,7 +97,7 @@ export function ClinicProfilePanel({
             defaultValue={profile.logo_url ?? ""}
             disabled={!canWrite}
             placeholder="https://..."
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
           <span className="mt-1 block text-[11px] text-slate-400">
             Imagen pública accesible por URL. Se usará en documentos impresos.

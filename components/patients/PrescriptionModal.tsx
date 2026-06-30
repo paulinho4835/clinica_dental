@@ -86,7 +86,7 @@ export function PrescriptionModal({
                   value={m.name}
                   onChange={(e) => updateMed(idx, "name", e.target.value)}
                   placeholder="Amoxicilina"
-                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
               </label>
               <label className="text-xs">
@@ -95,7 +95,7 @@ export function PrescriptionModal({
                   value={m.dosage}
                   onChange={(e) => updateMed(idx, "dosage", e.target.value)}
                   placeholder="500mg c/8h"
-                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
               </label>
               <label className="text-xs">
@@ -104,7 +104,7 @@ export function PrescriptionModal({
                   value={m.instructions}
                   onChange={(e) => updateMed(idx, "instructions", e.target.value)}
                   placeholder="Con las comidas"
-                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
               </label>
               <button
@@ -137,7 +137,7 @@ export function PrescriptionModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="Evitar alcohol. Tomar con abundante agua..."
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
             />
           </label>
 

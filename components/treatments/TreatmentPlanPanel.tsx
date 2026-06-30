@@ -236,7 +236,7 @@ function AddWorkForm({
           value={descVal}
           onChange={(e) => onDescChange(e.target.value)}
           placeholder="Elige del catálogo o escribe uno…"
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
         <datalist id={listId}>
           {catalog.map((c) => (
@@ -250,7 +250,7 @@ function AddWorkForm({
           name="doctor_id"
           value={doctorId}
           onChange={(e) => setDoctorId(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+          className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
         >
           <option value="">— Sin asignar —</option>
           {dentists.map((d) => (
@@ -269,7 +269,7 @@ function AddWorkForm({
           value={priceVal}
           onChange={(e) => setPriceVal(e.target.value)}
           placeholder="0.00"
-          className="w-28 rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          className="w-28 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
         />
       </label>
       <button

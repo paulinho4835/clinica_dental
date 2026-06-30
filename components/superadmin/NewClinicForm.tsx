@@ -28,7 +28,7 @@ export function NewClinicForm() {
           <select
             name="plan"
             defaultValue="starter"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           >
             <option value="starter">Starter</option>
             <option value="pro">Pro</option>
@@ -93,7 +93,7 @@ function Field({
         name={name}
         type={type}
         required={required}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
       />
     </label>
   );

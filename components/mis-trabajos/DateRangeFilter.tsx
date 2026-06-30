@@ -42,7 +42,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
         type="date"
         value={from}
         onChange={(e) => push({ from: e.target.value })}
-        className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-clinic focus:outline-none"
+        className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 focus:border-clinic focus:outline-none"
         title="Desde"
       />
       <span className="text-xs text-slate-400">–</span>
@@ -50,7 +50,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
         type="date"
         value={to}
         onChange={(e) => push({ to: e.target.value })}
-        className="rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-clinic focus:outline-none"
+        className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 focus:border-clinic focus:outline-none"
         title="Hasta"
       />
       <button

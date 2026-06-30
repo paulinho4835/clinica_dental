@@ -128,7 +128,7 @@ export function ConsentModal({
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleTemplateChange(e.target.value)}
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none"
               >
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>{t.title}</option>
@@ -172,7 +172,7 @@ export function ConsentModal({
               <select
                 value={appointmentId}
                 onChange={(e) => setAppointmentId(e.target.value)}
-                className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none"
               >
                 <option value="">— Sin vincular —</option>
                 {appointments.map((a) => (

@@ -38,7 +38,7 @@ export function DateFilter({
           if (!e.target.value) return;
           handleDateChange(e.target.value);
         }}
-        className="rounded border border-slate-300 px-3 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
       />
       {selectedDate !== todayDate && (
         <button

@@ -29,7 +29,7 @@ export function PlanSelect({
       defaultValue={plan}
       onChange={change}
       disabled={pending}
-      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
+      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
     >
       <option value="starter">Starter</option>
       <option value="pro">Pro</option>

@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 // Clases base compartidas para inputs/selects/textarea. Antes estaban repetidas
 // en cada formulario; ahora viven en un solo lugar.
 export const fieldInputClass =
-  "w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:cursor-not-allowed disabled:bg-slate-50 dark:bg-black/20";
+  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
 
 export function FieldLabel({
   children,

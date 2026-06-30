@@ -50,7 +50,7 @@ export function ClinicalHoursPanel({
               name="clinical_from"
               defaultValue={config.from}
               disabled={!canWrite}
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
+              className="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50"
             />
           </div>
           <div>
@@ -62,7 +62,7 @@ export function ClinicalHoursPanel({
               name="clinical_to"
               defaultValue={config.to}
               disabled={!canWrite}
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
+              className="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:opacity-50"
             />
           </div>
         </div>
