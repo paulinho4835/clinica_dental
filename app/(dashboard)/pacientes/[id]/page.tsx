@@ -31,6 +31,8 @@ import {
   type ConsentRow,
 } from "@/components/consents/ConsentsPanel";
 import { EvolutionPanel } from "@/components/patients/EvolutionPanel";
+import { PerioPanel, type PerioExamRow } from "@/components/perio/PerioPanel";
+import type { PerioMeasurements } from "@/lib/perio/types";
 import { AnamnesisPanel } from "@/components/patients/AnamnesisPanel";
 import { PhotosPanel, type PhotoItem } from "@/components/patients/PhotosPanel";
 import { isR2Configured, presignDownload } from "@/lib/r2";
@@ -269,6 +271,30 @@ export default async function PatientPage({
     );
   }
 
+  // Periodontograma (addon "periodontograma"): exámenes periodontales fechados.
+  // Solo se consultan si el addon está encendido para la clínica.
+  const perioEnabled = features.periodontograma;
+  let perioExams: PerioExamRow[] = [];
+  if (perioEnabled) {
+    const { data: perioRows } = await supabase
+      .from("perio_exams")
+      .select("id, exam_date, author_id, author_name, measurements, diagnosis, notes")
+      .eq("patient_id", id)
+      .order("exam_date", { ascending: false })
+      .order("created_at", { ascending: false });
+    perioExams = (perioRows ?? []).map((e) => ({
+      id: e.id as string,
+      examDate: e.exam_date as string,
+      // El nombre de un platform-admin (superadmin) nunca se expone en la clínica.
+      authorName: platformAdminIdSet.has((e.author_id as string | null) ?? "")
+        ? null
+        : ((e.author_name as string | null) ?? null),
+      measurements: ((e.measurements as PerioMeasurements) ?? {}) as PerioMeasurements,
+      diagnosis: (e.diagnosis as string | null) ?? "",
+      notes: (e.notes as string | null) ?? "",
+    }));
+  }
+
   const consentRows: ConsentRow[] = (rawConsents ?? []).map((c) => ({
     id: c.id as string,
     title: c.title as string,
@@ -404,6 +430,18 @@ export default async function PatientPage({
         />
         <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
       </section>
+
+      {perioEnabled && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Periodontograma</h2>
+          <PerioPanel
+            patientId={patient.id}
+            exams={perioExams}
+            canWrite={canEditClinical}
+            canDelete={profile?.role === "admin"}
+          />
+        </section>
+      )}
 
       {fotosEnabled && (
         <section>

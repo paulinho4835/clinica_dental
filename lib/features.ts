@@ -25,7 +25,8 @@ export type FeatureKey =
   | "fotos"
   | "fotos_contador"
   | "wa_masivo"
-  | "logo";
+  | "logo"
+  | "periodontograma";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -66,6 +67,9 @@ export const FEATURES: FeatureMeta[] = [
   // Addon: subir el logo de la clínica para que aparezca en los documentos
   // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
   { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },
+  // Addon premium: carta periodontal (6 sitios por diente) con exámenes fechados
+  // e índices automáticos. Vive en la ficha del paciente. Opt-in.
+  { key: "periodontograma", label: "Periodontograma", href: "/pacientes", optIn: true },
 ];
 
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el
