@@ -86,6 +86,9 @@ export default async function PatientPage({
     profile?.role === "odontologo_general" ||
     profile?.role === "especialista" ||
     profile?.role === "colega";
+  // Teléfono/email/dirección: solo admin, recepción y colega los ven.
+  const hidePhone =
+    profile?.role === "odontologo_general" || profile?.role === "especialista";
 
   // Solo doctores activos en el selector de asignación de tratamientos; los
   // trabajos ya registrados conservan el nombre del doctor aunque se desactive.
@@ -392,7 +395,7 @@ export default async function PatientPage({
         </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
-          {patient.phone && !isDoctor && <span>Tel.: {patient.phone}</span>}
+          {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
           {canBilling && <span>Saldo: {bs(totalQuoted - totalPaid)}</span>}
         </div>
         {patient.medical_alerts?.length > 0 && (

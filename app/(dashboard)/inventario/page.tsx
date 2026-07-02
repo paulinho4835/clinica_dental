@@ -95,6 +95,60 @@ export default async function InventoryPage() {
         />
       </div>
 
+      {/* ── Alertas activas ── */}
+      {(lowCount > 0 || expiringCount > 0) && (
+        <div className="space-y-3">
+          {lowCount > 0 && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="mb-2 text-sm font-semibold text-red-700 dark:text-red-400">
+                ⚠ {lowCount} insumo{lowCount !== 1 ? "s" : ""} bajo mínimo — registra una entrada para reponer
+              </p>
+              <ul className="space-y-1">
+                {itemList
+                  .filter((it) => Number(it.current_stock) <= Number(it.min_stock))
+                  .map((it) => (
+                    <li key={it.id} className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-red-800 dark:text-red-300">{it.name}</span>
+                      <span className="tabular-nums text-red-600 dark:text-red-400">
+                        {it.current_stock} / {it.min_stock} {it.unit}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+          {expiringCount > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+              <p className="mb-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                ⏰ {expiringCount} lote{expiringCount !== 1 ? "s" : ""} por vencer en menos de 3 meses
+              </p>
+              <ul className="space-y-1">
+                {(batches ?? [])
+                  .filter((b) => b.expiry_date && new Date(b.expiry_date) <= soon)
+                  .map((b, i) => {
+                    const days = b.expiry_date ? daysUntil(b.expiry_date) : null;
+                    return (
+                      <li key={i} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-amber-800 dark:text-amber-300">
+                          {(b.inventory_items as { name?: string } | null)?.name ?? "—"}
+                        </span>
+                        <span className="tabular-nums text-amber-600 dark:text-amber-400">
+                          {b.expiry_date}
+                          {days !== null && (
+                            <span className="ml-1 text-xs">
+                              {days < 0 ? "(vencido)" : `(${days} d)`}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {canWrite && (
         <MovementForm
           items={itemList.map((it) => ({ id: it.id, name: it.name, unit: it.unit }))}

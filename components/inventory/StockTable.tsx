@@ -78,7 +78,25 @@ export function StockTable({ items, canWrite }: { items: InvItem[]; canWrite: bo
                   <td className="py-2 font-medium">{it.name}</td>
                   <td className="hidden text-slate-500 sm:table-cell">{it.category ?? "—"}</td>
                   <td className="text-right tabular-nums">{it.min_stock}</td>
-                  <td className="text-right tabular-nums">{it.current_stock}</td>
+                  <td className="text-right tabular-nums">
+                    <div className="flex flex-col items-end gap-1">
+                      <span>{it.current_stock}</span>
+                      <div className="h-1 w-14 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${
+                            low
+                              ? "bg-red-500"
+                              : it.current_stock <= it.min_stock * 1.5
+                                ? "bg-amber-400"
+                                : "bg-emerald-400"
+                          }`}
+                          style={{
+                            width: `${Math.min((it.current_stock / Math.max(it.min_stock * 2, 1)) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </td>
                   <td className="hidden text-right tabular-nums text-slate-500 sm:table-cell">
                     {it.unit_price != null
                       ? it.unit_price.toLocaleString("es-BO", { minimumFractionDigits: 2 })
