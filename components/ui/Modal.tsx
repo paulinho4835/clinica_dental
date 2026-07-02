@@ -6,7 +6,8 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 // Modal accesible reutilizable:
-// - cierra con Escape y con click en el fondo
+// - cierra con Escape (el click en el fondo NO cierra: un click accidental
+//   fuera del panel no debe borrar un formulario a medio llenar)
 // - bloquea el scroll del body mientras está abierto
 // - role="dialog" + aria-modal + foco inicial al abrir
 const SIZES = {
@@ -57,7 +58,6 @@ export function Modal({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
     >
       <div
         ref={panelRef}

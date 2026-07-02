@@ -12,6 +12,7 @@
   Los valores son "R G B" separados por espacio para soportar opacidad de Tailwind.
 */
 :root {
+  color-scheme: light;
   --white: 255 255 255;
   --slate-50: 248 250 252;
   --slate-100: 241 245 249;
@@ -35,6 +36,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   /* Superficie elevada (tarjetas, modales, sidebar): más clara que el fondo. */
   --white: 30 41 59; /* #1e293b */
   /* Escala oscura calibrada (no inversión pura): tonos bajos = fondos/bordes
@@ -128,6 +130,18 @@
     --tooth-healthy: #ffffff;
     --tooth-stroke: #334155;
     --tooth-plate: #f8fafc;
+  }
+}
+
+/* Inputs/selects sin clase explícita de color siguen el sistema de variables.
+   Las clases Tailwind (bg-white, text-slate-900 en fieldInputClass) ganan por
+   especificidad y no se ven afectadas. */
+@layer base {
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    background-color: rgb(var(--white));
+    color: rgb(var(--slate-900));
   }
 }
 
