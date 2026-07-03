@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -261,7 +260,9 @@ export async function setPlan(formData: FormData) {
 // custom_access_token_hook inyecte el clinic_id correcto en el JWT tras el
 // refreshSession(). Así todas las queries RLS del dashboard funcionan sin
 // ninguna modificación adicional.
-export async function enterClinic(clinicId: string) {
+export async function enterClinic(
+  clinicId: string,
+): Promise<{ access_token: string; refresh_token: string }> {
   await assertSuperadmin();
 
   const serverClient = await createClient();
@@ -287,10 +288,19 @@ export async function enterClinic(clinicId: string) {
     full_name: "Superadmin",
   });
 
-  // Refrescar JWT — el hook leerá el perfil recién insertado e inyectará clinic_id.
-  await serverClient.auth.refreshSession();
-
-  redirect("/agenda");
+  // Forzar un JWT nuevo: el hook leerá el perfil recién insertado e inyectará
+  // clinic_id. DEVOLVEMOS los tokens para que el navegador los aplique con
+  // setSession() (mismo patrón que el login). Un server action NO propaga de
+  // forma fiable las cookies escritas por refreshSession() al navegador, así que
+  // dejar que el cliente fije la sesión es la única vía confiable.
+  const { data, error } = await serverClient.auth.refreshSession();
+  if (error || !data.session) {
+    throw new Error(`No se pudo refrescar la sesión: ${error?.message ?? "sin sesión"}`);
+  }
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  };
 }
 
 // ── Configuración Vapi por clínica ───────────────────────────────────────────
@@ -318,7 +328,10 @@ export async function updateClinicVapiConfig(
 }
 
 // Elimina el perfil temporal del superadmin y restaura el JWT sin clinic_id.
-export async function exitClinic() {
+export async function exitClinic(): Promise<{
+  access_token: string;
+  refresh_token: string;
+}> {
   await assertSuperadmin();
 
   const serverClient = await createClient();
@@ -328,7 +341,14 @@ export async function exitClinic() {
   const admin = createAdminClient();
   await admin.from("profiles").delete().eq("id", user.id);
 
-  await serverClient.auth.refreshSession();
-
-  redirect("/superadmin");
+  // Mismo motivo que en enterClinic: devolvemos el JWT ya SIN clinic_id (el hook
+  // no encuentra perfil) para que el navegador lo fije con setSession().
+  const { data, error } = await serverClient.auth.refreshSession();
+  if (error || !data.session) {
+    throw new Error(`No se pudo refrescar la sesión: ${error?.message ?? "sin sesión"}`);
+  }
+  return {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  };
 }
