@@ -27,10 +27,16 @@ function getSession(clinicId: string): SessionState {
   return sessions.get(clinicId)!;
 }
 
-async function sendMessage(clinicId: string, phone: string, message: string) {
+async function sendMessage(clinicId: string, to: string, message: string) {
   const s = getSession(clinicId);
   if (!s.sock || !s.isConnected) throw new Error("WhatsApp no conectado");
-  await s.sock.sendMessage(phone + "@s.whatsapp.net", { text: message });
+  // `to` puede ser un número pelado (recordatorios/bulk) o un JID completo
+  // (respuestas del agente). Hay que contestar al MISMO remoteJid del mensaje
+  // entrante: WhatsApp ahora usa identificadores @lid (privacidad) que NO se
+  // enrutan como @s.whatsapp.net; reconstruir el JID a mano hacía que la
+  // respuesta se enviara a un destino inexistente y nunca llegara.
+  const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
+  await s.sock.sendMessage(jid, { text: message });
 }
 
 async function connect(clinicId: string): Promise<void> {
@@ -48,6 +54,35 @@ async function connect(clinicId: string): Promise<void> {
   });
 
   s.sock.ev.on("creds.update", saveCreds);
+
+  // ── Agente de IA: reenvía cada mensaje entrante al webhook del app y responde
+  // con el texto que devuelva. El app decide si contesta (addon encendido y
+  // conversación no pausada); si devuelve reply vacío, no se envía nada.
+  s.sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify") return;
+    for (const m of messages) {
+      // Ignorar salientes (incluye respuestas manuales del equipo) y grupos.
+      if (m.key.fromMe) continue;
+      const jid = m.key.remoteJid ?? "";
+      if (!jid || jid.endsWith("@g.us") || jid.endsWith("@broadcast")) continue;
+      const text =
+        m.message?.conversation ??
+        m.message?.extendedTextMessage?.text ??
+        "";
+      if (!text.trim()) continue;
+      // Número real del remitente. En chats @lid (privacidad) el remoteJid trae
+      // un identificador ficticio que NO sirve para llamar/wa.me; Baileys expone
+      // el número verdadero en key.senderPn ("591...@s.whatsapp.net"). Si existe,
+      // usamos ese; el JID original se conserva solo para responder al chat.
+      const senderPn = (m.key as { senderPn?: string }).senderPn ?? "";
+      const isLid = jid.endsWith("@lid");
+      const realPhone = isLid ? senderPn.split("@")[0] : jid.split("@")[0];
+      const phone = realPhone || jid.split("@")[0];
+      // phoneVerified: false solo si es @lid y no vino senderPn (número oculto
+      // irrecuperable) → el agente le pedirá su celular al paciente.
+      await handleIncomingMessage(clinicId, jid, phone, text.trim(), Boolean(realPhone));
+    }
+  });
 
   s.sock.ev.on(
     "connection.update",
@@ -126,6 +161,43 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// ── Agente de IA ────────────────────────────────────────────────────────────
+// URL del app Next.js (donde vive el webhook del agente) y secreto compartido.
+const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+const AGENT_SECRET = process.env.AGENT_WEBHOOK_SECRET ?? "";
+
+// Reenvía un mensaje entrante al webhook del agente y, si devuelve respuesta, la
+// manda de vuelta al paciente. Cualquier error se registra sin romper el socket.
+async function handleIncomingMessage(
+  clinicId: string,
+  jid: string,
+  phone: string,
+  text: string,
+  phoneVerified: boolean,
+) {
+  try {
+    const res = await fetch(`${APP_URL}/api/whatsapp/agent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(AGENT_SECRET ? { "x-agent-secret": AGENT_SECRET } : {}),
+      },
+      body: JSON.stringify({ clinicId, from: phone, text, phoneVerified }),
+    });
+    if (!res.ok) {
+      console.error(`[${clinicId}] agente respondió HTTP ${res.status}`);
+      return;
+    }
+    const body = (await res.json()) as { reply?: string | null };
+    if (body.reply && body.reply.trim()) {
+      // Responder al JID original (soporta @lid), no al número reconstruido.
+      await sendMessage(clinicId, jid, body.reply.trim());
+    }
+  } catch (e) {
+    console.error(`[${clinicId}] error llamando al agente:`, e);
+  }
 }
 
 // ── HTTP server ────────────────────────────────────────────────────────────

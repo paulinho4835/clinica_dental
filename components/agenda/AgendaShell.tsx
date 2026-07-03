@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope } from "lucide-react";
 import { STEP_MIN } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
@@ -18,6 +18,7 @@ import {
   apptCI,
 } from "./apptHelpers";
 import { WhatsAppManualModal } from "./WhatsAppManualModal";
+import { DoctorAgendaWhatsAppModal } from "./DoctorAgendaWhatsAppModal";
 import { StatusLegend } from "./StatusLegend";
 import {
   buildDoctorColorResolver,
@@ -43,6 +44,12 @@ const VIEW_LABELS: Record<AgendaView, string> = {
 // Opción especial: muestra TODAS las columnas de doctores en DayView
 const ALL_DOCTORS = "__all__";
 
+// Etiqueta con la que el agente IA de WhatsApp guarda sus citas (dentist_name)
+// cuando el paciente no eligió doctor. Debe coincidir con AI_DENTIST de
+// lib/agent/tools.ts. Se ofrece como opción de filtro solo si hay citas así en
+// el rango visible, para que no queden invisibles en "Mi Agenda".
+const AI_DENTIST = "Inteligencia Artificial";
+
 export function AgendaShell({
   patients,
   appts,
@@ -52,8 +59,9 @@ export function AgendaShell({
   doctors,
   isAdmin,
   myName,
-  whatsappEnabled,
+  recordatoriosEnabled,
   whatsappManualEnabled,
+  avisoDoctoresEnabled,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -64,8 +72,10 @@ export function AgendaShell({
   isAdmin: boolean;
   /** Nombre completo del usuario logueado (para preseleccionar "Mi Agenda") */
   myName: string;
-  whatsappEnabled: boolean;
+  /** Addon "Recordatorios Automáticos": muestra el botón de envío por Baileys. */
+  recordatoriosEnabled: boolean;
   whatsappManualEnabled: boolean;
+  avisoDoctoresEnabled: boolean;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -77,6 +87,7 @@ export function AgendaShell({
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [showWaManual, setShowWaManual] = useState(false);
+  const [showDoctorAviso, setShowDoctorAviso] = useState(false);
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
@@ -97,6 +108,13 @@ export function AgendaShell({
   const doctorColor = useMemo(
     () => buildDoctorColorResolver(doctors.map((d) => d.full_name)),
     [doctors],
+  );
+
+  // ¿Hay citas agendadas por el agente IA en el rango cargado? Si sí, se agrega
+  // "Inteligencia Artificial" al dropdown y a las columnas de la vista Día.
+  const hasAI = useMemo(
+    () => appts.some((a) => a.dentist_name?.trim() === AI_DENTIST),
+    [appts],
   );
 
   const byDay = useMemo(() => {
@@ -154,9 +172,9 @@ export function AgendaShell({
   const forcedCols = useMemo<string[] | undefined>(() => {
     if (!isAdmin) return undefined; // no-admin: sin columnas forzadas
     if (activeDoctor === ALL_DOCTORS)
-      return doctors.map((d) => d.full_name);
+      return [...doctors.map((d) => d.full_name), ...(hasAI ? [AI_DENTIST] : [])];
     return [activeDoctor];
-  }, [activeDoctor, doctors, isAdmin]);
+  }, [activeDoctor, doctors, isAdmin, hasAI]);
 
   // Vistas disponibles: siempre solo Día / Semana / Mes ("Doctores" ya no existe como botón).
   const views: AgendaView[] = ["day", "week", "month"];
@@ -299,6 +317,7 @@ export function AgendaShell({
                     {d.full_name}
                   </option>
                 ))}
+              {hasAI && <option value={AI_DENTIST}>🧠 {AI_DENTIST}</option>}
             </select>
           </div>
         )}
@@ -337,9 +356,9 @@ export function AgendaShell({
           <span className="hidden sm:inline">Imprimir día</span>
         </button>
 
-        {canWrite && (whatsappEnabled || whatsappManualEnabled) && (
+        {canWrite && (recordatoriosEnabled || whatsappManualEnabled) && (
           <div className="flex items-center gap-2">
-            {whatsappEnabled && (
+            {recordatoriosEnabled && (
               <button
                 onClick={sendReminders}
                 disabled={sending}
@@ -359,6 +378,17 @@ export function AgendaShell({
               </button>
             )}
           </div>
+        )}
+
+        {canWrite && avisoDoctoresEnabled && (
+          <button
+            onClick={() => setShowDoctorAviso(true)}
+            title="Enviar a cada doctor su agenda del día por WhatsApp"
+            className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50"
+          >
+            <Stethoscope className="h-3.5 w-3.5" />
+            Avisar a doctores
+          </button>
         )}
       </div>
 
@@ -446,6 +476,9 @@ export function AgendaShell({
       )}
       {showWaManual && (
         <WhatsAppManualModal onClose={() => setShowWaManual(false)} />
+      )}
+      {showDoctorAviso && (
+        <DoctorAgendaWhatsAppModal onClose={() => setShowDoctorAviso(false)} />
       )}
     </div>
     </DoctorColorContext.Provider>

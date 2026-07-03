@@ -67,11 +67,13 @@ export default async function AgendaPage({
 
   // Query de odontólogos (dropdown de admin y recepcionista), excluyendo
   // superadmins y usuarios desactivados (no se asignan citas nuevas a ellos).
+  // El rol "admin" es de gestión, no tratante: se omite del filtro/selector de
+  // doctores (si el dueño también atiende, se le asigna un rol clínico).
   let doctorsQuery = canViewAll && profile
     ? supabase
         .from("profiles")
         .select("id, full_name")
-        .in("role", ["odontologo_general", "especialista", "admin", "colega"])
+        .in("role", ["odontologo_general", "especialista", "colega"])
         .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name")
@@ -144,8 +146,9 @@ export default async function AgendaPage({
         doctors={doctors ?? []}
         isAdmin={canViewAll}
         myName={myName}
-        whatsappEnabled={features.whatsapp}
+        recordatoriosEnabled={features.recordatorios}
         whatsappManualEnabled={features.whatsapp_manual}
+        avisoDoctoresEnabled={features.aviso_doctores}
       />
     </div>
   );

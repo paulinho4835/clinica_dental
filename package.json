@@ -20,6 +20,8 @@
     "r2:setup": "node --env-file=.env.local scripts/r2-setup.mjs"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^3.0.5",
+    "@ai-sdk/openai-compatible": "^3.0.5",
     "@aws-sdk/client-s3": "^3.1075.0",
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@hookform/resolvers": "^5.4.0",
@@ -30,6 +32,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "@vapi-ai/web": "^2.5.2",
+    "ai": "^7.0.14",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

@@ -1,0 +1,114 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeFeatures } from "@/lib/features";
+import { runAgent, type AgentMessage } from "@/lib/agent/runAgent";
+
+// Webhook llamado por el whatsapp-service (Baileys) por CADA mensaje entrante de
+// un paciente. Corre el agente de IA y devuelve el texto a responder. Si la
+// conversación está en pausa (derivada a humano) o el addon está apagado,
+// devuelve reply: null y el servicio no responde nada.
+export const dynamic = "force-dynamic";
+
+const PAUSE_MS = 24 * 60 * 60 * 1000; // la pausa por handoff expira a las 24h
+const HISTORY_MAX = 20; // turnos recientes que se conservan como memoria
+
+export async function POST(req: NextRequest) {
+  // Autenticación: secreto compartido con el whatsapp-service.
+  const secret = process.env.AGENT_WEBHOOK_SECRET;
+  if (secret && req.headers.get("x-agent-secret") !== secret) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  let body: { clinicId?: string; from?: string; text?: string; phoneVerified?: boolean };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  const clinicId = body.clinicId?.trim();
+  const phone = body.from?.trim();
+  const text = body.text?.trim();
+  // phoneVerified=false: chat @lid sin senderPn → `from` es un id ficticio de
+  // WhatsApp, no un celular. Sirve como clave de conversación pero NO se guarda
+  // como teléfono del paciente; el agente le pedirá su número. Se asume true si
+  // el servicio (versión vieja) no manda el campo.
+  const phoneVerified = body.phoneVerified !== false;
+  if (!clinicId || !phone || !text) {
+    return NextResponse.json({ error: "Faltan clinicId, from o text" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  // Addon encendido para esta clínica?
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("name, features")
+    .eq("id", clinicId)
+    .single();
+  const features = normalizeFeatures(clinic?.features);
+  if (!features.agente_ia) {
+    return NextResponse.json({ reply: null, skipped: "addon_off" });
+  }
+
+  // Conversación existente (historial + estado).
+  const { data: convo } = await admin
+    .from("wa_conversations")
+    .select("status, messages, paused_at")
+    .eq("clinic_id", clinicId)
+    .eq("phone", phone)
+    .maybeSingle();
+
+  // En pausa: el humano atiende. Solo se reanuda cuando pasan 24h desde la
+  // derivación (el paciente vuelve a escribir después). Mientras tanto, silencio.
+  if (convo?.status === "paused") {
+    const pausedAt = convo.paused_at ? new Date(convo.paused_at).getTime() : 0;
+    const expired = Date.now() - pausedAt > PAUSE_MS;
+    if (!expired) {
+      return NextResponse.json({ reply: null, skipped: "paused" });
+    }
+  }
+
+  const history = (Array.isArray(convo?.messages) ? convo!.messages : []) as AgentMessage[];
+
+  // Correr el agente. Si el modelo falla, no rompemos: silencio para que el
+  // equipo pueda atender manualmente.
+  let reply: string;
+  let handoff: boolean;
+  try {
+    const out = await runAgent({
+      clinicId,
+      clinicName: clinic?.name ?? "la clínica",
+      history,
+      userText: text,
+      patientPhone: phoneVerified ? phone : undefined,
+    });
+    reply = out.reply;
+    handoff = out.handoff;
+  } catch (e) {
+    console.error("[agent] runAgent error:", e);
+    return NextResponse.json({ reply: null, error: "agent_error" }, { status: 200 });
+  }
+
+  // Guardar memoria + estado.
+  const combined: AgentMessage[] = [
+    ...history,
+    { role: "user", content: text },
+    { role: "assistant", content: reply },
+  ];
+  const newHistory = combined.slice(-HISTORY_MAX);
+
+  await admin.from("wa_conversations").upsert(
+    {
+      clinic_id: clinicId,
+      phone,
+      messages: newHistory,
+      status: handoff ? "paused" : "active",
+      paused_at: handoff ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "clinic_id,phone" },
+  );
+
+  return NextResponse.json({ reply });
+}

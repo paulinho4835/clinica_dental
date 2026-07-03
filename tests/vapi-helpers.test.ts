@@ -163,24 +163,25 @@ describe("normalizeVapiPhone", () => {
 
 describe("buildSlots", () => {
   // 2026-06-15 es lunes
-  it("lunes genera 11 slots de 09:00 a 19:00", () => {
+  it("lunes genera 21 slots de 09:00 a 19:00 cada 30 min", () => {
     const slots = buildSlots("2026-06-15");
-    expect(slots).toHaveLength(11);
+    expect(slots).toHaveLength(21);
     expect(slots[0]).toBe("09:00");
     expect(slots[slots.length - 1]).toBe("19:00");
+    expect(slots).toContain("10:30");
   });
 
   // 2026-06-13 es sábado
-  it("sábado genera 11 slots igual que entre semana", () => {
+  it("sábado genera 21 slots igual que entre semana", () => {
     const slots = buildSlots("2026-06-13");
-    expect(slots).toHaveLength(11);
+    expect(slots).toHaveLength(21);
     expect(slots[0]).toBe("09:00");
   });
 
   // 2026-06-14 es domingo
-  it("domingo genera solo 3 slots: 09:00, 10:00, 11:00", () => {
+  it("domingo genera slots de 09:00 a 11:00 cada 30 min", () => {
     const slots = buildSlots("2026-06-14");
-    expect(slots).toEqual(["09:00", "10:00", "11:00"]);
+    expect(slots).toEqual(["09:00", "09:30", "10:00", "10:30", "11:00"]);
   });
 
   it("todos los slots tienen formato HH:MM", () => {

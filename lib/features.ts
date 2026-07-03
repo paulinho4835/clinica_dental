@@ -25,6 +25,8 @@ export type FeatureKey =
   | "fotos"
   | "fotos_contador"
   | "wa_masivo"
+  | "aviso_doctores"
+  | "agente_ia"
   | "logo"
   | "periodontograma";
 
@@ -64,6 +66,13 @@ export const FEATURES: FeatureMeta[] = [
   { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
   { key: "fotos_contador", label: "Ver contador de fotos", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
+  // Addon: aviso manual de agenda al doctor por WhatsApp Web (wa.me). La recepción
+  // abre el chat del doctor con el resumen de sus citas del día ya prellenado.
+  { key: "aviso_doctores", label: "Aviso de agenda a doctores", href: "/agenda", optIn: true },
+  // Addon: agente de IA que responde por WhatsApp (Baileys) y agenda citas. La
+  // recepción virtual atiende, consulta disponibilidad y crea citas; deriva a
+  // un humano (pausa) para todo lo demás. Opt-in.
+  { key: "agente_ia", label: "Agente de IA (WhatsApp)", href: "/agenda", optIn: true },
   // Addon: subir el logo de la clínica para que aparezca en los documentos
   // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
   { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },
@@ -109,9 +118,11 @@ export function normalizeFeatures(raw: unknown): Features {
       out[f.key] = obj[f.key] !== false;
     }
   }
-  // Baileys se activa automáticamente cuando wa_masivo o recordatorios están ON.
+  // Baileys se activa automáticamente cuando wa_masivo, recordatorios o el
+  // agente de IA están ON. El agente responde POR Baileys, así que necesita el
+  // número vinculado → debe aparecer el panel de conexión en Ajustes.
   // El valor guardado en DB se ignora: ya no hay toggle separado en superadmin.
-  out.whatsapp = out.wa_masivo || out.recordatorios;
+  out.whatsapp = out.wa_masivo || out.recordatorios || out.agente_ia;
   return out;
 }
 

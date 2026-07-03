@@ -71,18 +71,20 @@ export function normalizeVapiPhone(raw: string): string | null {
   return null;
 }
 
-// Slots horarios según el día de la semana (hora Bolivia).
-// Lun-Sáb: 09:00 – 19:00 (11 slots de 1h). Dom: 09:00, 10:00, 11:00.
+// Slots según el día de la semana (hora Bolivia), en pasos de 30 minutos —
+// igual que la agenda (STEP_MIN 30): los pacientes piden "10:30" y antes solo
+// se ofrecían horas en punto. Lun-Sáb: 09:00 – 19:00. Dom: 09:00 – 11:00.
 export function buildSlots(date: string): string[] {
   const local = new Date(
     new Date(`${date}T12:00:00Z`).toLocaleString("en-US", { timeZone: BOLIVIA_TZ }),
   );
   const dow = local.getDay(); // 0=Dom, 1=Lun … 6=Sáb
 
-  if (dow === 0) {
-    return ["09:00", "10:00", "11:00"];
-  }
-  return Array.from({ length: 11 }, (_, i) =>
-    `${String(i + 9).padStart(2, "0")}:00`,
-  );
+  const halfHours = (fromHour: number, toHour: number) =>
+    Array.from({ length: (toHour - fromHour) * 2 + 1 }, (_, i) => {
+      const mins = fromHour * 60 + i * 30;
+      return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    });
+
+  return dow === 0 ? halfHours(9, 11) : halfHours(9, 19);
 }
