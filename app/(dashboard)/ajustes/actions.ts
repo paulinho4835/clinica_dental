@@ -198,6 +198,50 @@ export async function updateTeamUserRole(
   return { ok: true };
 }
 
+// Teléfono del doctor (addon "aviso_doctores"): número al que la recepción le
+// manda por WhatsApp Web el resumen de su agenda del día. Vacío = borrar.
+const UpdatePhoneSchema = z.object({
+  userId: z.string().uuid("Usuario inválido"),
+  phone: z.string().trim().max(30, "Teléfono demasiado largo").optional().nullable(),
+});
+
+export async function updateTeamUserPhone(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { profile } = auth;
+
+  const parsed = UpdatePhoneSchema.safeParse({
+    userId: formData.get("userId"),
+    phone: formData.get("phone"),
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  const { userId, phone } = parsed.data;
+
+  const admin = createAdminClient();
+
+  // El objetivo debe existir y ser de la MISMA clínica (defensa en profundidad).
+  const { data: target } = await admin
+    .from("profiles")
+    .select("clinic_id")
+    .eq("id", userId)
+    .single();
+  if (!target || target.clinic_id !== profile.clinicId)
+    return { error: "Usuario no encontrado en tu clínica." };
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ phone: phone && phone.length > 0 ? phone : null })
+    .eq("id", userId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/ajustes");
+  return { ok: true };
+}
+
 // ============================================================================
 // Perfil público de la clínica (addon "perfil").
 // ============================================================================

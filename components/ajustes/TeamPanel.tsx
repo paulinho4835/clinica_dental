@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   createTeamUser,
   updateTeamUserRole,
+  updateTeamUserPhone,
   removeTeamUser,
   type ActionState,
 } from "@/app/(dashboard)/ajustes/actions";
@@ -14,7 +15,17 @@ export type TeamMember = {
   full_name: string;
   email: string | null;
   role: string;
+  phone: string | null;
 };
+
+// Roles que ejercen como odontólogo: solo a estos se les muestra el teléfono
+// para el aviso de agenda (addon "aviso_doctores").
+const DOCTOR_ROLES = new Set([
+  "odontologo_general",
+  "especialista",
+  "colega",
+  "admin",
+]);
 
 // Roles asignables por el admin de clínica (admin queda fuera a propósito).
 const ROLE_OPTIONS: { value: string; label: string }[] = [
@@ -91,43 +102,96 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-      <div className="min-w-0">
-        <span className="font-medium text-slate-800">{member.full_name}</span>
-        {isSelf && <span className="ml-2 text-xs text-clinic">(tú)</span>}
-        {member.email && (
-          <span className="ml-2 block text-xs text-slate-400 sm:inline">{member.email}</span>
-        )}
+    <div className="px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="font-medium text-slate-800">{member.full_name}</span>
+          {isSelf && <span className="ml-2 text-xs text-clinic">(tú)</span>}
+          {member.email && (
+            <span className="ml-2 block text-xs text-slate-400 sm:inline">{member.email}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {locked ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              {ROLE_LABEL[member.role] ?? member.role}
+            </span>
+          ) : (
+            <>
+              <select
+                value={member.role}
+                disabled={pending}
+                onChange={(e) => changeRole(e.target.value)}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
+              >
+                {ROLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                disabled={pending}
+                onClick={remove}
+                className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Eliminar
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        {locked ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-            {ROLE_LABEL[member.role] ?? member.role}
-          </span>
-        ) : (
-          <>
-            <select
-              value={member.role}
-              disabled={pending}
-              onChange={(e) => changeRole(e.target.value)}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
-            >
-              {ROLE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <button
-              disabled={pending}
-              onClick={remove}
-              className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-            >
-              Eliminar
-            </button>
-          </>
-        )}
-      </div>
+      {DOCTOR_ROLES.has(member.role) && <PhoneField member={member} />}
+    </div>
+  );
+}
+
+// Teléfono del doctor para el aviso de agenda por WhatsApp. Guarda al salir del
+// campo (blur) solo si cambió; muestra un check breve al confirmar.
+function PhoneField({ member }: { member: TeamMember }) {
+  const router = useRouter();
+  const [value, setValue] = useState(member.phone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function save() {
+    const next = value.trim();
+    if (next === (member.phone ?? "")) return; // sin cambios
+    setSaving(true);
+    setErr(null);
+    setSaved(false);
+    (async () => {
+      const fd = new FormData();
+      fd.set("userId", member.id);
+      fd.set("phone", next);
+      const res = await updateTeamUserPhone(initial, fd);
+      setSaving(false);
+      if (res.error) setErr(res.error);
+      else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        router.refresh();
+      }
+    })();
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span className="text-[11px] text-slate-400">WhatsApp:</span>
+      <input
+        type="tel"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+        disabled={saving}
+        placeholder="ej. 71234567"
+        className="w-40 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50"
+      />
+      {saving && <span className="text-[11px] text-slate-400">Guardando…</span>}
+      {saved && <span className="text-[11px] font-medium text-green-600">✓ Guardado</span>}
+      {err && <span className="text-[11px] text-red-600">{err}</span>}
     </div>
   );
 }

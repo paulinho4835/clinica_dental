@@ -149,7 +149,7 @@ export default async function SettingsPage() {
       // superadmin; el admin de clínica ni siquiera lo ve en su equipo.
       supabase
         .from("profiles")
-        .select("id, full_name, role")
+        .select("id, full_name, role, phone")
         .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name"),
@@ -169,6 +169,7 @@ export default async function SettingsPage() {
             full_name: p.full_name,
             role: p.role,
             email: data.user?.email ?? null,
+            phone: (p as { phone?: string | null }).phone ?? null,
           };
         }),
     );
