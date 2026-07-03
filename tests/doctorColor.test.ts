@@ -27,15 +27,21 @@ describe("getDoctorColor", () => {
     expect(c.bg).toBe("bg-slate-100");
   });
 
-  it("la paleta tiene exactamente 8 entradas", () => {
-    expect(DOCTOR_PALETTE).toHaveLength(8);
+  it("la paleta tiene 10 entradas (colores muy distintos entre sí)", () => {
+    expect(DOCTOR_PALETTE).toHaveLength(10);
   });
 
   it("ninguna entrada de la paleta tiene campos vacíos", () => {
     for (const entry of DOCTOR_PALETTE) {
       expect(entry.bg).toBeTruthy();
+      expect(entry.dot).toBeTruthy();
       expect(entry.border).toBeTruthy();
       expect(entry.text).toBeTruthy();
     }
+  });
+
+  it("todas las entradas de la paleta son únicas (sin colores repetidos)", () => {
+    const bgs = new Set(DOCTOR_PALETTE.map((e) => e.bg));
+    expect(bgs.size).toBe(DOCTOR_PALETTE.length);
   });
 });

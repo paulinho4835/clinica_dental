@@ -53,52 +53,47 @@ describe("normalizeFeatures", () => {
   });
 });
 
-describe("add-on whatsapp (optIn)", () => {
-  it("está apagado por defecto cuando la clave falta (optIn)", () => {
-    const f = normalizeFeatures({});
-    expect(f.whatsapp).toBe(false);
-  });
-
-  it("está apagado por defecto con null/undefined (optIn)", () => {
+describe("whatsapp (Baileys) — flag derivado", () => {
+  // Ya no es un opt-in directo: se deriva de wa_masivo || recordatorios.
+  // El valor guardado en DB para `whatsapp` se ignora a propósito.
+  it("apagado cuando ni wa_masivo ni recordatorios están activos", () => {
+    expect(normalizeFeatures({}).whatsapp).toBe(false);
     expect(normalizeFeatures(null).whatsapp).toBe(false);
     expect(normalizeFeatures(undefined).whatsapp).toBe(false);
   });
 
-  it("se enciende solo cuando está explícitamente en true", () => {
-    const f = normalizeFeatures({ whatsapp: true });
-    expect(f.whatsapp).toBe(true);
+  it("se enciende si wa_masivo está activo", () => {
+    expect(normalizeFeatures({ wa_masivo: true }).whatsapp).toBe(true);
   });
 
-  it("false explícito sigue siendo false", () => {
-    const f = normalizeFeatures({ whatsapp: false });
-    expect(f.whatsapp).toBe(false);
+  it("se enciende si recordatorios está activo", () => {
+    expect(normalizeFeatures({ recordatorios: true }).whatsapp).toBe(true);
   });
 
-  it("los demás módulos opt-out siguen encendidos aunque whatsapp esté apagado", () => {
-    const f = normalizeFeatures({ whatsapp: false });
-    expect(f.agenda).toBe(true);
-    expect(f.pacientes).toBe(true);
-    expect(f.caja).toBe(true);
+  it("se enciende si ambos están activos", () => {
+    expect(normalizeFeatures({ wa_masivo: true, recordatorios: true }).whatsapp).toBe(true);
   });
 
-  it("isEnabled refleja el estado del add-on", () => {
-    expect(isEnabled(normalizeFeatures({ whatsapp: true }), "whatsapp")).toBe(true);
-    expect(isEnabled(normalizeFeatures({ whatsapp: false }), "whatsapp")).toBe(false);
+  it("ignora el valor guardado de `whatsapp` (ya no hay toggle propio)", () => {
+    // whatsapp:true pero sin wa_masivo/recordatorios → derivado a false.
+    expect(normalizeFeatures({ whatsapp: true }).whatsapp).toBe(false);
+    // whatsapp:false pero recordatorios on → derivado a true.
+    expect(normalizeFeatures({ whatsapp: false, recordatorios: true }).whatsapp).toBe(true);
+  });
+
+  it("whatsapp NO está en el catálogo FEATURES (no es toggle de superadmin)", () => {
+    expect(FEATURES.find((f) => f.key === "whatsapp")).toBeUndefined();
+  });
+
+  it("isEnabled refleja el estado derivado", () => {
+    expect(isEnabled(normalizeFeatures({ wa_masivo: true }), "whatsapp")).toBe(true);
     expect(isEnabled(normalizeFeatures({}), "whatsapp")).toBe(false);
   });
 
-  it("whatsapp es optIn en el catálogo FEATURES", () => {
-    const meta = FEATURES.find((f) => f.key === "whatsapp");
-    expect(meta).toBeDefined();
-    expect(meta?.optIn).toBe(true);
-    expect(meta?.core).toBeFalsy();
-  });
-
-  it("activar whatsapp no afecta a otros módulos", () => {
-    const antes = normalizeFeatures({ caja: false });
-    const despues = normalizeFeatures({ caja: false, whatsapp: true });
-    expect(despues.whatsapp).toBe(true);
-    expect(despues.caja).toBe(antes.caja); // sigue igual: false
-    expect(despues.agenda).toBe(antes.agenda); // sigue igual: true
+  it("derivar whatsapp no afecta a otros módulos", () => {
+    const f = normalizeFeatures({ caja: false, recordatorios: true });
+    expect(f.whatsapp).toBe(true);
+    expect(f.caja).toBe(false); // sigue apagado
+    expect(f.agenda).toBe(true); // sigue encendido (opt-out)
   });
 });

@@ -26,3 +26,5 @@ graphify-out/
 # Cachés de herramientas MCP (Serena, Headroom)
 .serena/
 .headroom/
+
+.vercel
