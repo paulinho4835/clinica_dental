@@ -3,6 +3,7 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
 } from "react";
@@ -12,6 +13,19 @@ export type SignaturePadRef = {
   isEmpty: () => boolean;
   clear: () => void;
 };
+
+// El canvas queda transparente si solo se dibuja el trazo: el PNG exportado
+// se ve bien sobre fondo blanco (modo claro) pero se vuelve invisible si el
+// contenedor que lo muestra después usa un fondo que se invierte en modo
+// oscuro (clase `bg-white`, ver tailwind.config.ts). Pintar un fondo blanco
+// real como primer píxel del canvas hace que la firma se vea igual siempre,
+// sin depender del tema de quien la visualice.
+function fillWhite(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
 function getPos(
   e: React.PointerEvent<HTMLCanvasElement>,
@@ -30,15 +44,18 @@ export const SignaturePad = forwardRef<SignaturePadRef>(
     const isDrawing = useRef(false);
     const hasDrawn = useRef(false);
 
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (canvas) fillWhite(canvas);
+    }, []);
+
     useImperativeHandle(ref, () => ({
       toDataURL: () => canvasRef.current?.toDataURL("image/png") ?? "",
       isEmpty: () => !hasDrawn.current,
       clear: () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        fillWhite(canvas);
         hasDrawn.current = false;
       },
     }));
@@ -89,7 +106,7 @@ export const SignaturePad = forwardRef<SignaturePadRef>(
         onPointerUp={stopDrawing}
         onPointerLeave={stopDrawing}
         style={{ touchAction: "none" }}
-        className="w-full rounded border border-slate-300 bg-white cursor-crosshair"
+        className="w-full rounded border border-slate-300 bg-[#ffffff] cursor-crosshair"
       />
     );
   }

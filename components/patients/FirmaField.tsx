@@ -33,7 +33,7 @@ export function FirmaField({
         <img
           src={value}
           alt="Firma del paciente"
-          className="h-32 w-full rounded-lg border border-slate-200 bg-white object-contain"
+          className="h-32 w-full rounded-lg border border-slate-200 bg-[#ffffff] object-contain"
         />
         <div className="mt-2 flex gap-2">
           <button type="button" className={btn} onClick={() => setDrawing(true)}>
