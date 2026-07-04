@@ -108,7 +108,10 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(`${WA_URL}/send-bulk/${profile.clinicId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "",
+      },
       body: JSON.stringify({ messages, delayMs }),
       signal: AbortSignal.timeout(290_000),
     });

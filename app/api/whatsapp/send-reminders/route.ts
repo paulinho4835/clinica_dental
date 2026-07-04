@@ -20,6 +20,7 @@ export async function POST() {
   try {
     const res = await fetch(`${WA_URL}/send-reminders/${profile.clinicId}`, {
       method: "POST",
+      headers: { "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "" },
       signal: AbortSignal.timeout(30_000),
     });
     const body = await res.json();

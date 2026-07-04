@@ -13,6 +13,7 @@ export async function GET() {
 
   try {
     const res = await fetch(`${WA_URL}/qr-data/${profile.clinicId}`, {
+      headers: { "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "" },
       signal: AbortSignal.timeout(8_000),
     });
     const body = await res.json();

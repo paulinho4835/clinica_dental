@@ -227,6 +227,11 @@ async function handleIncomingMessage(
 // ── HTTP server ────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT ?? process.env.WA_PORT ?? 3001);
 
+// Secreto compartido que autentica las llamadas del dashboard (Vercel) a este
+// servicio. Retrocompatible: si no está definido, no se exige (dev local).
+// Mismo patrón que AGENT_SECRET pero en la dirección opuesta.
+const WA_SERVICE_SECRET = process.env.WA_SERVICE_SECRET ?? "";
+
 function parseClinicId(url: string, prefix: string): string | null {
   if (!url.startsWith(prefix)) return null;
   const id = url.slice(prefix.length).split("?")[0];
@@ -236,10 +241,19 @@ function parseClinicId(url: string, prefix: string): string | null {
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-wa-service-secret");
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // Autenticación: si hay secreto configurado, exigir el header en todas las
+  // rutas. El preflight OPTIONS ya salió arriba, así que no se bloquea el CORS.
+  if (WA_SERVICE_SECRET && req.headers["x-wa-service-secret"] !== WA_SERVICE_SECRET) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "No autorizado" }));
     return;
   }
 

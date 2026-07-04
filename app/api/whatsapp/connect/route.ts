@@ -20,6 +20,7 @@ export async function POST() {
   try {
     const res = await fetch(`${WA_URL}/connect/${profile.clinicId}`, {
       method: "POST",
+      headers: { "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "" },
       signal: AbortSignal.timeout(10_000),
     });
     const body = await res.json();
@@ -44,6 +45,7 @@ export async function DELETE() {
   try {
     const res = await fetch(`${WA_URL}/disconnect/${profile.clinicId}`, {
       method: "DELETE",
+      headers: { "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "" },
       signal: AbortSignal.timeout(10_000),
     });
     const body = await res.json();

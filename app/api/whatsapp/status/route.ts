@@ -15,6 +15,7 @@ export async function GET() {
 
   try {
     const res = await fetch(`${WA_URL}/status/${profile.clinicId}`, {
+      headers: { "x-wa-service-secret": process.env.WA_SERVICE_SECRET ?? "" },
       signal: AbortSignal.timeout(5_000),
     });
     const body = await res.json();
