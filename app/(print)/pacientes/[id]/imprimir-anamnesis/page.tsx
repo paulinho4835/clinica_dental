@@ -148,7 +148,7 @@ export default async function ImprimirAnamnesisPage({
           <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Hábitos</p>
           <div className="flex flex-wrap gap-6">
             {HABITOS_FIELDS.map((f) => {
-              const checked = (a.habitos as Record<string, boolean>)[f.key];
+              const checked = (a.habitos as unknown as Record<string, boolean>)[f.key];
               return (
                 <div key={f.key} className="flex items-center gap-2">
                   <span
@@ -167,6 +167,12 @@ export default async function ImprimirAnamnesisPage({
               );
             })}
           </div>
+          {a.habitos.otros_detalle && (
+            <p className="mt-2">
+              <span className="font-medium">Otros: </span>
+              {a.habitos.otros_detalle}
+            </p>
+          )}
         </div>
 
         {/* Otros datos clínicos */}
@@ -190,6 +196,9 @@ export default async function ImprimirAnamnesisPage({
             label="Última visita odontológica"
             value={a.ultima_visita_odontologica || "—"}
           />
+          {a.ultima_visita_motivo && (
+            <InfoRow label="Motivo de la última visita" value={a.ultima_visita_motivo} />
+          )}
           <InfoRow
             label="Motivo de consulta"
             value={a.motivo_consulta || "—"}

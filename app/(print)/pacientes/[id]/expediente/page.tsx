@@ -106,7 +106,7 @@ export default async function ExpedientePage({
     (f) => (a.antecedentes as unknown as Record<string, boolean>)[f.key],
   );
   const habitos = HABITOS_FIELDS.filter(
-    (f) => (a.habitos as Record<string, boolean>)[f.key],
+    (f) => (a.habitos as unknown as Record<string, boolean>)[f.key],
   );
 
   const today = new Date().toLocaleDateString("es-BO", {
@@ -207,6 +207,12 @@ export default async function ExpedientePage({
             <Info label="Motivo de consulta" value={a.motivo_consulta || "—"} wide />
             {a.antecedentes.otros && (
               <Info label="Otros antecedentes" value={a.antecedentes.otros} wide />
+            )}
+            {a.habitos.otros_detalle && (
+              <Info label="Otros hábitos" value={a.habitos.otros_detalle} wide />
+            )}
+            {a.ultima_visita_motivo && (
+              <Info label="Motivo de la última visita" value={a.ultima_visita_motivo} wide />
             )}
           </div>
         </section>

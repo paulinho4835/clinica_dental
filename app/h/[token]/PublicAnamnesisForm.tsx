@@ -218,7 +218,7 @@ export function PublicAnamnesisForm({
         <h2 className="mb-3 font-semibold text-slate-800">Hábitos</h2>
         <div className="flex flex-wrap gap-2">
           {HABITOS_FIELDS.map((f) => {
-            const checked = (a.habitos as Record<string, boolean>)[f.key];
+            const checked = (a.habitos as unknown as Record<string, boolean>)[f.key];
             return (
               <label
                 key={f.key}
@@ -239,6 +239,21 @@ export function PublicAnamnesisForm({
             );
           })}
         </div>
+        {(a.habitos as unknown as Record<string, boolean>).otros && (
+          <label className="mt-3 block text-sm text-slate-600">
+            Especificar otros hábitos
+            <input
+              className={inputClass}
+              value={a.habitos.otros_detalle}
+              onChange={(e) =>
+                setA((p) => ({
+                  ...p,
+                  habitos: { ...p.habitos, otros_detalle: e.target.value },
+                }))
+              }
+            />
+          </label>
+        )}
       </section>
 
       {/* Alergias y medicación */}
@@ -321,6 +336,19 @@ export function PublicAnamnesisForm({
               setA((p) => ({
                 ...p,
                 ultima_visita_odontologica: e.target.value,
+              }))
+            }
+          />
+        </label>
+        <label className="block text-sm text-slate-600">
+          ¿Y por qué?
+          <input
+            className={inputClass}
+            value={a.ultima_visita_motivo}
+            onChange={(e) =>
+              setA((p) => ({
+                ...p,
+                ultima_visita_motivo: e.target.value,
               }))
             }
           />

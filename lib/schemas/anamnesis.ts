@@ -26,6 +26,7 @@ export const HABITOS_FIELDS = [
   { key: "alcohol", label: "Alcohol" },
   { key: "bruxismo", label: "Bruxismo" },
   { key: "drogas", label: "Drogas" },
+  { key: "otros", label: "Otros" },
 ] as const;
 
 const antecedentesShape = Object.fromEntries(
@@ -42,9 +43,12 @@ export const AnamnesisSchema = z.object({
     .default({}),
   medicacion_habitual: z.string().default(""),
   antecedentes_familiares: z.string().default(""),
-  habitos: z.object({ ...habitosShape }).default({}),
+  habitos: z
+    .object({ ...habitosShape, otros_detalle: z.string().default("") })
+    .default({}),
   embarazo: z.enum(["no_aplica", "embarazada", "lactancia"]).default("no_aplica"),
   ultima_visita_odontologica: z.string().default(""),
+  ultima_visita_motivo: z.string().default(""),
   motivo_consulta: z.string().default(""),
   // Firma digital opcional (imagen PNG en data URL). Vacío = sin firma.
   firma: z.string().default(""),

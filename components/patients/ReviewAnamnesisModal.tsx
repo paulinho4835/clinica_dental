@@ -50,7 +50,7 @@ export function ReviewAnamnesisModal({
     (f) => (a.antecedentes as unknown as Record<string, boolean>)[f.key],
   );
   const habitos = HABITOS_FIELDS.filter(
-    (f) => (a.habitos as Record<string, boolean>)[f.key],
+    (f) => (a.habitos as unknown as Record<string, boolean>)[f.key],
   );
 
   async function apply() {
@@ -130,6 +130,9 @@ export function ReviewAnamnesisModal({
             {a.antecedentes.otros && (
               <Row label="Otros antecedentes">{a.antecedentes.otros}</Row>
             )}
+            {a.habitos.otros_detalle && (
+              <Row label="Otros hábitos">{a.habitos.otros_detalle}</Row>
+            )}
             <Row label="Medicación habitual">{a.medicacion_habitual || "Ninguna"}</Row>
             <Row label="Embarazo / lactancia">{EMBARAZO_LABEL[a.embarazo]}</Row>
             <Row label="Antecedentes familiares">
@@ -139,6 +142,9 @@ export function ReviewAnamnesisModal({
             <Row label="Última visita odontológica">
               {a.ultima_visita_odontologica || "—"}
             </Row>
+            {a.ultima_visita_motivo && (
+              <Row label="Motivo de la última visita">{a.ultima_visita_motivo}</Row>
+            )}
             <Row label="Alergias">
               {isNew ? (
                 proposed.allergies.length ? proposed.allergies.join(", ") : "—"

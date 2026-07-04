@@ -83,7 +83,7 @@ export function AnamnesisPanel({
     (f) => (a.antecedentes as unknown as Record<string, boolean>)[f.key],
   );
   const habitos = HABITOS_FIELDS.filter(
-    (f) => (a.habitos as Record<string, boolean>)[f.key],
+    (f) => (a.habitos as unknown as Record<string, boolean>)[f.key],
   );
 
   if (editing) {
@@ -236,9 +236,19 @@ export function AnamnesisPanel({
             <span className="text-slate-700">{a.antecedentes.otros}</span>
           </Row>
         )}
+        {a.habitos.otros_detalle && (
+          <Row label="Otros hábitos">
+            <span className="text-slate-700">{a.habitos.otros_detalle}</span>
+          </Row>
+        )}
         {a.ultima_visita_odontologica && (
           <Row label="Última visita odontológica">
             <span className="text-slate-700">{a.ultima_visita_odontologica}</span>
+          </Row>
+        )}
+        {a.ultima_visita_motivo && (
+          <Row label="Motivo de la última visita">
+            <span className="text-slate-700">{a.ultima_visita_motivo}</span>
           </Row>
         )}
       </dl>
@@ -419,7 +429,7 @@ function AnamnesisForm({
             <label key={f.key} className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
-                checked={(a.habitos as Record<string, boolean>)[f.key]}
+                checked={(a.habitos as unknown as Record<string, boolean>)[f.key]}
                 onChange={(e) => setHabito(f.key, e.target.checked)}
                 className="rounded border-slate-300 text-clinic focus:ring-clinic"
               />
@@ -427,6 +437,21 @@ function AnamnesisForm({
             </label>
           ))}
         </div>
+        {a.habitos.otros && (
+          <label className="mt-2 block text-sm">
+            <FieldLabel>Especificar otros hábitos</FieldLabel>
+            <input
+              className={fieldInputClass}
+              value={a.habitos.otros_detalle}
+              onChange={(e) =>
+                setA((p) => ({
+                  ...p,
+                  habitos: { ...p.habitos, otros_detalle: e.target.value },
+                }))
+              }
+            />
+          </label>
+        )}
       </fieldset>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -466,6 +491,14 @@ function AnamnesisForm({
             className={fieldInputClass}
             value={a.ultima_visita_odontologica}
             onChange={(e) => setA((p) => ({ ...p, ultima_visita_odontologica: e.target.value }))}
+          />
+        </label>
+        <label className="block text-sm">
+          <FieldLabel>¿Y por qué?</FieldLabel>
+          <input
+            className={fieldInputClass}
+            value={a.ultima_visita_motivo}
+            onChange={(e) => setA((p) => ({ ...p, ultima_visita_motivo: e.target.value }))}
           />
         </label>
         <label className="block text-sm sm:col-span-2">
