@@ -63,7 +63,7 @@ export default async function PatientsPage({
       supabase
         .from("anamnesis_invitations")
         .select(
-          "id, contact_name, contact_phone, completed_at, expires_at, submitted_personal, submitted_data, submitted_allergies, submitted_alerts",
+          "id, contact_name, contact_phone, completed_at, expires_at, submitted_personal, submitted_data, submitted_allergies, submitted_alerts, source",
         )
         .eq("kind", "new")
         .is("reviewed_at", null)
@@ -80,6 +80,7 @@ export default async function PatientsPage({
         contactName: (r.contact_name as string | null) ?? null,
         contactPhone: (r.contact_phone as string | null) ?? null,
         completedAt: (r.completed_at as string | null) ?? null,
+        source: (r.source as string | null) ?? "manual",
         personal: r.submitted_personal ? parseIntake(r.submitted_personal) : null,
         proposed: r.completed_at
           ? {

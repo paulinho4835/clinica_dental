@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, Inbox } from "lucide-react";
+import { UserPlus, Inbox, Headset } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { NewPatientInviteModal } from "@/components/patients/NewPatientInviteModal";
 import { ReviewAnamnesisModal } from "@/components/patients/ReviewAnamnesisModal";
@@ -14,6 +14,9 @@ export type IntakeItem = {
   contactName: string | null;
   contactPhone: string | null;
   completedAt: string | null;
+  // Quién originó el registro: 'manual' (enlace enviado por el equipo) o
+  // 'agente' (tomado por el Asistente Virtual en WhatsApp).
+  source: string;
   personal: PatientIntake | null;
   proposed: { data: Anamnesis; allergies: string[]; alerts: string[] } | null;
 };
@@ -61,12 +64,21 @@ export function IncomingIntakesPanel({
               className="flex items-center justify-between gap-3 rounded-lg border border-clinic bg-clinic/5 px-3 py-2.5"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-800">
-                  {r.personal?.full_name || r.contactName || "Paciente nuevo"}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-medium text-slate-800">
+                    {r.personal?.full_name || r.contactName || "Paciente nuevo"}
+                  </p>
+                  {r.source === "agente" && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-clinic/10 px-2 py-0.5 text-[10px] font-medium text-clinic-700">
+                      <Headset className="h-3 w-3" />
+                      Asistente Virtual
+                    </span>
+                  )}
+                </div>
                 <p className="truncate text-xs text-slate-500">
                   {r.personal?.national_id ? `CI: ${r.personal.national_id} · ` : ""}
                   {r.contactPhone ?? r.personal?.phone ?? "Sin teléfono"}
+                  {r.source === "agente" ? " · Registrado por el Asistente Virtual (WhatsApp)" : ""}
                 </p>
               </div>
               <Button size="sm" type="button" onClick={() => setReviewId(r.id)}>

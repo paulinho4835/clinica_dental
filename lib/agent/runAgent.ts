@@ -41,7 +41,13 @@ function upcomingDays(count: number): { date: string; weekday: string }[] {
   });
 }
 
-function systemPrompt(clinicName: string, isFirstMessage: boolean, needPhone: boolean): string {
+function systemPrompt(
+  clinicName: string,
+  isFirstMessage: boolean,
+  needPhone: boolean,
+  canManage: boolean,
+  knownPatientName?: string,
+): string {
   const now = new Date();
   const todayIso = now.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
   const todayLabel = now.toLocaleString("es-BO", {
@@ -80,11 +86,15 @@ function systemPrompt(clinicName: string, isFirstMessage: boolean, needPhone: bo
     ``,
     `Si en el historial de esta conversación hay fechas que CONTRADICEN la TABLA DE FECHAS (ej. mensajes anteriores dicen "viernes 4" pero la tabla dice que el viernes es otra fecha), la TABLA manda: corrige con naturalidad ("una disculpa, el viernes es 3 de julio") y usa la fecha de la tabla. El historial puede contener errores viejos.`,
     ``,
-    `TU ÚNICA FUNCIÓN es agendar citas dentales NUEVAS. Para lograrlo:`,
+    canManage
+      ? `TUS FUNCIONES: agendar citas dentales nuevas Y gestionar citas existentes (consultarlas, reprogramarlas o cancelarlas). Para agendar una cita nueva:`
+      : `TU ÚNICA FUNCIÓN es agendar citas dentales NUEVAS. Para lograrlo:`,
     `1. Saluda con calidez profesional y pregunta en qué puedes ayudar.`,
-    needPhone
-      ? `2. Para agendar necesitas: nombre del paciente, su número de celular, el motivo de la consulta, y el día y hora que desea. IMPORTANTE: WhatsApp mantiene oculto el número de este paciente, así que DEBES pedirle su número de celular antes de confirmar la cita ("¿me compartes tu número de celular para registrar tu cita?") y pasarlo como contact_phone al llamar book_appointment. Sin ese número la clínica no puede contactarlo.`
-      : `2. Para agendar necesitas: nombre del paciente, el motivo de la consulta, y el día y hora que desea. NO le pidas su número de teléfono: ya lo tenemos por WhatsApp.`,
+    knownPatientName
+      ? `2. El paciente que escribe YA está registrado en la clínica: es ${knownPatientName}. NO le pidas carnet ni celular. Para agendar solo necesitas el motivo de la consulta y el día y hora que desea. EXCEPCIÓN: si la cita es para OTRA persona (un familiar, por ejemplo), pide el nombre completo y el carnet de ESA persona y pásalos en book_appointment.`
+      : needPhone
+        ? `2. Para agendar necesitas: nombre completo del paciente, su número de carnet (cédula de identidad), su número de celular, el motivo de la consulta, y el día y hora que desea. IMPORTANTE: WhatsApp mantiene oculto el número de este paciente, así que DEBES pedirle su celular ("¿me compartes tu número de celular para registrar tu cita?") y pasarlo como contact_phone. El carnet pásalo como carnet en book_appointment: sin él no se puede registrar su ficha.`
+        : `2. Este número de WhatsApp aún NO tiene ficha en la clínica. Para agendar necesitas: nombre completo del paciente, su número de carnet (cédula de identidad), el motivo de la consulta, y el día y hora que desea. Pide el carnet con naturalidad ("¿me compartes tu número de carnet para registrarte?") y pásalo como carnet en book_appointment. NO le pidas su número de teléfono: ya lo tenemos por WhatsApp. Su registro lo revisará el equipo de la clínica; no hace falta explicarle ese detalle.`,
     `3. Pregunta SIEMPRE el motivo de la consulta ("¿cuál es el motivo de tu visita? ¿limpieza, dolor, control...?") antes de agendar, y pásalo como reason en book_appointment. Es un dato que el doctor necesita para prepararse.`,
     `4. Resuelve fechas relativas ("hoy", "mañana", "el viernes") SOLO con la TABLA DE FECHAS de arriba.`,
     `5. Usa check_availability para ver horarios libres y ofrécele opciones concretas.`,
@@ -93,9 +103,23 @@ function systemPrompt(clinicName: string, isFirstMessage: boolean, needPhone: bo
     ``,
     `DOCTOR ESPECÍFICO: NO ofrezcas ni preguntes por doctores. Pero si el paciente menciona por su nombre a un doctor con el que quiere atenderse, respétalo: verifica con get_doctors que exista, pásalo como doctor_name en check_availability y en book_appointment, y confírmale la cita con ese doctor. Si el nombre no coincide con ningún doctor de get_doctors, díselo y muéstrale los nombres disponibles.`,
     ``,
-    `REGLA CRÍTICA: solo confirma la cita si book_appointment responde con "OK:". Si responde con "ERROR:", NO inventes una confirmación: explica el problema y ofrece otra opción o deriva a un humano.`,
+    ...(canManage
+      ? [
+          ``,
+          `GESTIÓN DE CITAS EXISTENTES (consultar / reprogramar / cancelar):`,
+          `- Si el paciente pregunta cuándo es su cita o si tiene una, usa get_my_appointments y dile fecha, hora y doctor.`,
+          `- Para REPROGRAMAR: primero consulta su cita con get_my_appointments, verifica el nuevo horario con check_availability, confirma el cambio con el paciente ("¿te muevo tu cita del X a las Y al Z a las W?") y recién entonces llama reschedule_appointment.`,
+          `- Para CANCELAR: consulta su cita, pregunta EXPLÍCITAMENTE "¿confirmas que deseas cancelar tu cita del X a las Y?" y solo con su sí llama cancel_appointment. Ofrécele reagendar en otro horario antes de despedirte.`,
+        ]
+      : []),
     ``,
-    `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, quiera reprogramar o cancelar una cita, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no sea agendar una cita nueva. No inventes respuestas sobre esos temas.`,
+    `REGLA CRÍTICA: solo confirma una acción (agendar, reprogramar, cancelar) si la herramienta responde con "OK:". Si responde con "ERROR:", NO inventes una confirmación: explica el problema y ofrece otra opción o deriva a un humano.`,
+    ``,
+    `REGLA CRÍTICA 2: NADA queda guardado si no llamas la herramienta. Cuando el paciente elige o confirma un horario, DEBES llamar la herramienta correspondiente (book_appointment / reschedule_appointment / cancel_appointment) EN ESE MISMO turno, ANTES de responder. PROHIBIDO anunciar "tu cita quedó agendada/reprogramada/cancelada" sin haber recibido "OK:" de la herramienta en este turno. Mostrar horarios disponibles NO agenda ni cambia nada.`,
+    ``,
+    canManage
+      ? `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no puedas resolver con tus herramientas. No inventes respuestas sobre esos temas.`
+      : `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, quiera reprogramar o cancelar una cita, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no sea agendar una cita nueva. No inventes respuestas sobre esos temas.`,
     ``,
     `ESTILO: profesional pero cercano, mensajes breves y naturales para WhatsApp (1-3 frases). Español neutro, sin voseo ("puedes", no "podés"). Trata al paciente de "usted" solo si él lo hace primero; por defecto usa un "tú" cordial. Un emoji ocasional está bien, sin abusar. Nunca inventes horarios, doctores ni datos: usa siempre las herramientas.`,
   ].join("\n");
@@ -111,18 +135,34 @@ export async function runAgent(opts: {
   // Número de WhatsApp del paciente (identidad verificada). Se usa para
   // registrar/vincular su ficha automáticamente al agendar.
   patientPhone?: string;
+  // Addon T2 (agente_ia_t2): habilita consultar/reprogramar/cancelar citas.
+  // Sin T2 el agente solo agenda y deriva la gestión a un humano.
+  canManage?: boolean;
+  // Nombre de la ficha ya registrada con este número de WhatsApp (si existe).
+  // Con ficha conocida el agente NO pide carnet; sin ella, lo exige para
+  // dejar la solicitud de registro pendiente de aprobación.
+  knownPatientName?: string;
 }): Promise<{ reply: string; handoff: boolean }> {
   const ctx: AgentContext = { handoffRequested: false };
-  const tools = buildAgentTools(opts.clinicId, ctx, opts.patientPhone);
+  const canManage = opts.canManage ?? false;
+  const tools = buildAgentTools(opts.clinicId, ctx, opts.patientPhone, canManage);
 
   const messages: ModelMessage[] = [
     ...opts.history.map((m) => ({ role: m.role, content: m.content })),
     { role: "user" as const, content: opts.userText },
   ];
 
+  const system = systemPrompt(
+    opts.clinicName,
+    opts.history.length === 0,
+    !opts.patientPhone,
+    canManage,
+    opts.knownPatientName,
+  );
+
   const result = await generateText({
     model: agentModel(),
-    system: systemPrompt(opts.clinicName, opts.history.length === 0, !opts.patientPhone),
+    system,
     messages,
     tools,
     stopWhen: stepCountIs(6),
@@ -144,6 +184,50 @@ export async function runAgent(opts: {
     reply = await recoverLeakedToolCall(leak[1], tools);
   }
 
+  // Guard "confirmó sin ejecutar NADA" (visto en real: el paciente elige la
+  // hora, el modelo responde "¡tu cita quedó reprogramada!" sin llamar ninguna
+  // herramienta — no hay error que atrapar porque nunca lo intentó). Si la
+  // respuesta proclama una acción completada, ninguna tool de acción corrió en
+  // este turno, y el mensaje del paciente pedía una acción concreta (hora, día,
+  // "confirmo", "cancela"...), se reintenta UNA vez con una corrección explícita
+  // que obliga a ejecutar la herramienta. El filtro por intención del paciente
+  // evita falsos positivos en recaps ("gracias" → "¡de nada! tu cita quedó...").
+  const claimsAction =
+    /agendad[ao]|reservad[ao]|reprogramad[ao]|cancelad[ao]|cambiad[ao]|movid[ao]|queda list|está list/i;
+  const actionIntent =
+    /\d{1,2}[:.]\d{2}|\d{1,2}\s*(am|pm|hrs?\b)|\b(hoy|mañana|manana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b|reprogram|cancel|cambi|muev|mover|agend|confirmo|\bs[ií]\b|\bdale\b|de acuerdo|\bok\b/i.test(
+      opts.userText,
+    );
+  const nothingRan = !ctx.bookingAttempted && !ctx.manageAttempted;
+  if (nothingRan && actionIntent && claimsAction.test(reply)) {
+    console.error("[agent] confirmó sin ejecutar herramienta; reintentando con corrección", {
+      clinicId: opts.clinicId,
+    });
+    const retry = await generateText({
+      model: agentModel(),
+      system:
+        system +
+        `\n\nCORRECCIÓN URGENTE: estabas por confirmar una acción SIN haberla ejecutado. NADA queda guardado si no llamas la herramienta correspondiente (book_appointment, reschedule_appointment o cancel_appointment). Llama AHORA la herramienta con los datos ya acordados en la conversación y responde según su resultado: "OK:" → confirma; "ERROR:" → explica el problema sin inventar éxito.`,
+      messages,
+      tools,
+      stopWhen: stepCountIs(6),
+      temperature: 0,
+    });
+    reply =
+      retry.text?.trim() ||
+      "Disculpa, tuve un inconveniente al procesar tu solicitud. ¿Me confirmas de nuevo qué deseas hacer?";
+    const retryLeak = reply.match(/function_call\s*:?\s*(\{[\s\S]*\})/i);
+    if (retryLeak) {
+      reply = await recoverLeakedToolCall(retryLeak[1], tools);
+    }
+    // Si aun con la corrección no ejecutó nada y sigue proclamando éxito, no
+    // dejamos pasar la mentira: respuesta honesta pidiendo repetir el pedido.
+    if (!ctx.bookingAttempted && !ctx.manageAttempted && claimsAction.test(reply)) {
+      reply =
+        "Una disculpa 🙏 aún no pude procesar ese cambio en el sistema. ¿Me repites qué deseas hacer (agendar, reprogramar o cancelar) con el día y la hora exactos? Lo hago de inmediato.";
+    }
+  }
+
   // Guard determinístico anti-mentira: si EN ESTE TURNO se intentó agendar
   // (book_appointment) y NO hubo éxito, pero la respuesta suena a confirmación
   // ("queda agendada", "reservada", etc.), el modelo está inventando el éxito
@@ -160,6 +244,23 @@ export async function runAgent(opts: {
     });
     reply =
       "Una disculpa 🙏 ese horario no se pudo reservar (es posible que se acabe de ocupar). ¿Te gustaría elegir otra hora y lo intentamos de nuevo?";
+  }
+
+  // Mismo guard pero para las acciones T2 (reprogramar/cancelar): si se intentó
+  // y falló pero la respuesta suena a "listo, quedó cambiada/cancelada", se
+  // reemplaza por una respuesta honesta.
+  if (
+    ctx.manageAttempted &&
+    !ctx.manageSucceeded &&
+    /reprogramad[ao]|cancelad[ao]|cambiad[ao]|movid[ao]|modificad[ao]|queda list|está list/i.test(
+      reply,
+    )
+  ) {
+    console.error("[agent] respuesta inventaba éxito con gestión fallida; reemplazada", {
+      clinicId: opts.clinicId,
+    });
+    reply =
+      "Una disculpa 🙏 no pude completar ese cambio en tu cita. ¿Me confirmas de nuevo tu nombre completo y qué deseas hacer? Si prefieres, alguien del equipo puede ayudarte directamente.";
   }
 
   return { reply, handoff: ctx.handoffRequested };

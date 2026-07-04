@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "crypto";
 import { tool } from "ai";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,6 +16,10 @@ export type AgentContext = {
   handoffReason?: string;
   bookingAttempted?: boolean;
   bookingSucceeded?: boolean;
+  // Igual que booking pero para reprogramar/cancelar (tools T2): permiten al
+  // guard anti-mentira detectar confirmaciones inventadas de esas acciones.
+  manageAttempted?: boolean;
+  manageSucceeded?: boolean;
 };
 
 // Roles que ejercen como odontólogo (pueden recibir citas).
@@ -25,29 +30,47 @@ const DOCTOR_ROLES = ["odontologo_general", "especialista", "admin"];
 // orden alfabético (que caía en la cuenta "admin"); ahora quedan claramente
 // marcadas como generadas por el bot para que el equipo las reasigne al doctor
 // correcto. Sigue siendo visible en la agenda (admin/recepción ven todas).
-const AI_DENTIST = "Inteligencia Artificial";
+// DEBE coincidir con la constante de components/agenda/AgendaShell.tsx.
+const AI_DENTIST = "Asistente Virtual";
 
-// Resuelve la ficha del paciente por teléfono (identidad verificada por WhatsApp)
-// y, si no existe, la crea. El número desde el que escribe es la identidad más
-// confiable: registra al paciente automáticamente y evita fichas falsas o
-// duplicadas. Si no hay teléfono, cae a búsqueda por nombre. Devuelve el
-// patient_id, o null si no se pudo resolver ni crear.
-async function resolveOrCreatePatient(
+// ¿El nombre dictado corresponde a la ficha? Comparación laxa: sin tildes,
+// sin mayúsculas, por contención en cualquier dirección ("Paulo" ↔ "Paulo León").
+function namesMatch(a: string, b: string): boolean {
+  const norm = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  const na = norm(a);
+  const nb = norm(b);
+  return na.length > 0 && nb.length > 0 && (na.includes(nb) || nb.includes(na));
+}
+
+// Busca la ficha EXISTENTE del paciente. NO crea fichas: el alta la aprueba
+// el equipo (ver requestPatientRegistration). El nombre manda sobre el
+// teléfono: si la ficha del número tiene OTRO nombre (familiares comparten
+// celular), esa ficha se descarta. Cascada: 1º teléfono verificado (con nombre
+// coincidente), 2º nombre ILIKE (completa el teléfono si faltaba), 3º carnet
+// exacto (con nombre coincidente).
+async function resolveExistingPatient(
   admin: ReturnType<typeof createAdminClient>,
   clinicId: string,
   fullName: string,
   phone?: string,
+  ci?: string,
 ): Promise<string | null> {
-  // 1) Por teléfono: lo más confiable, es el número real desde el que escribe.
+  // 1) Por teléfono: lo más confiable, es el número real desde el que escribe —
+  //    siempre que el nombre dictado coincida con esa ficha.
   if (phone) {
     const { data: byPhone } = await admin
       .from("patients")
-      .select("id")
+      .select("id, full_name")
       .eq("clinic_id", clinicId)
       .eq("phone", phone)
       .limit(1)
       .maybeSingle();
-    if (byPhone?.id) return byPhone.id;
+    if (byPhone?.id && namesMatch(byPhone.full_name ?? "", fullName)) return byPhone.id;
   }
   // 2) Por nombre: si ya está registrado, reusar y completar el teléfono si faltaba.
   const { data: byName } = await admin
@@ -63,24 +86,186 @@ async function resolveOrCreatePatient(
     }
     return byName.id;
   }
-  // 3) No existe: crear ficha nueva atada al teléfono verificado.
-  const { data: created, error } = await admin
-    .from("patients")
-    .insert({ clinic_id: clinicId, full_name: fullName, phone: phone ?? null })
-    .select("id")
-    .single();
-  if (error) {
-    console.error("[agent/resolveOrCreatePatient]", error.message, { clinicId });
-    return null;
+  // 3) Por carnet: paciente antiguo que cambió de número. Solo si el nombre
+  //    coincide (un carnet dictado mal no debe secuestrar otra ficha).
+  if (ci) {
+    const { data: byCi } = await admin
+      .from("patients")
+      .select("id, full_name, phone")
+      .eq("clinic_id", clinicId)
+      .eq("national_id", ci)
+      .limit(1)
+      .maybeSingle();
+    if (byCi?.id && namesMatch(byCi.full_name ?? "", fullName)) {
+      if (phone && !byCi.phone) {
+        await admin.from("patients").update({ phone }).eq("id", byCi.id);
+      }
+      return byCi.id;
+    }
   }
-  return created?.id ?? null;
+  return null;
+}
+
+// Deja una solicitud de registro PENDIENTE en "Registros entrantes" (misma
+// bandeja que las altas por enlace: anamnesis_invitations kind='new'), marcada
+// con source='agente' para que conste que la tomó el Asistente Virtual. El
+// admin/recepción la revisa y al aprobar recién se crea la ficha — el bot
+// NUNCA crea pacientes directamente (evita duplicados y registros de burla).
+// Si ya hay una solicitud pendiente para el mismo teléfono o carnet, se reusa.
+async function requestPatientRegistration(
+  admin: ReturnType<typeof createAdminClient>,
+  clinicId: string,
+  fullName: string,
+  phone?: string,
+  ci?: string,
+): Promise<void> {
+  // ¿Ya hay una pendiente del mismo teléfono o carnet? No crear otra.
+  if (phone) {
+    const { data: dup } = await admin
+      .from("anamnesis_invitations")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .eq("kind", "new")
+      .eq("source", "agente")
+      .is("reviewed_at", null)
+      .eq("contact_phone", phone)
+      .limit(1)
+      .maybeSingle();
+    if (dup) return;
+  }
+  const { error } = await admin.from("anamnesis_invitations").insert({
+    token: randomBytes(32).toString("base64url"),
+    kind: "new",
+    source: "agente",
+    clinic_id: clinicId,
+    patient_id: null,
+    created_by: null,
+    // Ya viene "completada": los datos los recolectó el bot en la conversación.
+    completed_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    contact_phone: phone ?? null,
+    contact_name: fullName,
+    submitted_personal: {
+      full_name: fullName,
+      national_id: ci ?? "",
+      phone: phone ?? "",
+    },
+    // Historial médico vacío (el schema tiene defaults): se completa después
+    // en la ficha. La aprobación exige un objeto válido, no null.
+    submitted_data: {},
+  });
+  if (error) {
+    console.error("[agent/requestPatientRegistration]", error.message, { clinicId });
+  }
+}
+
+// Resuelve la ficha del paciente SIN crearla (para operar sobre citas ya
+// existentes). Misma cascada de identificadores que el resto de tools
+// (lección Vapi: TODAS las tools de una entidad resuelven por los MISMOS
+// identificadores): 1º teléfono verificado de WhatsApp, 2º nombre ILIKE.
+// Si el nombre dictado NO coincide con la ficha del teléfono, esa ficha se
+// descarta (evita reprogramar/cancelar la cita de otra persona que comparte
+// número o de una ficha vieja mal atribuida).
+async function resolvePatientId(
+  admin: ReturnType<typeof createAdminClient>,
+  clinicId: string,
+  phone?: string,
+  fullName?: string,
+): Promise<string | null> {
+  if (phone) {
+    const { data } = await admin
+      .from("patients")
+      .select("id, full_name")
+      .eq("clinic_id", clinicId)
+      .eq("phone", phone)
+      .limit(1)
+      .maybeSingle();
+    if (data?.id && (!fullName?.trim() || namesMatch(data.full_name ?? "", fullName)))
+      return data.id;
+  }
+  if (fullName?.trim()) {
+    const { data } = await admin
+      .from("patients")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .ilike("full_name", `%${fullName.trim()}%`)
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
+}
+
+type ApptRow = {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  dentist_id: string | null;
+  dentist_name: string | null;
+  reason: string | null;
+  status: string;
+};
+
+const APPT_COLS = "id, starts_at, ends_at, dentist_id, dentist_name, reason, status";
+
+// Fecha y hora legibles en Bolivia de un instante ISO ("2026-07-04", "10:30").
+function apptWhen(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ }),
+    time: d.toLocaleTimeString("es-BO", {
+      timeZone: BOLIVIA_TZ,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+  };
 }
 
 // Fábrica de herramientas del agente, cerradas sobre la clínica actual y un
 // contexto mutable. Misma lógica de disponibilidad/reserva que el webhook de
-// Vapi, para que ambos canales se comporten igual.
-export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhone?: string) {
+// Vapi, para que ambos canales se comporten igual. `canManage` (addon T2)
+// agrega las tools de gestión de citas existentes (consultar/reprogramar/
+// cancelar); con solo T1 el agente únicamente agenda.
+export function buildAgentTools(
+  clinicId: string,
+  ctx: AgentContext,
+  patientPhone?: string,
+  canManage?: boolean,
+) {
   const admin = createAdminClient();
+
+  // Próximas citas activas del paciente (por patient_id o nombre), la más
+  // cercana primero. Cascada: 1º patient_id (ficha resuelta), 2º patient_name
+  // ILIKE (citas creadas a mano sin ficha vinculada).
+  async function findUpcoming(patientId: string | null, patientName?: string): Promise<ApptRow[]> {
+    const nowIso = new Date().toISOString();
+    if (patientId) {
+      const { data } = await admin
+        .from("appointments")
+        .select(APPT_COLS)
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .gte("starts_at", nowIso)
+        .not("status", "in", "(cancelled,no_show)")
+        .order("starts_at", { ascending: true })
+        .limit(3);
+      if (data && data.length > 0) return data as ApptRow[];
+    }
+    if (patientName?.trim()) {
+      const { data } = await admin
+        .from("appointments")
+        .select(APPT_COLS)
+        .eq("clinic_id", clinicId)
+        .ilike("patient_name", `%${patientName.trim()}%`)
+        .gte("starts_at", nowIso)
+        .not("status", "in", "(cancelled,no_show)")
+        .order("starts_at", { ascending: true })
+        .limit(3);
+      if (data && data.length > 0) return data as ApptRow[];
+    }
+    return [];
+  }
 
   return {
     get_current_date: tool({
@@ -211,8 +396,22 @@ export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhon
           .describe(
             "Número de celular que el paciente dictó en la conversación (solo si se le pidió)",
           ),
+        carnet: z
+          .string()
+          .optional()
+          .describe(
+            "Número de carnet (cédula de identidad) del paciente. OBLIGATORIO si el paciente aún no está registrado en la clínica; pídeselo antes de agendar.",
+          ),
       }),
-      execute: async ({ patient_name, date, time, reason, doctor_name, contact_phone }) => {
+      execute: async ({
+        patient_name,
+        date,
+        time,
+        reason,
+        doctor_name,
+        contact_phone,
+        carnet,
+      }) => {
         ctx.bookingAttempted = true;
         const nTime = normalizeTime(time);
         if (!nTime)
@@ -278,25 +477,45 @@ export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhon
           }. Usa check_availability y ofrece otra hora.`;
         }
 
-        // Resolver/crear la ficha del paciente atada a su número de WhatsApp
-        // (identidad verificada). Si WhatsApp ocultó el número (@lid sin senderPn),
-        // se usa el celular que el paciente dictó (contact_phone), normalizado a
-        // solo dígitos — mismo criterio que los carnets dictados por voz en Vapi.
+        // Resolver la ficha del paciente por su número de WhatsApp (identidad
+        // verificada), nombre o carnet. Si WhatsApp ocultó el número (@lid sin
+        // senderPn), se usa el celular que el paciente dictó (contact_phone).
+        // Identificadores dictados se normalizan a solo dígitos — mismo criterio
+        // que los carnets dictados por voz en Vapi.
         const dictated = contact_phone?.replace(/[\s.\-()+]/g, "") ?? "";
         const effectivePhone = patientPhone ?? (dictated.length >= 7 ? dictated : undefined);
-        const patientId = await resolveOrCreatePatient(
+        const ci = carnet?.replace(/[\s.\-]/g, "") ?? "";
+        const patientId = await resolveExistingPatient(
           admin,
           clinicId,
           patient_name.trim(),
           effectivePhone,
+          ci || undefined,
         );
 
+        // Paciente NO registrado: el bot no crea fichas — exige el carnet y
+        // deja una solicitud pendiente para que el equipo la apruebe en
+        // "Registros entrantes". La cita se crea igual (por nombre) y se
+        // vincula a la ficha cuando el equipo aprueba el registro.
+        if (!patientId && !ci) {
+          return `ERROR: la cita NO fue agendada. ${patient_name} no está registrado en la clínica y falta su número de carnet. Pídele su carnet (cédula de identidad) y vuelve a llamar book_appointment incluyendo el parámetro carnet.`;
+        }
+        if (!patientId) {
+          await requestPatientRegistration(
+            admin,
+            clinicId,
+            patient_name.trim(),
+            effectivePhone,
+            ci,
+          );
+        }
+
         // Si la cita quedó con un doctor real, dejar rastro en el motivo de que
-        // la agendó la IA (cuando queda a nombre de "Inteligencia Artificial" el
+        // la agendó el bot (cuando queda a nombre de "Asistente Virtual" el
         // rastro ya es evidente en la propia columna del doctor).
         const baseReason = reason?.trim() || "Consulta";
         const finalReason = assignedDoctorId
-          ? `${baseReason} (agendada por IA)`
+          ? `${baseReason} (agendada por asistente virtual)`
           : baseReason;
 
         const { error } = await admin.from("appointments").insert({
@@ -309,6 +528,7 @@ export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhon
           ends_at: endsAt,
           reason: finalReason,
           status: "scheduled",
+          source: "agente",
         });
 
         if (error) {
@@ -324,8 +544,9 @@ export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhon
     }),
 
     handoff_to_human: tool({
-      description:
-        "Deriva la conversación a una persona del equipo. Úsala cuando el paciente pida hablar con un humano, se queje, o pregunte algo FUERA de agendar una cita nueva (precios, reprogramar, cancelar, dudas médicas), o cuando no puedas resolver. Después despídete brevemente diciendo que un miembro del equipo continuará.",
+      description: canManage
+        ? "Deriva la conversación a una persona del equipo. Úsala cuando el paciente pida hablar con un humano, se queje, o pregunte algo FUERA de gestionar citas (precios, dudas médicas, reclamos), o cuando no puedas resolver. Después despídete brevemente diciendo que un miembro del equipo continuará."
+        : "Deriva la conversación a una persona del equipo. Úsala cuando el paciente pida hablar con un humano, se queje, o pregunte algo FUERA de agendar una cita nueva (precios, reprogramar, cancelar, dudas médicas), o cuando no puedas resolver. Después despídete brevemente diciendo que un miembro del equipo continuará.",
       inputSchema: z.object({
         reason: z.string().describe("Motivo breve de la derivación"),
       }),
@@ -335,5 +556,178 @@ export function buildAgentTools(clinicId: string, ctx: AgentContext, patientPhon
         return "OK: conversación derivada a un humano. Despídete e indica que el equipo continuará.";
       },
     }),
+
+    // ── Tools T2 (addon agente_ia_t2): gestión de citas existentes ──────────
+    ...(canManage
+      ? {
+          get_my_appointments: tool({
+            description:
+              "Consulta las próximas citas del paciente que escribe. Úsala cuando pregunte cuándo es su cita, si tiene una cita, o antes de reprogramar/cancelar para confirmar cuál es.",
+            inputSchema: z.object({
+              patient_name: z
+                .string()
+                .optional()
+                .describe("Nombre del paciente, si lo dio en la conversación"),
+            }),
+            execute: async ({ patient_name }) => {
+              const patientId = await resolvePatientId(
+                admin,
+                clinicId,
+                patientPhone,
+                patient_name,
+              );
+              const appts = await findUpcoming(patientId, patient_name);
+              if (appts.length === 0) {
+                return "No encontré citas próximas para este paciente. Si el paciente insiste en que tiene una, pídele su nombre completo exacto y vuelve a consultar.";
+              }
+              return {
+                appointments: appts.map((a) => {
+                  const w = apptWhen(a.starts_at);
+                  return {
+                    date: w.date,
+                    time: w.time,
+                    doctor: a.dentist_name,
+                    reason: a.reason,
+                    status: a.status,
+                  };
+                }),
+              };
+            },
+          }),
+
+          reschedule_appointment: tool({
+            description:
+              "Reprograma la próxima cita del paciente a una nueva fecha y hora. Antes verifica disponibilidad del nuevo horario con check_availability y confirma el cambio con el paciente. La respuesta empieza con 'OK:' si se reprogramó o 'ERROR:' si falló. NUNCA confirmes si empieza con ERROR.",
+            inputSchema: z.object({
+              patient_name: z.string().describe("Nombre completo del paciente"),
+              new_date: z.string().describe("Nueva fecha YYYY-MM-DD"),
+              new_time: z.string().describe("Nueva hora, ej. 14:30"),
+            }),
+            execute: async ({ patient_name, new_date, new_time }) => {
+              ctx.manageAttempted = true;
+              const nTime = normalizeTime(new_time);
+              if (!nTime)
+                return `ERROR: la cita NO fue reprogramada. No entendí la hora "${new_time}". Pide la hora en formato 24h, ej. "14:30".`;
+              const nDate = normalizeDate(new_date);
+              if (!nDate)
+                return `ERROR: la cita NO fue reprogramada. No entendí la fecha "${new_date}". Pídela como día/mes/año.`;
+              const newStart = new Date(`${nDate}T${nTime}:00-04:00`);
+              if (isNaN(newStart.getTime()))
+                return "ERROR: la cita NO fue reprogramada. Fecha u hora inválida.";
+              if (newStart.getTime() < Date.now())
+                return `ERROR: la cita NO fue reprogramada. La fecha ${nDate} a las ${nTime} ya pasó. Revisa la TABLA DE FECHAS y ofrece un horario futuro.`;
+
+              const patientId = await resolvePatientId(
+                admin,
+                clinicId,
+                patientPhone,
+                patient_name,
+              );
+              let appts = await findUpcoming(patientId, patient_name);
+              // Lección Vapi: en el flujo "cancelar → reagendar en la misma
+              // conversación" la cita quedó cancelled y la búsqueda normal no
+              // la encuentra. Fallback: la cita cancelada futura más próxima.
+              if (appts.length === 0) {
+                const nowIso = new Date().toISOString();
+                let q = admin
+                  .from("appointments")
+                  .select(APPT_COLS)
+                  .eq("clinic_id", clinicId)
+                  .eq("status", "cancelled")
+                  .gte("starts_at", nowIso)
+                  .order("starts_at", { ascending: true })
+                  .limit(1);
+                q = patientId
+                  ? q.eq("patient_id", patientId)
+                  : q.ilike("patient_name", `%${patient_name.trim()}%`);
+                const { data: cancelled } = await q;
+                appts = (cancelled ?? []) as ApptRow[];
+              }
+              if (appts.length === 0)
+                return "ERROR: la cita NO fue reprogramada. No encontré ninguna cita próxima de este paciente. Pídele su nombre completo exacto y vuelve a intentar; si sigue sin aparecer, ofrécele agendar una cita nueva con book_appointment.";
+
+              const appt = appts[0];
+              const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+              // Choque por solapamiento excluyendo la propia cita. Con doctor
+              // real asignado se mide contra ese doctor; sin doctor, la clínica
+              // entera es el recurso (igual que book_appointment).
+              let clashQuery = admin
+                .from("appointments")
+                .select("id")
+                .eq("clinic_id", clinicId)
+                .neq("id", appt.id)
+                .lt("starts_at", newEnd.toISOString())
+                .gt("ends_at", newStart.toISOString())
+                .not("status", "in", "(cancelled,no_show)");
+              if (appt.dentist_id) clashQuery = clashQuery.eq("dentist_id", appt.dentist_id);
+              const { data: clash } = await clashQuery.limit(1);
+              if (clash && clash.length > 0)
+                return `ERROR: la cita NO fue reprogramada. El horario ${nTime} del ${nDate} ya está ocupado. Usa check_availability y ofrece otra hora.`;
+
+              const { error } = await admin
+                .from("appointments")
+                .update({
+                  starts_at: newStart.toISOString(),
+                  ends_at: newEnd.toISOString(),
+                  status: "scheduled",
+                })
+                .eq("id", appt.id);
+              if (error) {
+                console.error("[agent/reschedule]", error.message, { clinicId, apptId: appt.id });
+                return "ERROR: la cita NO fue reprogramada. Hubo un problema al guardar. Pide al paciente que llame a la clínica.";
+              }
+              ctx.manageSucceeded = true;
+              const old = apptWhen(appt.starts_at);
+              return `OK: cita reprogramada del ${old.date} ${old.time} al ${nDate} a las ${nTime}${
+                appt.dentist_name ? ` con ${appt.dentist_name}` : ""
+              }.`;
+            },
+          }),
+
+          cancel_appointment: tool({
+            description:
+              "Cancela la próxima cita del paciente. SIEMPRE confirma con el paciente antes de cancelar ('¿confirmas que deseas cancelar tu cita del ...?'). La respuesta empieza con 'OK:' si se canceló o 'ERROR:' si falló. NUNCA confirmes si empieza con ERROR.",
+            inputSchema: z.object({
+              patient_name: z.string().describe("Nombre completo del paciente"),
+              date: z
+                .string()
+                .optional()
+                .describe("Fecha YYYY-MM-DD de la cita a cancelar, si el paciente tiene varias"),
+            }),
+            execute: async ({ patient_name, date }) => {
+              ctx.manageAttempted = true;
+              const patientId = await resolvePatientId(
+                admin,
+                clinicId,
+                patientPhone,
+                patient_name,
+              );
+              let appts = await findUpcoming(patientId, patient_name);
+              if (date) {
+                const nDate = normalizeDate(date);
+                if (nDate) {
+                  const filtered = appts.filter((a) => apptWhen(a.starts_at).date === nDate);
+                  if (filtered.length > 0) appts = filtered;
+                }
+              }
+              if (appts.length === 0)
+                return "ERROR: la cita NO fue cancelada. No encontré ninguna cita próxima de este paciente. Pídele su nombre completo exacto y vuelve a intentar.";
+
+              const appt = appts[0];
+              const { error } = await admin
+                .from("appointments")
+                .update({ status: "cancelled" })
+                .eq("id", appt.id);
+              if (error) {
+                console.error("[agent/cancel]", error.message, { clinicId, apptId: appt.id });
+                return "ERROR: la cita NO fue cancelada. Hubo un problema al guardar. Pide al paciente que llame a la clínica.";
+              }
+              ctx.manageSucceeded = true;
+              const w = apptWhen(appt.starts_at);
+              return `OK: cita del ${w.date} a las ${w.time} cancelada. Si el paciente quiere reagendar en otro horario, usa reschedule_appointment o book_appointment.`;
+            },
+          }),
+        }
+      : {}),
   };
 }

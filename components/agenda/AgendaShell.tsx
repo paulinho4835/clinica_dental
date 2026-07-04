@@ -48,7 +48,7 @@ const ALL_DOCTORS = "__all__";
 // cuando el paciente no eligió doctor. Debe coincidir con AI_DENTIST de
 // lib/agent/tools.ts. Se ofrece como opción de filtro solo si hay citas así en
 // el rango visible, para que no queden invisibles en "Mi Agenda".
-const AI_DENTIST = "Inteligencia Artificial";
+const AI_DENTIST = "Asistente Virtual";
 
 export function AgendaShell({
   patients,
@@ -317,7 +317,7 @@ export function AgendaShell({
                     {d.full_name}
                   </option>
                 ))}
-              {hasAI && <option value={AI_DENTIST}>🧠 {AI_DENTIST}</option>}
+              {hasAI && <option value={AI_DENTIST}>{AI_DENTIST}</option>}
             </select>
           </div>
         )}

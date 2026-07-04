@@ -189,6 +189,22 @@ export async function applyAnamnesisInvitation(
         };
     }
 
+    // Evitar duplicados por celular: un número = un paciente (si es un familiar
+    // que comparte teléfono, regístralo a mano desde "Nuevo paciente").
+    if (p.phone) {
+      const { data: dupPhone } = await supabase
+        .from("patients")
+        .select("full_name")
+        .eq("clinic_id", profile.clinicId)
+        .eq("phone", p.phone)
+        .limit(1)
+        .maybeSingle();
+      if (dupPhone)
+        return {
+          error: `El celular ${p.phone} ya pertenece a ${dupPhone.full_name}. Revísalo manualmente antes de crear otra ficha con ese número.`,
+        };
+    }
+
     const { data: created, error: createError } = await supabase
       .from("patients")
       .insert({
@@ -209,6 +225,18 @@ export async function applyAnamnesisInvitation(
     if (createError || !created)
       return { error: createError?.message ?? "No se pudo crear el paciente." };
     patientId = created.id;
+
+    // Vincular las citas futuras que quedaron sin ficha (agendadas por el
+    // Asistente Virtual antes de esta aprobación) para que recordatorios y
+    // agenda apunten a la ficha recién creada. Coincidencia por nombre exacto
+    // (ilike sin comodines = igualdad sin distinguir mayúsculas).
+    await supabase
+      .from("appointments")
+      .update({ patient_id: patientId })
+      .eq("clinic_id", profile.clinicId)
+      .is("patient_id", null)
+      .ilike("patient_name", p.full_name)
+      .gte("starts_at", new Date().toISOString());
   } else {
     if (!patientId) return { error: "La solicitud no tiene paciente asociado." };
     const { error: patientError } = await supabase

@@ -27,6 +27,7 @@ export type FeatureKey =
   | "wa_masivo"
   | "aviso_doctores"
   | "agente_ia"
+  | "agente_ia_t2"
   | "logo"
   | "periodontograma";
 
@@ -50,7 +51,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
   { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "inventario", label: "Inventario", href: "/inventario" },
-  { key: "caja", label: "Dashboard financiero", href: "/caja" },
+  { key: "caja", label: "Dashboard", href: "/caja" },
   { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
   { key: "auditoria", label: "Auditoría", href: "/auditoria" },
@@ -73,6 +74,10 @@ export const FEATURES: FeatureMeta[] = [
   // recepción virtual atiende, consulta disponibilidad y crea citas; deriva a
   // un humano (pausa) para todo lo demás. Opt-in.
   { key: "agente_ia", label: "Agente de IA (WhatsApp)", href: "/agenda", optIn: true },
+  // Addon premium (T2) del agente de IA: además de agendar, el agente puede
+  // consultar, reprogramar y cancelar citas existentes por WhatsApp. Solo tiene
+  // efecto si "agente_ia" también está encendido.
+  { key: "agente_ia_t2", label: "Agente de IA T2 (gestiona citas)", href: "/agenda", optIn: true },
   // Addon: subir el logo de la clínica para que aparezca en los documentos
   // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
   { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },

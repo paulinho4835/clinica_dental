@@ -50,14 +50,31 @@ export async function POST(req: NextRequest) {
   if (!features.agente_ia) {
     return NextResponse.json({ reply: null, skipped: "addon_off" });
   }
+  // T2 (premium): habilita consultar/reprogramar/cancelar citas existentes.
+  // Con solo T1 el agente únicamente agenda citas nuevas y deriva el resto.
+  const canManage = features.agente_ia_t2;
 
-  // Conversación existente (historial + estado).
-  const { data: convo } = await admin
-    .from("wa_conversations")
-    .select("status, messages, paused_at")
-    .eq("clinic_id", clinicId)
-    .eq("phone", phone)
-    .maybeSingle();
+  // Conversación existente (historial + estado) y ficha ya registrada con este
+  // número (si el teléfono es verificado): con ficha conocida el agente saluda
+  // por nombre y NO pide carnet; sin ella exige carnet para dejar la solicitud
+  // de registro pendiente en "Registros entrantes".
+  const [{ data: convo }, { data: knownPatient }] = await Promise.all([
+    admin
+      .from("wa_conversations")
+      .select("status, messages, paused_at")
+      .eq("clinic_id", clinicId)
+      .eq("phone", phone)
+      .maybeSingle(),
+    phoneVerified
+      ? admin
+          .from("patients")
+          .select("full_name")
+          .eq("clinic_id", clinicId)
+          .eq("phone", phone)
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   // En pausa: el humano atiende. Solo se reanuda cuando pasan 24h desde la
   // derivación (el paciente vuelve a escribir después). Mientras tanto, silencio.
@@ -82,6 +99,8 @@ export async function POST(req: NextRequest) {
       history,
       userText: text,
       patientPhone: phoneVerified ? phone : undefined,
+      canManage,
+      knownPatientName: knownPatient?.full_name ?? undefined,
     });
     reply = out.reply;
     handoff = out.handoff;

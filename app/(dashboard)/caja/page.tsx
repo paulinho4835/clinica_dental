@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireNavAccess } from "@/lib/guard";
+import { getProfile } from "@/lib/auth";
+import { getClinicFeatures } from "@/lib/superadmin";
 import { bs, boliviaTodayISO } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AgentPerformance } from "@/components/dashboard/AgentPerformance";
 import {
   RevenueChart,
   type DailyPoint,
@@ -18,6 +21,10 @@ const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.
 export default async function FinanceDashboardPage() {
   await requireNavAccess("caja");
   const supabase = await createClient();
+  const [features, profile] = await Promise.all([
+    getClinicFeatures(),
+    getProfile(),
+  ]);
 
   const [by, bm, bd] = boliviaTodayISO().split("-").map(Number);
   const now = new Date(by, bm - 1, bd);
@@ -224,12 +231,80 @@ export default async function FinanceDashboardPage() {
   }
   const noShowRate = monthApptsTotal > 0 ? (monthApptsNoShow / monthApptsTotal) * 100 : 0;
 
+  // Desempeño del Asistente Virtual (agente de IA por WhatsApp). Se mide por la
+  // columna appointments.source = 'agente' (citas que agendó) y
+  // anamnesis_invitations.source = 'agente' (registros de pacientes que trajo).
+  // Solo se calcula si la clínica tiene el addon encendido. Los rangos de "hoy"
+  // y "este mes" se anclan a hora Bolivia (UTC-4), no al UTC del servidor.
+  let agentStats:
+    | null
+    | {
+        bookedToday: number;
+        bookedMonth: number;
+        bookedTotal: number;
+        intakesTotal: number;
+        intakesApproved: number;
+        intakesPending: number;
+      } = null;
+
+  if (features.agente_ia && profile?.clinicId) {
+    const clinicId = profile.clinicId;
+    const todayISO = boliviaTodayISO();
+    const bDayStart = new Date(`${todayISO}T00:00:00-04:00`).toISOString();
+    const bMonthStart = new Date(
+      `${todayISO.slice(0, 7)}-01T00:00:00-04:00`,
+    ).toISOString();
+
+    const [bookedTodayRes, bookedMonthRes, bookedTotalRes, intakeRes] =
+      await Promise.all([
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId)
+          .eq("source", "agente")
+          .gte("created_at", bDayStart),
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId)
+          .eq("source", "agente")
+          .gte("created_at", bMonthStart),
+        supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinicId)
+          .eq("source", "agente"),
+        supabase
+          .from("anamnesis_invitations")
+          .select("reviewed_at, review_action")
+          .eq("clinic_id", clinicId)
+          .eq("source", "agente"),
+      ]);
+
+    const intakes = (intakeRes.data ?? []) as {
+      reviewed_at: string | null;
+      review_action: string | null;
+    }[];
+
+    agentStats = {
+      bookedToday: bookedTodayRes.count ?? 0,
+      bookedMonth: bookedMonthRes.count ?? 0,
+      bookedTotal: bookedTotalRes.count ?? 0,
+      intakesTotal: intakes.length,
+      intakesApproved: intakes.filter((i) => i.review_action === "applied")
+        .length,
+      intakesPending: intakes.filter((i) => !i.reviewed_at).length,
+    };
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard financiero"
+        title="Dashboard"
         subtitle="Demanda de servicios e ingresos en el tiempo."
       />
+
+      {agentStats && <AgentPerformance stats={agentStats} />}
 
       {/* Insights & Alertas */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
