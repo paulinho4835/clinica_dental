@@ -27,6 +27,15 @@ function getSession(clinicId: string): SessionState {
   return sessions.get(clinicId)!;
 }
 
+const randomBetween = (min: number, max: number) =>
+  Math.floor(min + Math.random() * (max - min));
+
+// Simula el ritmo de un humano leyendo y tecleando: primero una pausa (como
+// si leyera el mensaje), luego el indicador "escribiendo...", y recién
+// entonces el mensaje. Un bot que contesta instantáneo y sin "escribiendo" es
+// una señal de comportamiento no humano que los sistemas antispam de Meta sí
+// evalúan; esto no elimina el riesgo de usar un cliente no oficial (Baileys),
+// pero reduce esa señal puntual y de paso mejora la experiencia del paciente.
 async function sendMessage(clinicId: string, to: string, message: string) {
   const s = getSession(clinicId);
   if (!s.sock || !s.isConnected) throw new Error("WhatsApp no conectado");
@@ -36,6 +45,21 @@ async function sendMessage(clinicId: string, to: string, message: string) {
   // enrutan como @s.whatsapp.net; reconstruir el JID a mano hacía que la
   // respuesta se enviara a un destino inexistente y nunca llegara.
   const jid = to.includes("@") ? to : `${to}@s.whatsapp.net`;
+
+  await sleep(randomBetween(400, 1400));
+  try {
+    await s.sock.sendPresenceUpdate("composing", jid);
+  } catch {
+    // Si falla el presence update no bloqueamos el envío del mensaje.
+  }
+  const typingMs = Math.min(6000, Math.max(1000, message.length * 35));
+  await sleep(randomBetween(typingMs * 0.7, typingMs));
+  try {
+    await s.sock.sendPresenceUpdate("paused", jid);
+  } catch {
+    // idem
+  }
+
   await s.sock.sendMessage(jid, { text: message });
 }
 
