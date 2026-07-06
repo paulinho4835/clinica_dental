@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, Inbox, Headset } from "lucide-react";
+import { UserPlus, Inbox, Headset, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { NewPatientInviteModal } from "@/components/patients/NewPatientInviteModal";
 import { ReviewAnamnesisModal } from "@/components/patients/ReviewAnamnesisModal";
+import { deletePendingIntakeInvitation } from "@/app/(dashboard)/pacientes/anamnesis-invitation-actions";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import type { Anamnesis } from "@/lib/schemas/anamnesis";
 import type { PatientIntake } from "@/lib/schemas/patient-intake";
 
@@ -33,8 +36,30 @@ export function IncomingIntakesPanel({
   const router = useRouter();
   const [inviting, setInviting] = useState(false);
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const reviewItem = ready.find((r) => r.id === reviewId) ?? null;
+
+  async function handleDelete(item: IntakeItem) {
+    const who = item.contactName || item.contactPhone || "este paciente";
+    const ok = await confirm({
+      title: "Eliminar registro pendiente",
+      message: `Se eliminará el enlace de registro enviado a ${who} y dejará de funcionar. ¿Continuar?`,
+      confirmText: "Eliminar",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDeletingId(item.id);
+    const res = await deletePendingIntakeInvitation(item.id);
+    setDeletingId(null);
+    if (res.error) {
+      toast(res.error, "error");
+      return;
+    }
+    toast("Registro pendiente eliminado.");
+    startTransition(() => router.refresh());
+  }
 
   return (
     <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -90,10 +115,36 @@ export function IncomingIntakesPanel({
       )}
 
       {awaiting.length > 0 && (
-        <p className="mt-3 text-xs text-slate-400">
-          {awaiting.length} enlace{awaiting.length !== 1 ? "s" : ""} enviado
-          {awaiting.length !== 1 ? "s" : ""} esperando que el paciente complete.
-        </p>
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-slate-400">
+            {awaiting.length} enlace{awaiting.length !== 1 ? "s" : ""} enviado
+            {awaiting.length !== 1 ? "s" : ""} esperando que el paciente complete.
+          </p>
+          {awaiting.map((a) => (
+            <div
+              key={a.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm text-slate-600">
+                  {a.contactName || "Sin nombre"}
+                </p>
+                <p className="truncate text-xs text-slate-400">
+                  {a.contactPhone ?? "Sin teléfono"} · esperando respuesta
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDelete(a)}
+                disabled={deletingId === a.id}
+                title="Eliminar este registro pendiente"
+                className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       {inviting && (

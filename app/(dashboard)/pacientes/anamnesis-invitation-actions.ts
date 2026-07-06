@@ -266,6 +266,43 @@ export async function applyAnamnesisInvitation(
   return { ok: true, patientId: patientId ?? undefined };
 }
 
+// Elimina un enlace de alta PENDIENTE (el paciente nunca lo completó). Borra la
+// fila, con lo que el enlace /h/<token> queda invalidado al instante. No aplica
+// a solicitudes ya completadas: esas se resuelven con Revisar → aplicar/descartar.
+export async function deletePendingIntakeInvitation(
+  invitationId: string,
+): Promise<ReviewState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!can(profile.role, "patients:write"))
+    return { error: "Sin permiso para eliminar este registro." };
+
+  const supabase = await createClient();
+
+  const { data: invite } = await supabase
+    .from("anamnesis_invitations")
+    .select("id, kind, completed_at")
+    .eq("id", invitationId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+
+  if (!invite) return { error: "Registro no encontrado." };
+  if (invite.kind !== "new")
+    return { error: "Este enlace pertenece a un paciente existente." };
+  if (invite.completed_at)
+    return { error: "El paciente ya completó este registro: revísalo en la lista." };
+
+  const { error } = await supabase
+    .from("anamnesis_invitations")
+    .delete()
+    .eq("id", invite.id)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/pacientes");
+  return { ok: true };
+}
+
 // Descarta la propuesta del paciente sin crear/actualizar nada.
 export async function discardAnamnesisInvitation(
   invitationId: string,
