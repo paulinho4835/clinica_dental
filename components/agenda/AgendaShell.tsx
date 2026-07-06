@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope } from "lucide-react";
-import { STEP_MIN } from "@/lib/agenda";
+import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
 import { MonthView } from "./MonthView";
@@ -255,6 +255,62 @@ export function AgendaShell({
         })
       : base.toLocaleDateString("es-BO", { month: "long", year: "numeric" });
 
+  // Botón explícito "+ Nueva cita": antes solo se podía agendar haciendo clic
+  // en una casilla vacía de las vistas Día/Semana, lo cual no es obvio (en Mes
+  // no existía ninguna forma). Calcula una hora de inicio razonable: si el día
+  // de referencia es hoy, la próxima media hora libre dentro del horario de
+  // atención; si es otro día, las 9:00.
+  function openNewAppt() {
+    const baseDay = view === "month" && selectedDay ? selectedDay : date;
+    const day = new Date(baseDay + "T00:00:00");
+    const isToday = dayKey(day) === dayKey(new Date());
+
+    let start: Date;
+    if (isToday) {
+      const now = new Date();
+      const roundedMin = Math.ceil(now.getMinutes() / STEP_MIN) * STEP_MIN;
+      start = new Date(day);
+      start.setHours(now.getHours(), roundedMin, 0, 0);
+      const openTime = new Date(day);
+      openTime.setHours(OPEN_HOUR, 0, 0, 0);
+      const lastSlot = new Date(day);
+      lastSlot.setHours(CLOSE_HOUR, -STEP_MIN, 0, 0);
+      if (start < openTime) start = openTime;
+      if (start > lastSlot) start = lastSlot;
+    } else {
+      start = new Date(day);
+      start.setHours(Math.min(9, CLOSE_HOUR - 1), 0, 0, 0);
+    }
+    const end = new Date(start.getTime() + STEP_MIN * 60_000);
+    setModal({ start, end });
+  }
+
+  // Clic en una fecha del calendario (vista Mes): además de seleccionar el día,
+  // abre directamente el formulario de nueva cita — sin pasos intermedios ni
+  // botones extra. Hora propuesta: si el día es hoy, la próxima media hora
+  // dentro del horario de atención; si es otro día, las 9:00. La hora se puede
+  // cambiar en el propio formulario.
+  function handleSelectDay(k: string) {
+    setSelectedDay(k);
+    if (!canWrite) return;
+    const start = new Date(k + "T00:00:00");
+    if (k === dayKey(new Date())) {
+      const now = new Date();
+      start.setHours(
+        now.getHours(),
+        Math.ceil(now.getMinutes() / STEP_MIN) * STEP_MIN,
+        0,
+        0,
+      );
+      if (start.getHours() < OPEN_HOUR) start.setHours(OPEN_HOUR, 0, 0, 0);
+      if (start.getHours() >= CLOSE_HOUR)
+        start.setHours(CLOSE_HOUR - 1, 60 - STEP_MIN, 0, 0);
+    } else {
+      start.setHours(9, 0, 0, 0);
+    }
+    setModal({ start, end: new Date(start.getTime() + STEP_MIN * 60_000) });
+  }
+
   // Compartido por todas las vistas que muestran DayView
   const dayViewHandlers = {
     onPick: (start: Date, end: Date, dentist?: string) =>
@@ -407,7 +463,7 @@ export function AgendaShell({
             month={date}
             byDay={visibleByDay}
             selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
+            onSelectDay={handleSelectDay}
           />
           {selectedDay && (
             <DayView
