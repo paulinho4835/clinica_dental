@@ -265,7 +265,9 @@ export function ApptModal({
           <legend className="px-1 text-xs font-medium text-slate-500">
             Cobro (opcional)
           </legend>
-          <div className="grid grid-cols-2 gap-3">
+          {/* items-end: en móvil una etiqueta puede ocupar 2 líneas y la otra 1;
+              alineando las celdas abajo, los inputs siempre quedan parejos. */}
+          <div className="grid grid-cols-2 items-end gap-3">
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Cotización / consulta (Bs)</span>
               <input
