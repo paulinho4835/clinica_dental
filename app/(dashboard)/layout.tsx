@@ -6,6 +6,7 @@ import { canSeeNav, type Role } from "@/lib/rbac";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
+import { InstallAppBanner } from "@/components/ui/InstallAppBanner";
 import { getInitials } from "@/lib/format";
 import { ExitPreviewBanner } from "@/components/superadmin/ExitPreviewBanner";
 import { TermsGate } from "@/components/legal/TermsGate";
@@ -145,6 +146,7 @@ export default async function DashboardLayout({
         <main className="flex-1 p-4 md:p-8">{children}</main>
         <Toaster />
         <ConfirmHost />
+        <InstallAppBanner />
       </div>
     </div>
   );
