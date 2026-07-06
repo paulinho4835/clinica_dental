@@ -53,6 +53,10 @@ export async function POST(req: NextRequest) {
   // T2 (premium): habilita consultar/reprogramar/cancelar citas existentes.
   // Con solo T1 el agente únicamente agenda citas nuevas y deriva el resto.
   const canManage = features.agente_ia_t2;
+  // T3 (premium): habilita check_availability (consulta real de la agenda) al
+  // agendar y reprogramar. Sin T3 el agente agenda/reprograma con la hora que
+  // pida el paciente y solo avisa si choca.
+  const canCheckAvailability = features.agente_ia_t3;
 
   // Conversación existente (historial + estado) y ficha ya registrada con este
   // número (si el teléfono es verificado): con ficha conocida el agente saluda
@@ -88,8 +92,9 @@ export async function POST(req: NextRequest) {
 
   const history = (Array.isArray(convo?.messages) ? convo!.messages : []) as AgentMessage[];
 
-  // Correr el agente. Si el modelo falla, no rompemos: silencio para que el
-  // equipo pueda atender manualmente.
+  // Correr el agente. Si el modelo falla, el paciente recibe un mensaje neutro
+  // (nunca silencio) y el error NO se guarda en la memoria: el próximo mensaje
+  // retoma desde el último estado bueno de la conversación.
   let reply: string;
   let handoff: boolean;
   try {
@@ -100,13 +105,21 @@ export async function POST(req: NextRequest) {
       userText: text,
       patientPhone: phoneVerified ? phone : undefined,
       canManage,
+      canCheckAvailability,
       knownPatientName: knownPatient?.full_name ?? undefined,
     });
     reply = out.reply;
     handoff = out.handoff;
   } catch (e) {
     console.error("[agent] runAgent error:", e);
-    return NextResponse.json({ reply: null, error: "agent_error" }, { status: 200 });
+    return NextResponse.json(
+      {
+        reply:
+          "Disculpa, tuve un inconveniente técnico al procesar tu mensaje. ¿Podrías escribirme de nuevo en un momento? 🙏",
+        error: "agent_error",
+      },
+      { status: 200 },
+    );
   }
 
   // Guardar memoria + estado.

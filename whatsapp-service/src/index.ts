@@ -11,6 +11,18 @@ import pino from "pino";
 import "dotenv/config";
 import { processReminders } from "./reminders.js";
 
+// Red de seguridad del proceso: Baileys lanza promesas sin capturar (ej.
+// "Timed Out" de sendPassiveIq durante una reconexión) que con Node moderno
+// MATAN el proceso entero — y con él todas las sesiones de todas las clínicas.
+// Visto en real: el servicio moría en silencio y el agente dejaba de responder.
+// Se registra y se sigue; la reconexión de connection.update se encarga del resto.
+process.on("unhandledRejection", (err) => {
+  console.error("[proceso] unhandledRejection (ignorada para no morir):", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[proceso] uncaughtException (ignorada para no morir):", err);
+});
+
 // ── Multi-session state ────────────────────────────────────────────────────
 type SessionState = {
   sock: ReturnType<typeof makeWASocket> | null;
@@ -36,9 +48,22 @@ const randomBetween = (min: number, max: number) =>
 // una señal de comportamiento no humano que los sistemas antispam de Meta sí
 // evalúan; esto no elimina el riesgo de usar un cliente no oficial (Baileys),
 // pero reduce esa señal puntual y de paso mejora la experiencia del paciente.
+// Espera (hasta maxMs) a que la sesión esté conectada. La conexión de Baileys
+// se cae y reconecta sola con frecuencia; con la simulación de tipeo (varios
+// segundos entre generar la respuesta y enviarla) es común que el envío caiga
+// justo en una ventana de reconexión — sin esta espera, la respuesta se perdía.
+async function waitForConnection(s: SessionState, maxMs: number): Promise<boolean> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (s.sock && s.isConnected) return true;
+    await sleep(300);
+  }
+  return Boolean(s.sock && s.isConnected);
+}
+
 async function sendMessage(clinicId: string, to: string, message: string) {
   const s = getSession(clinicId);
-  if (!s.sock || !s.isConnected) throw new Error("WhatsApp no conectado");
+  if (!(await waitForConnection(s, 15000))) throw new Error("WhatsApp no conectado");
   // `to` puede ser un número pelado (recordatorios/bulk) o un JID completo
   // (respuestas del agente). Hay que contestar al MISMO remoteJid del mensaje
   // entrante: WhatsApp ahora usa identificadores @lid (privacidad) que NO se
@@ -48,19 +73,30 @@ async function sendMessage(clinicId: string, to: string, message: string) {
 
   await sleep(randomBetween(400, 1400));
   try {
-    await s.sock.sendPresenceUpdate("composing", jid);
+    await s.sock!.sendPresenceUpdate("composing", jid);
   } catch {
     // Si falla el presence update no bloqueamos el envío del mensaje.
   }
   const typingMs = Math.min(6000, Math.max(1000, message.length * 35));
   await sleep(randomBetween(typingMs * 0.7, typingMs));
   try {
-    await s.sock.sendPresenceUpdate("paused", jid);
+    await s.sock!.sendPresenceUpdate("paused", jid);
   } catch {
     // idem
   }
 
-  await s.sock.sendMessage(jid, { text: message });
+  // La conexión pudo caerse DURANTE la simulación de tipeo: volver a esperarla
+  // y reintentar una vez. OJO: tras reconectar, s.sock es un socket NUEVO —
+  // siempre releer s.sock, nunca capturar la referencia vieja.
+  try {
+    if (!(await waitForConnection(s, 15000))) throw new Error("WhatsApp no conectado");
+    await s.sock!.sendMessage(jid, { text: message });
+  } catch (e) {
+    console.error(`[${clinicId}] envío falló, reintentando en 3s:`, e);
+    await sleep(3000);
+    if (!(await waitForConnection(s, 15000))) throw new Error("WhatsApp no conectado");
+    await s.sock!.sendMessage(jid, { text: message });
+  }
 }
 
 async function connect(clinicId: string): Promise<void> {
@@ -133,7 +169,13 @@ async function connect(clinicId: string): Promise<void> {
           return;
         }
         console.log(`[${clinicId}] Conexión perdida, reconectando...`);
-        connect(clinicId);
+        // Pausa breve antes de reconectar: reconectar en caliente sin espera
+        // producía un bucle de caídas (aleteo) y timeouts internos de Baileys.
+        setTimeout(() => {
+          connect(clinicId).catch((e) =>
+            console.error(`[${clinicId}] reconexión falló:`, e),
+          );
+        }, 2000);
       }
     }
   );
@@ -194,6 +236,10 @@ const AGENT_SECRET = process.env.AGENT_WEBHOOK_SECRET ?? "";
 
 // Reenvía un mensaje entrante al webhook del agente y, si devuelve respuesta, la
 // manda de vuelta al paciente. Cualquier error se registra sin romper el socket.
+// La llamada al webhook se reintenta hasta 3 veces con espera: el app (Next.js
+// dev o Vercel) puede reiniciarse o cortar la conexión a mitad de una llamada
+// larga (ECONNRESET / HeadersTimeout) — sin reintento el mensaje del paciente
+// se perdía en silencio.
 async function handleIncomingMessage(
   clinicId: string,
   jid: string,
@@ -201,26 +247,34 @@ async function handleIncomingMessage(
   text: string,
   phoneVerified: boolean,
 ) {
-  try {
-    const res = await fetch(`${APP_URL}/api/whatsapp/agent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(AGENT_SECRET ? { "x-agent-secret": AGENT_SECRET } : {}),
-      },
-      body: JSON.stringify({ clinicId, from: phone, text, phoneVerified }),
-    });
-    if (!res.ok) {
-      console.error(`[${clinicId}] agente respondió HTTP ${res.status}`);
+  const MAX_TRIES = 3;
+  for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+    try {
+      const res = await fetch(`${APP_URL}/api/whatsapp/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(AGENT_SECRET ? { "x-agent-secret": AGENT_SECRET } : {}),
+        },
+        body: JSON.stringify({ clinicId, from: phone, text, phoneVerified }),
+      });
+      if (!res.ok) {
+        console.error(`[${clinicId}] agente respondió HTTP ${res.status}`);
+        return;
+      }
+      const body = (await res.json()) as { reply?: string | null };
+      if (body.reply && body.reply.trim()) {
+        // Responder al JID original (soporta @lid), no al número reconstruido.
+        await sendMessage(clinicId, jid, body.reply.trim());
+      }
       return;
+    } catch (e) {
+      console.error(
+        `[${clinicId}] error llamando al agente (intento ${attempt}/${MAX_TRIES}):`,
+        e,
+      );
+      if (attempt < MAX_TRIES) await sleep(10000);
     }
-    const body = (await res.json()) as { reply?: string | null };
-    if (body.reply && body.reply.trim()) {
-      // Responder al JID original (soporta @lid), no al número reconstruido.
-      await sendMessage(clinicId, jid, body.reply.trim());
-    }
-  } catch (e) {
-    console.error(`[${clinicId}] error llamando al agente:`, e);
   }
 }
 

@@ -28,6 +28,7 @@ export type FeatureKey =
   | "aviso_doctores"
   | "agente_ia"
   | "agente_ia_t2"
+  | "agente_ia_t3"
   | "logo"
   | "periodontograma";
 
@@ -78,6 +79,12 @@ export const FEATURES: FeatureMeta[] = [
   // consultar, reprogramar y cancelar citas existentes por WhatsApp. Solo tiene
   // efecto si "agente_ia" también está encendido.
   { key: "agente_ia_t2", label: "Agente de IA T2 (gestiona citas)", href: "/agenda", optIn: true },
+  // Addon premium (T3) del agente de IA: consulta disponibilidad real de la
+  // agenda (check_availability) antes de agendar o reprogramar, y muestra al
+  // paciente los horarios libres formateados. Sin T3, el agente agenda "a
+  // ciegas" con la hora que el paciente pida y solo avisa si choca. Independiente
+  // de T2: T2 sin T3 reprograma directo (falla si choca, igual que agendar).
+  { key: "agente_ia_t3", label: "Agente de IA T3 (consulta disponibilidad real)", href: "/agenda", optIn: true },
   // Addon: subir el logo de la clínica para que aparezca en los documentos
   // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
   { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },

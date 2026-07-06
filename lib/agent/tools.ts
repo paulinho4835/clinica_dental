@@ -22,8 +22,9 @@ export type AgentContext = {
   manageSucceeded?: boolean;
 };
 
-// Roles que ejercen como odontólogo (pueden recibir citas).
-const DOCTOR_ROLES = ["odontologo_general", "especialista", "admin"];
+// Roles que ejercen como odontólogo (pueden recibir citas). Incluye "colega"
+// (mismo criterio que agenda/cuentas/mis-trabajos: un colega es un doctor más).
+const DOCTOR_ROLES = ["odontologo_general", "especialista", "admin", "colega"];
 
 // Etiqueta con la que se guardan las citas agendadas por el agente cuando el
 // paciente NO pidió un doctor específico. Antes se asignaba el primer perfil por
@@ -45,6 +46,26 @@ function namesMatch(a: string, b: string): boolean {
   const na = norm(a);
   const nb = norm(b);
   return na.length > 0 && nb.length > 0 && (na.includes(nb) || nb.includes(na));
+}
+
+// El paciente (y el LLM) anteponen el título al nombre del doctor ("Dr. Sujeto
+// Prueba") aunque el perfil se llame "Sujeto Prueba" a secas: un ILIKE textual
+// no coincide y la cita fallaba. Se normaliza quitando títulos (dr/dra/doctor/
+// doctora) y tildes en AMBOS lados, y se compara por contención.
+function normDoctorName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\b(dra?|doctora?)\.?(\s+|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function doctorNamesMatch(profileName: string, requested: string): boolean {
+  const a = normDoctorName(profileName);
+  const b = normDoctorName(requested);
+  return a.length > 0 && b.length > 0 && (a.includes(b) || b.includes(a));
 }
 
 // Busca la ficha EXISTENTE del paciente. NO crea fichas: el alta la aprueba
@@ -226,14 +247,23 @@ function apptWhen(iso: string): { date: string; time: string } {
 // contexto mutable. Misma lógica de disponibilidad/reserva que el webhook de
 // Vapi, para que ambos canales se comporten igual. `canManage` (addon T2)
 // agrega las tools de gestión de citas existentes (consultar/reprogramar/
-// cancelar); con solo T1 el agente únicamente agenda.
+// cancelar); con solo T1 el agente únicamente agenda. `canCheckAvailability`
+// (addon T3) agrega check_availability: sin T3 el agente agenda/reprograma
+// "a ciegas" con la hora que pida el paciente y solo avisa si choca.
 export function buildAgentTools(
   clinicId: string,
   ctx: AgentContext,
   patientPhone?: string,
   canManage?: boolean,
+  canCheckAvailability?: boolean,
 ) {
   const admin = createAdminClient();
+  const hasAvailability = canCheckAvailability ?? false;
+  // Texto que se agrega a los errores de choque de horario: solo tiene sentido
+  // mencionar check_availability si esa tool existe en este tier.
+  const availabilityHint = hasAvailability
+    ? " Usa check_availability y ofrece otra hora."
+    : " Pide al paciente otro horario e intenta de nuevo.";
 
   // Próximas citas activas del paciente (por patient_id o nombre), la más
   // cercana primero. Cascada: 1º patient_id (ficha resuelta), 2º patient_name
@@ -271,7 +301,12 @@ export function buildAgentTools(
     get_current_date: tool({
       description:
         "Devuelve la fecha de hoy en Bolivia, el día de la semana, y una lista de los próximos 14 días con su fecha y nombre de día. Úsala SIEMPRE para resolver fechas relativas ('hoy', 'mañana', 'el viernes') ANTES de consultar disponibilidad o agendar. NUNCA calcules fechas relativas a mano (sumando/restando días): busca el día pedido en la lista `upcoming` y usa exactamente ese `date`.",
-      inputSchema: z.object({}),
+      // Groq/Llama (y otros modelos vía tool-calling estilo OpenAI) a veces
+      // mandan "arguments": null en vez de "{}" para funciones sin parámetros.
+      // z.object({}).parse(null) falla, la validación se rechaza en silencio,
+      // y el modelo queda atascado reintentando la misma llamada hasta agotar
+      // stepCountIs. El preprocess normaliza null/undefined a {} antes de validar.
+      inputSchema: z.preprocess((v) => v ?? {}, z.object({})),
       execute: async () => {
         const now = new Date();
         const todayIso = now.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
@@ -297,8 +332,13 @@ export function buildAgentTools(
 
     get_doctors: tool({
       description:
-        "Lista los odontólogos disponibles de la clínica. Úsala si el paciente pregunta por un doctor o quiere elegir con quién atenderse.",
-      inputSchema: z.object({}),
+        "Verifica INTERNAMENTE los odontólogos de la clínica. Úsala SOLO para comprobar que el doctor que el paciente mencionó por su nombre existe. NUNCA muestres ni enumeres esta lista al paciente.",
+      // Groq/Llama (y otros modelos vía tool-calling estilo OpenAI) a veces
+      // mandan "arguments": null en vez de "{}" para funciones sin parámetros.
+      // z.object({}).parse(null) falla, la validación se rechaza en silencio,
+      // y el modelo queda atascado reintentando la misma llamada hasta agotar
+      // stepCountIs. El preprocess normaliza null/undefined a {} antes de validar.
+      inputSchema: z.preprocess((v) => v ?? {}, z.object({})),
       execute: async () => {
         const { data } = await admin
           .from("profiles")
@@ -311,43 +351,53 @@ export function buildAgentTools(
       },
     }),
 
-    check_availability: tool({
-      description:
-        "Consulta los horarios libres de un día. Pasa la fecha como YYYY-MM-DD (resuélvela antes con get_current_date). Devuelve la lista de horas disponibles.",
-      inputSchema: z.object({
-        date: z.string().describe("Fecha en formato YYYY-MM-DD"),
-        doctor_name: z
-          .string()
-          .optional()
-          .describe("Nombre del doctor si el paciente pidió uno específico"),
-      }),
-      execute: async ({ date, doctor_name }) => {
-        const d = normalizeDate(date) ?? date;
-        const allSlots = buildSlots(d);
-        let query = admin
-          .from("appointments")
-          .select("starts_at, ends_at, dentist_name")
-          .eq("clinic_id", clinicId)
-          .gte("starts_at", `${d}T00:00:00-04:00`)
-          .lte("starts_at", `${d}T23:59:59-04:00`)
-          .not("status", "in", "(cancelled,no_show)");
-        if (doctor_name?.trim()) query = query.ilike("dentist_name", `%${doctor_name.trim()}%`);
-        const { data: booked } = await query;
-        // Con slots de 30 min y citas de 60, la comparación por hora exacta no
-        // basta: una cita a las 10:00 también debe bloquear el slot 10:30.
-        // Se filtra por solapamiento de intervalos [slot, slot+60).
-        const intervals = (booked ?? []).map((a) => ({
-          start: new Date(a.starts_at).getTime(),
-          end: new Date(a.ends_at).getTime(),
-        }));
-        const available = allSlots.filter((s) => {
-          const slotStart = new Date(`${d}T${s}:00-04:00`).getTime();
-          const slotEnd = slotStart + 60 * 60 * 1000;
-          return !intervals.some((iv) => iv.start < slotEnd && iv.end > slotStart);
-        });
-        return { date: d, available };
-      },
-    }),
+    // ── Tool T3 (addon agente_ia_t3): consulta de disponibilidad real ───────
+    ...(hasAvailability
+      ? {
+          check_availability: tool({
+            description:
+              "Consulta los horarios libres de un día. Pasa la fecha como YYYY-MM-DD (resuélvela antes con get_current_date). Devuelve la lista de horas disponibles.",
+            inputSchema: z.object({
+              date: z.string().describe("Fecha en formato YYYY-MM-DD"),
+              doctor_name: z
+                .string()
+                .optional()
+                .describe("Nombre del doctor si el paciente pidió uno específico"),
+            }),
+            execute: async ({ date, doctor_name }) => {
+              const d = normalizeDate(date) ?? date;
+              const allSlots = buildSlots(d);
+              const { data: allBooked } = await admin
+                .from("appointments")
+                .select("starts_at, ends_at, dentist_name")
+                .eq("clinic_id", clinicId)
+                .gte("starts_at", `${d}T00:00:00-04:00`)
+                .lte("starts_at", `${d}T23:59:59-04:00`)
+                .not("status", "in", "(cancelled,no_show)");
+              // El filtro por doctor se hace en JS con normalización de títulos
+              // y tildes ("Dr. Sujeto Prueba" ↔ "Sujeto Prueba"), no con ILIKE.
+              const booked = doctor_name?.trim()
+                ? (allBooked ?? []).filter((a) =>
+                    doctorNamesMatch(a.dentist_name ?? "", doctor_name),
+                  )
+                : allBooked;
+              // Con slots de 30 min y citas de 60, la comparación por hora exacta no
+              // basta: una cita a las 10:00 también debe bloquear el slot 10:30.
+              // Se filtra por solapamiento de intervalos [slot, slot+60).
+              const intervals = (booked ?? []).map((a) => ({
+                start: new Date(a.starts_at).getTime(),
+                end: new Date(a.ends_at).getTime(),
+              }));
+              const available = allSlots.filter((s) => {
+                const slotStart = new Date(`${d}T${s}:00-04:00`).getTime();
+                const slotEnd = slotStart + 60 * 60 * 1000;
+                return !intervals.some((iv) => iv.start < slotEnd && iv.end > slotStart);
+              });
+              return { date: d, available };
+            },
+          }),
+        }
+      : {}),
 
     lookup_patient: tool({
       description:
@@ -437,22 +487,25 @@ export function buildAgentTools(
         let assignedDoctor = AI_DENTIST;
         let assignedDoctorId: string | null = null;
         if (doctor_name?.trim()) {
-          const { data: named } = await admin
+          // Se traen todos los doctores y se compara en JS con normalización
+          // (títulos y tildes fuera): "Dr. Sujeto Prueba" debe encontrar al
+          // perfil "Sujeto Prueba" y "Dr Gomez" al perfil "Dr. Gómez".
+          const { data: doctors } = await admin
             .from("profiles")
             .select("id, full_name")
             .eq("clinic_id", clinicId)
             .in("role", DOCTOR_ROLES)
-            .eq("active", true)
-            .ilike("full_name", `%${doctor_name.trim()}%`)
-            .limit(1)
-            .maybeSingle();
+            .eq("active", true);
+          const named = (doctors ?? []).find((p) =>
+            doctorNamesMatch(p.full_name ?? "", doctor_name),
+          );
           if (named?.full_name) {
             assignedDoctor = named.full_name;
             assignedDoctorId = named.id;
           } else {
             // El paciente pidió un doctor que no existe: mejor avisar que
             // agendarlo en silencio con otro (o con la IA) — sería engañarlo.
-            return `ERROR: no encontré a un doctor llamado "${doctor_name.trim()}" en la clínica. Usa get_doctors para ver los nombres correctos y confírmalo con el paciente.`;
+            return `ERROR: no encontré a un doctor llamado "${doctor_name.trim()}" en la clínica. Pide al paciente que confirme o corrija el nombre del doctor. NO le muestres la lista de doctores.`;
           }
         }
 
@@ -474,7 +527,7 @@ export function buildAgentTools(
         if (clash && clash.length > 0) {
           return `ERROR: el horario ${nTime} del ${nDate} ya está ocupado${
             assignedDoctorId ? ` para ${assignedDoctor}` : ""
-          }. Usa check_availability y ofrece otra hora.`;
+          }.${availabilityHint}`;
         }
 
         // Resolver la ficha del paciente por su número de WhatsApp (identidad
@@ -596,8 +649,9 @@ export function buildAgentTools(
           }),
 
           reschedule_appointment: tool({
-            description:
-              "Reprograma la próxima cita del paciente a una nueva fecha y hora. Antes verifica disponibilidad del nuevo horario con check_availability y confirma el cambio con el paciente. La respuesta empieza con 'OK:' si se reprogramó o 'ERROR:' si falló. NUNCA confirmes si empieza con ERROR.",
+            description: hasAvailability
+              ? "Reprograma la próxima cita del paciente a una nueva fecha y hora. Antes verifica disponibilidad del nuevo horario con check_availability y confirma el cambio con el paciente. La respuesta empieza con 'OK:' si se reprogramó o 'ERROR:' si falló. NUNCA confirmes si empieza con ERROR."
+              : "Reprograma la próxima cita del paciente a una nueva fecha y hora. Confirma el nuevo día y hora con el paciente antes de llamar esta tool. La respuesta empieza con 'OK:' si se reprogramó o 'ERROR:' si falló (por ejemplo si el horario está ocupado). NUNCA confirmes si empieza con ERROR.",
             inputSchema: z.object({
               patient_name: z.string().describe("Nombre completo del paciente"),
               new_date: z.string().describe("Nueva fecha YYYY-MM-DD"),
@@ -662,7 +716,7 @@ export function buildAgentTools(
               if (appt.dentist_id) clashQuery = clashQuery.eq("dentist_id", appt.dentist_id);
               const { data: clash } = await clashQuery.limit(1);
               if (clash && clash.length > 0)
-                return `ERROR: la cita NO fue reprogramada. El horario ${nTime} del ${nDate} ya está ocupado. Usa check_availability y ofrece otra hora.`;
+                return `ERROR: la cita NO fue reprogramada. El horario ${nTime} del ${nDate} ya está ocupado.${availabilityHint}`;
 
               const { error } = await admin
                 .from("appointments")
