@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, isReceptionistLike } from "@/lib/rbac";
 
-export type ActionState = { error?: string; ok?: boolean };
+export type ActionState = { error?: string; ok?: boolean; warning?: string };
 
 const PaymentSchema = z.object({
   patient_id: z.string().uuid(),
@@ -98,5 +98,58 @@ export async function addPatientPayment(
   revalidatePath(`/pacientes/${d.patient_id}`);
   revalidatePath("/cuentas");
   revalidatePath("/mis-trabajos");
+  return { ok: true };
+}
+
+// Elimina un pago del paciente registrado por error. SOLO administradores.
+// Borra también el movimiento de crédito que el trigger payment_to_ledger creó
+// en account_movements, para no dejar el estado de cuenta descuadrado.
+export async function deletePatientPayment(paymentId: string): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (profile.role !== "admin")
+    return { error: "Solo un administrador puede eliminar pagos." };
+
+  const supabase = await createClient();
+
+  // Leer el pago antes de borrarlo: necesitamos el patient_id para revalidar y
+  // saber si tenía doctor (comisión asociada en Mis trabajos sin vínculo directo).
+  const { data: payment, error: readErr } = await supabase
+    .from("payments")
+    .select("id, patient_id, doctor_id")
+    .eq("id", paymentId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (readErr) return { error: readErr.message };
+  if (!payment) return { error: "No se encontró el pago (o ya fue eliminado)." };
+
+  // Movimiento de cuenta generado por el trigger (ref_type='payment').
+  await supabase
+    .from("account_movements")
+    .delete()
+    .eq("clinic_id", profile.clinicId)
+    .eq("ref_type", "payment")
+    .eq("ref_id", paymentId);
+
+  const { error: delErr } = await supabase
+    .from("payments")
+    .delete()
+    .eq("id", paymentId)
+    .eq("clinic_id", profile.clinicId);
+  if (delErr) return { error: delErr.message };
+
+  revalidatePath("/cuentas");
+  revalidatePath(`/pacientes/${payment.patient_id}`);
+  revalidatePath("/mis-trabajos");
+
+  // Si el pago tenía doctor, addPatientPayment creó una comisión en Mis trabajos
+  // que no tiene vínculo con este pago: avisar para que el admin la revise.
+  if (payment.doctor_id)
+    return {
+      ok: true,
+      warning:
+        "Pago eliminado. Como tenía un doctor asignado, revisa Mis trabajos y elimina la comisión asociada si corresponde.",
+    };
+
   return { ok: true };
 }

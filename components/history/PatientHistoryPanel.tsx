@@ -2,10 +2,17 @@
 
 import { useActionState, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addPatientPayment, type ActionState } from "@/app/(dashboard)/pacientes/history-actions";
+import { Trash2 } from "lucide-react";
+import {
+  addPatientPayment,
+  deletePatientPayment,
+  type ActionState,
+} from "@/app/(dashboard)/pacientes/history-actions";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { DoneToggle, type Work, type Dentist } from "@/components/treatments/TreatmentPlanPanel";
 import { Badge } from "@/components/ui/Badge";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { bs } from "@/lib/format";
 
 export type PaymentRow = {
@@ -138,6 +145,7 @@ const METHOD_FILTERS = [
 export function PatientHistoryPanel({
   patientId,
   canBilling,
+  canDeletePayments = false,
   payments,
   works,
   doctors,
@@ -147,6 +155,7 @@ export function PatientHistoryPanel({
 }: {
   patientId: string;
   canBilling: boolean;
+  canDeletePayments?: boolean;
   payments: PaymentRow[];
   works?: WorkDebtRow[];
   doctors: Dentist[];
@@ -255,7 +264,10 @@ export function PatientHistoryPanel({
                     <span className="truncate text-slate-600">{p.doctorName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="truncate text-slate-500">{p.collectedByName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="text-slate-500 whitespace-nowrap">{METHOD_LABEL[p.method] ?? p.method}</span>
-                    <span className="text-right tabular-nums font-medium text-emerald-600 whitespace-nowrap">{bs(p.amount)}</span>
+                    <span className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span className="tabular-nums font-medium text-emerald-600">{bs(p.amount)}</span>
+                      {canDeletePayments && <DeletePaymentRowButton id={p.id} amount={p.amount} />}
+                    </span>
                   </div>
                 ))}
                 {visiblePayments.length === 0 && (
@@ -269,6 +281,45 @@ export function PatientHistoryPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+function DeletePaymentRowButton({ id, amount }: { id: string; amount: number }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  async function handle() {
+    const ok = await confirm({
+      title: "Eliminar pago",
+      message: `¿Eliminar el pago de ${bs(amount)}? Se descontará del total pagado del paciente. No se puede deshacer.`,
+      confirmText: "Sí, eliminar",
+      cancelText: "Volver",
+      tone: "danger",
+    });
+    if (!ok) return;
+    start(async () => {
+      const res = await deletePatientPayment(id);
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      router.refresh();
+      if (res.warning) toast(res.warning, "info");
+      else toast("Pago eliminado", "success");
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handle}
+      disabled={pending}
+      aria-label="Eliminar pago"
+      title="Eliminar pago"
+      className="rounded-md p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
   );
 }
 
