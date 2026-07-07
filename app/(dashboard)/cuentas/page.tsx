@@ -24,8 +24,8 @@ export default async function CuentasPacientesPage({
   const supabase = await createClient();
   const profile = await getProfile();
   const canBilling = can(profile?.role, "billing:write");
-  // Eliminar pagos: acción sensible reservada a administradores.
-  const canDeletePayments = profile?.role === "admin";
+  // Editar/eliminar pagos: acciones sensibles reservadas a administradores.
+  const canManagePayments = profile?.role === "admin";
 
   // Lista de pacientes (búsqueda opcional). Aislamiento por clínica explícito
   // (defensa en profundidad) además de la RLS.
@@ -216,7 +216,7 @@ export default async function CuentasPacientesPage({
               <PatientHistoryPanel
                 patientId={selectedPatient.id}
                 canBilling={canBilling}
-                canDeletePayments={canDeletePayments}
+                canManagePayments={canManagePayments}
                 payments={paymentRows}
                 works={workRows}
                 doctors={doctors ?? []}

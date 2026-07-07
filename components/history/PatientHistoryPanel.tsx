@@ -2,12 +2,14 @@
 
 import { useActionState, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   addPatientPayment,
   deletePatientPayment,
+  updatePatientPayment,
   type ActionState,
 } from "@/app/(dashboard)/pacientes/history-actions";
+import { Modal } from "@/components/ui/Modal";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { DoneToggle, type Work, type Dentist } from "@/components/treatments/TreatmentPlanPanel";
 import { Badge } from "@/components/ui/Badge";
@@ -145,7 +147,7 @@ const METHOD_FILTERS = [
 export function PatientHistoryPanel({
   patientId,
   canBilling,
-  canDeletePayments = false,
+  canManagePayments = false,
   payments,
   works,
   doctors,
@@ -155,7 +157,7 @@ export function PatientHistoryPanel({
 }: {
   patientId: string;
   canBilling: boolean;
-  canDeletePayments?: boolean;
+  canManagePayments?: boolean;
   payments: PaymentRow[];
   works?: WorkDebtRow[];
   doctors: Dentist[];
@@ -264,9 +266,14 @@ export function PatientHistoryPanel({
                     <span className="truncate text-slate-600">{p.doctorName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="truncate text-slate-500">{p.collectedByName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="text-slate-500 whitespace-nowrap">{METHOD_LABEL[p.method] ?? p.method}</span>
-                    <span className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                    <span className="flex items-center justify-end gap-1 whitespace-nowrap">
                       <span className="tabular-nums font-medium text-emerald-600">{bs(p.amount)}</span>
-                      {canDeletePayments && <DeletePaymentRowButton id={p.id} amount={p.amount} />}
+                      {canManagePayments && (
+                        <>
+                          <EditPaymentRowButton payment={p} />
+                          <DeletePaymentRowButton id={p.id} amount={p.amount} />
+                        </>
+                      )}
                     </span>
                   </div>
                 ))}
@@ -281,6 +288,145 @@ export function PatientHistoryPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+// Corrección de un pago mal registrado (solo admin): monto, método, concepto
+// y fecha. El doctor NO se edita aquí a propósito — su comisión vive en Mis
+// trabajos sin vínculo con el pago; cambiarlo aquí solo desincronizaría ambos.
+function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+
+  // Fecha original del pago en Bolivia (YYYY-MM-DD) para el input date.
+  const originalDate = new Date(payment.receivedAt).toLocaleDateString("en-CA", {
+    timeZone: "America/La_Paz",
+  });
+
+  const [amount, setAmount] = useState(String(payment.amount));
+  const [method, setMethod] = useState(payment.method);
+  const [note, setNote] = useState(payment.note ?? "");
+  const [date, setDate] = useState(originalDate);
+  const router = useRouter();
+
+  function reset() {
+    setAmount(String(payment.amount));
+    setMethod(payment.method);
+    setNote(payment.note ?? "");
+    setDate(originalDate);
+  }
+
+  function save() {
+    start(async () => {
+      const res = await updatePatientPayment(payment.id, {
+        amount,
+        method,
+        note: note || null,
+        // Solo mandar la fecha si el admin la cambió: así no se pierde la
+        // hora original del pago cuando la fecha quedó igual.
+        received_date: date !== originalDate ? date : null,
+      });
+      if (res.error) {
+        toast(res.error, "error");
+        return;
+      }
+      setOpen(false);
+      router.refresh();
+      if (res.warning) toast(res.warning, "info");
+      else toast("Pago actualizado", "success");
+    });
+  }
+
+  const inputCls =
+    "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic";
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { reset(); setOpen(true); }}
+        aria-label="Editar pago"
+        title="Editar pago"
+        className="rounded-md p-1 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Editar pago"
+        subtitle="El cambio quedará registrado en Auditoría."
+        size="sm"
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs">
+              <span className="mb-1 block text-slate-500">Monto (Bs)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="mb-1 block text-slate-500">Método</span>
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                className={inputCls}
+              >
+                <option value="cash">Efectivo</option>
+                <option value="qr">QR</option>
+                <option value="card">Tarjeta</option>
+                {payment.method === "transfer" && (
+                  <option value="transfer">Transferencia</option>
+                )}
+              </select>
+            </label>
+          </div>
+          <label className="block text-xs">
+            <span className="mb-1 block text-slate-500">Fecha del pago</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="mb-1 block text-slate-500">Concepto</span>
+            <input
+              type="text"
+              maxLength={120}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="ej. Cuota ortodoncia…"
+              className={inputCls}
+            />
+          </label>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={pending || !amount || Number(amount) <= 0}
+              className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
+            >
+              {pending ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
 
