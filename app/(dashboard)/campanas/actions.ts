@@ -190,6 +190,15 @@ export async function markSent(campaignId: string, patientId: string): Promise<S
     .maybeSingle();
   if (!campaign) return { ok: false, error: "Campaña no encontrada." };
 
+  // Confirmar que el paciente pertenece a la clínica (defensa en profundidad).
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("id", patientId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (!patient) return { ok: false, error: "Paciente no encontrado." };
+
   // Upsert idempotente: si dos pestañas marcan el mismo paciente casi a la
   // vez, la segunda no falla ni duplica la fila.
   const { error } = await supabase
