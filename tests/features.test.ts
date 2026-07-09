@@ -97,3 +97,23 @@ describe("whatsapp (Baileys) — flag derivado", () => {
     expect(f.agenda).toBe(true); // sigue encendido (opt-out)
   });
 });
+
+describe("campanas (addon independiente de Baileys)", () => {
+  it("apagado por defecto (opt-in)", () => {
+    expect(normalizeFeatures({}).campanas).toBe(false);
+  });
+
+  it("se enciende con true explícito", () => {
+    expect(normalizeFeatures({ campanas: true }).campanas).toBe(true);
+  });
+
+  it("encender campanas NO enciende whatsapp (Baileys)", () => {
+    expect(normalizeFeatures({ campanas: true }).whatsapp).toBe(false);
+  });
+
+  it("está en el catálogo FEATURES como opt-in", () => {
+    const entry = FEATURES.find((f) => f.key === "campanas");
+    expect(entry?.optIn).toBe(true);
+    expect(entry?.href).toBe("/campanas");
+  });
+});

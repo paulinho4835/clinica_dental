@@ -25,6 +25,7 @@ export type FeatureKey =
   | "fotos"
   | "fotos_contador"
   | "wa_masivo"
+  | "campanas"
   | "aviso_doctores"
   | "agente_ia"
   | "agente_ia_t2"
@@ -68,6 +69,9 @@ export const FEATURES: FeatureMeta[] = [
   { key: "fotos", label: "Fotos de pacientes", href: "/pacientes", optIn: true },
   { key: "fotos_contador", label: "Ver contador de fotos", href: "/pacientes", optIn: true },
   { key: "wa_masivo", label: "WhatsApp Masivo", href: "/wa-masivo", optIn: true },
+  // Addon: campañas/promociones enviadas manualmente por WhatsApp (wa.me), sin
+  // depender de Baileys. Independiente de wa_masivo: no enciende Baileys.
+  { key: "campanas", label: "Campañas de WhatsApp", href: "/campanas", optIn: true },
   // Addon: aviso manual de agenda al doctor por WhatsApp Web (wa.me). La recepción
   // abre el chat del doctor con el resumen de sus citas del día ya prellenado.
   { key: "aviso_doctores", label: "Aviso de agenda a doctores", href: "/agenda", optIn: true },
