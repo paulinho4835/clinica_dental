@@ -208,8 +208,19 @@ export async function markSent(campaignId: string, patientId: string): Promise<S
 export async function unmarkSent(campaignId: string, patientId: string): Promise<SendState> {
   const access = await requireCampaignAccess();
   if ("error" in access) return { ok: false, error: access.error };
+  const { profile } = access;
 
   const supabase = await createClient();
+
+  // Confirmar que la campaña pertenece a la clínica (defensa en profundidad).
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("id", campaignId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (!campaign) return { ok: false, error: "Campaña no encontrada." };
+
   const { error } = await supabase
     .from("campaign_sends")
     .delete()
