@@ -36,15 +36,6 @@ export default function LoginPage() {
 
     const data = await res.json();
 
-    // Revoca todas las sesiones previas del mismo usuario (sesión única por cuenta).
-    if (data.access_token) {
-      await fetch("/api/auth/single-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: data.access_token }),
-      });
-    }
-
     // Supabase necesita que el browser tenga la cookie de sesión.
     // Usamos el cliente del browser para establecerla a partir del token obtenido.
     const supabase = createClient();
