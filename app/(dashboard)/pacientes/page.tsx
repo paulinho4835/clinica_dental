@@ -8,6 +8,7 @@ import {
   IncomingIntakesPanel,
   type IntakeItem,
 } from "@/components/patients/IncomingIntakesPanel";
+import { RealtimeIntakes } from "@/components/patients/RealtimeIntakes";
 import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { parseIntake } from "@/lib/schemas/patient-intake";
 import { requireFeature } from "@/lib/guard";
@@ -109,11 +110,14 @@ export default async function PatientsPage({
       {canRegister && <NewPatientForm />}
 
       {canRegister && (
-        <IncomingIntakesPanel
-          clinicName={clinicName}
-          ready={intakesReady}
-          awaiting={intakesAwaiting}
-        />
+        <>
+          <RealtimeIntakes />
+          <IncomingIntakesPanel
+            clinicName={clinicName}
+            ready={intakesReady}
+            awaiting={intakesAwaiting}
+          />
+        </>
       )}
 
       <PatientSearch initial={q} />
