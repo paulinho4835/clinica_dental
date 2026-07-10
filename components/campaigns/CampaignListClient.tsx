@@ -5,8 +5,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { NewCampaignModal } from "@/components/campaigns/NewCampaignModal";
 
-export function CampaignListClient() {
+export function CampaignListClient({ canCreate }: { canCreate: boolean }) {
   const [open, setOpen] = useState(false);
+  if (!canCreate) return null;
   return (
     <div className="flex justify-end">
       <Button onClick={() => setOpen(true)}>

@@ -29,8 +29,10 @@ export type CampaignPatientRow = {
 
 export type SendState = { ok: true } | { ok: false; error: string };
 
-// Roles que pueden crear/enviar campañas (mismo criterio que wa_masivo).
+// Roles que pueden ver/enviar campañas (mismo criterio que wa_masivo).
 const CAMPAIGN_ROLES = new Set(["admin", "recepcionista", "colega"]);
+// Solo el admin puede crear campañas; el resto solo las ve y envía mensajes.
+const CAMPAIGN_CREATE_ROLES = new Set(["admin"]);
 
 async function requireCampaignAccess(): Promise<
   { error: string } | { profile: CurrentProfile }
@@ -98,6 +100,9 @@ export async function createCampaign(
   const access = await requireCampaignAccess();
   if ("error" in access) return { ok: false, error: access.error };
   const { profile } = access;
+  if (!CAMPAIGN_CREATE_ROLES.has(profile.role)) {
+    return { ok: false, error: "Solo el administrador puede crear campañas." };
+  }
 
   const trimmedName = name.trim();
   const trimmedMessage = message.trim();
