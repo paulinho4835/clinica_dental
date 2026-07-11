@@ -15,6 +15,7 @@ export type CsvWorkRow = {
   comision_bs: number;
   cobrado: number;
   metodo: string;
+  factura: string;
   comision_pagada: string;
   notas: string;
 };
@@ -32,6 +33,7 @@ const HEADERS = [
   "Comisión (Bs)",
   "Cobrado (Bs)",
   "Método",
+  "Factura",
   "Comisión pagada",
   "Notas",
 ];
@@ -67,6 +69,7 @@ export function ExportCsvButton({
           r.comision_bs,
           r.cobrado,
           r.metodo,
+          r.factura,
           r.comision_pagada,
           r.notas,
         ]

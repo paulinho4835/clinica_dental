@@ -53,6 +53,7 @@ function makeRow(overrides: Partial<CsvWorkRow> = {}): CsvWorkRow {
     comision_bs: 60,
     cobrado: 200,
     metodo: "cash",
+    factura: "No",
     comision_pagada: "No",
     notas: "",
     ...overrides,
@@ -232,6 +233,7 @@ describe("csvRows mapping — null-safety", () => {
       comision_bs: Number(w.commission_amount) + Number(w.lab_commission_amount),
       cobrado: Number(w.amount_paid),
       metodo: w.payment_method ?? "",
+      factura: "",
       comision_pagada: w.commission_paid ? "Sí" : "No",
       notas: w.notes ?? "",
     };

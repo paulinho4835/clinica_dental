@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, isReceptionistLike } from "@/lib/rbac";
 import { NewPatientForm } from "@/components/patients/NewPatientForm";
 import { PatientSearch } from "@/components/patients/PatientSearch";
 import {
@@ -55,11 +55,15 @@ export default async function PatientsPage({
   const { data: patients } = await query;
 
   // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
+  // Solo admin y recepción: el panel muestra teléfonos y envía el enlace de
+  // registro por WhatsApp (los doctores no manejan datos de contacto).
   const canRegister = can(profile?.role, "patients:write");
+  const canIntake =
+    profile?.role === "admin" || isReceptionistLike(profile?.role);
   const intakesReady: IntakeItem[] = [];
   const intakesAwaiting: IntakeItem[] = [];
   let clinicName = "la clínica";
-  if (canRegister) {
+  if (canIntake) {
     const [{ data: rawIntakes }, { data: clinicRow }] = await Promise.all([
       supabase
         .from("anamnesis_invitations")
@@ -109,7 +113,7 @@ export default async function PatientsPage({
       />
       {canRegister && <NewPatientForm />}
 
-      {canRegister && (
+      {canIntake && (
         <>
           <RealtimeIntakes />
           <IncomingIntakesPanel

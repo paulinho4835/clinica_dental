@@ -43,6 +43,8 @@ type WorkRow = {
   lab_commission_amount: number;
   patient_name: string | null;
   commission_paid: boolean;
+  // null = trabajo registrado antes de existir el campo (sin dato).
+  invoiced: boolean | null;
   patients: { full_name?: string } | null;
   doctor: { full_name?: string } | null;
   collected_by: { name?: string } | null;
@@ -93,7 +95,7 @@ export default async function MisTrabajosPage({
   let worksQuery = supabase
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, invoiced, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -254,6 +256,7 @@ export default async function MisTrabajosPage({
     comision_bs: Number(w.commission_amount) + Number(w.lab_commission_amount),
     cobrado: Number(w.amount_paid),
     metodo: w.payment_method ?? "",
+    factura: w.invoiced === true ? "Sí" : w.invoiced === false ? "No" : "",
     comision_pagada: w.commission_paid ? "Sí" : "No",
     notas: w.notes ?? "",
   }));
@@ -483,6 +486,13 @@ export default async function MisTrabajosPage({
                   {w.payment_method
                     ? (METHOD_LABEL[w.payment_method] ?? w.payment_method)
                     : <span className="text-slate-300">—</span>}
+                  {/* Comprobante: null = trabajo anterior al campo, no se muestra */}
+                  {w.invoiced === true && (
+                    <span className="block text-xs font-medium text-sky-600">Factura ✓</span>
+                  )}
+                  {w.invoiced === false && (
+                    <span className="block text-xs text-slate-400">Sin factura</span>
+                  )}
                 </span>
                 <div className="flex items-center justify-end gap-1">
                   {canSendFeedback && <RequestFeedbackButton workId={w.id} />}

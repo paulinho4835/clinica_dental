@@ -19,6 +19,7 @@ type WorkData = {
   notes: string | null;
   lab_work: string | null;
   lab_cost: number;
+  invoiced: boolean | null;
 };
 
 const PAYMENT_METHODS = [
@@ -44,6 +45,7 @@ export function EditWorkButton({ work }: { work: WorkData }) {
   const [notes, setNotes] = useState(work.notes ?? "");
   const [labWork, setLabWork] = useState(work.lab_work ?? "");
   const [labCost, setLabCost] = useState(String(work.lab_cost));
+  const [invoiced, setInvoiced] = useState(work.invoiced ? "true" : "false");
 
   const costN = Number(cost) || 0;
   const pctN = Number(pct) || 0;
@@ -68,6 +70,7 @@ export function EditWorkButton({ work }: { work: WorkData }) {
     setNotes(work.notes ?? "");
     setLabWork(work.lab_work ?? "");
     setLabCost(String(work.lab_cost));
+    setInvoiced(work.invoiced ? "true" : "false");
     setOpen(true);
   }
 
@@ -201,6 +204,19 @@ export function EditWorkButton({ work }: { work: WorkData }) {
                     {PAYMENT_METHODS.map((m) => (
                       <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
+                  </select>
+                </label>
+
+                <label className="block text-sm">
+                  <FieldLabel>Comprobante</FieldLabel>
+                  <select
+                    name="invoiced"
+                    value={invoiced}
+                    onChange={(e) => setInvoiced(e.target.value)}
+                    className={fieldInputClass}
+                  >
+                    <option value="false">Sin factura</option>
+                    <option value="true">Con factura</option>
                   </select>
                 </label>
 

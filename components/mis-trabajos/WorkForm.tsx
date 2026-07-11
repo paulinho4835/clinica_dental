@@ -72,6 +72,9 @@ export function WorkForm({
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
 
+  // Si al paciente se le entregó factura (informativo, no afecta montos).
+  const [invoiced, setInvoiced] = useState("false");
+
   // Lab cost del tratamiento (para cálculo proporcional de comisión):
   // si hay plan item con lab ya registrado, se usa ese; si no, el campo manual.
   const selectedPlanItem = planItems.find((i) => i.id === selectedPlanItemId) ?? null;
@@ -134,6 +137,7 @@ export function WorkForm({
     setPct("");
     setLabCost("");
     setAmountPaid("");
+    setInvoiced("false");
     setBalance(null);
     setOpen(false);
   }
@@ -174,6 +178,7 @@ export function WorkForm({
       setPct("");
       setLabCost("");
       setAmountPaid("");
+      setInvoiced("false");
       // Refrescar barras de progreso inmediatamente.
       if (selectedId) {
         fetch(`/api/patients/${selectedId}/plan-items`)
@@ -506,6 +511,20 @@ export function WorkForm({
             </select>
           </label>
 
+          {/* Con factura / sin factura (informativo, no afecta montos) */}
+          <label className="block text-sm">
+            <FieldLabel>Comprobante</FieldLabel>
+            <select
+              name="invoiced"
+              value={invoiced}
+              onChange={(e) => setInvoiced(e.target.value)}
+              className={fieldInputClass}
+            >
+              <option value="false">Sin factura</option>
+              <option value="true">Con factura</option>
+            </select>
+          </label>
+
           {/* Cobrado por */}
           {hasRecepcionistas && (
             <label className="block text-sm sm:col-span-2">
@@ -638,6 +657,12 @@ export function WorkForm({
             <div className="flex justify-between gap-2 px-3 py-2">
               <dt className="text-slate-500 dark:text-slate-400">Cobrado hoy</dt>
               <dd className="tabular-nums font-semibold text-slate-900 dark:text-white">{bs(amountPaidN)}</dd>
+            </div>
+            <div className="flex justify-between gap-2 px-3 py-2">
+              <dt className="text-slate-500 dark:text-slate-400">Comprobante</dt>
+              <dd className="text-right font-medium text-slate-800 dark:text-white">
+                {invoiced === "true" ? "Con factura" : "Sin factura"}
+              </dd>
             </div>
             {pctN > 0 && (
               <div className="flex justify-between gap-2 px-3 py-2">

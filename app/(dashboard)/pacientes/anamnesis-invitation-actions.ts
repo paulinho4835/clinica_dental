@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can, canEditAnamnesis } from "@/lib/rbac";
+import { can, canEditAnamnesis, isReceptionistLike } from "@/lib/rbac";
 import { AnamnesisSchema, parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { PatientIntakeSchema } from "@/lib/schemas/patient-intake";
 
@@ -100,8 +100,10 @@ export async function createPatientIntakeInvitation(input: {
 }): Promise<InvitationState> {
   const profile = await getProfile();
   if (!profile) return { ok: false, error: "Sesión expirada." };
-  if (!can(profile.role, "patients:write"))
-    return { ok: false, error: "Sin permiso para registrar pacientes." };
+  // Solo admin y recepción envían el registro por WhatsApp (son quienes
+  // manejan el teléfono del paciente; los doctores no ven ese dato).
+  if (profile.role !== "admin" && !isReceptionistLike(profile.role))
+    return { ok: false, error: "Sin permiso para enviar registros de pacientes." };
 
   const phone = input.phone?.trim() ?? "";
   if (!phone) return { ok: false, error: "Ingresa el celular del paciente." };

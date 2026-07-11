@@ -28,7 +28,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
   const { data } = await admin
     .from("doctor_works")
     .select(
-      "id, description, patient_name, commission_amount, lab_commission_amount, performed_at, cost, amount_paid, treatment_item_id, patient_id",
+      "id, description, patient_name, commission_amount, lab_commission_amount, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
     )
     .eq("clinic_id", profile.clinicId)
     .eq("doctor_id", doctorId)
@@ -96,7 +96,9 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
     return {
       id: w.id as string,
       description: w.description as string,
-      patient_name: w.patient_name as string | null,
+      patient_name:
+        ((w.patients as { full_name?: string } | null)?.full_name ??
+          (w.patient_name as string | null)) || null,
       commission_amount: Number(w.commission_amount),
       lab_commission_amount: Number(w.lab_commission_amount),
       performed_at: w.performed_at as string,
