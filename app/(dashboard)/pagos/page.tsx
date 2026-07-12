@@ -328,7 +328,81 @@ export default async function PagosPage({
           <PrintPagosButton rows={printRows} monthLabel={monthLabel} />
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+        {/* ── Lista en tarjetas (solo móvil) ─────────────────────────────
+            La tabla de escritorio usa un grid de ancho fijo (min-w-[52rem])
+            pensado para hacer scroll horizontal; en pantallas angostas eso
+            terminaba comprimiendo columnas hasta solaparlas. Aquí cada pago
+            es una tarjeta apilada verticalmente: no hay ancho fijo que
+            desbordar. */}
+        <div className="space-y-2 sm:hidden">
+          {rows.map((p) => (
+            <div key={p.id} className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-700">
+                    {p.employee?.full_name ?? "—"}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {ROLE_LABEL[p.employee?.role ?? ""] ?? p.employee?.role ?? "—"} ·{" "}
+                    {fmtDate(p.paid_at)}
+                  </p>
+                </div>
+                <span className="shrink-0 whitespace-nowrap text-right tabular-nums font-semibold text-emerald-600">
+                  {bs(p.amount)}
+                </span>
+              </div>
+
+              {p.concept && (
+                <p className="mt-1.5 truncate text-sm text-slate-600">{p.concept}</p>
+              )}
+
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-xs text-slate-500">
+                  {METHOD_LABEL[p.method] ?? p.method}
+                </span>
+                <DisbursedToggle id={p.id} disbursed={p.disbursed} />
+              </div>
+
+              {p.works.length > 0 && (
+                <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                  {p.works.map((w, i) => {
+                    const comm = w.commission_amount + w.lab_commission_amount;
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                        <span className="shrink-0 tabular-nums text-slate-400">
+                          {fmtShortDate(w.performed_at)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-slate-600">
+                          {w.description || "—"}
+                          {w.patient_name && (
+                            <span className="text-slate-400"> · {w.patient_name}</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
+                          {bs(comm)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
+                <DeletePaymentButton id={p.id} />
+              </div>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <EmptyState
+              icon={<Receipt className="h-6 w-6" />}
+              title="Sin pagos en este período"
+              description="Ajusta el rango de fechas o registra un pago a personal."
+            />
+          )}
+        </div>
+
+        {/* ── Tabla (escritorio) ──────────────────────────────────────── */}
+        <div className="hidden overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200 sm:block">
           <div className="min-w-[52rem]">
             <div className={`${GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
