@@ -18,7 +18,13 @@ import {
   type SlotTarget,
 } from "@/lib/agenda/dragDrop";
 import { ApptPopover, type PopoverAppt } from "./ApptPopover";
+import { QuickCreatePopover, type QuickDraft } from "./QuickCreatePopover";
+import { type PatientOption } from "./PatientPicker";
+import { type DoctorOption } from "./apptHelpers";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
+
+// Franja elegida que aún no es una cita (ver DayView).
+type DraftSlot = { start: Date; end: Date; day: string; anchor: DOMRect };
 
 const PX_PER_HOUR = 48;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -42,6 +48,8 @@ export function WeekView({
   date,
   byDay,
   canWrite,
+  patients,
+  doctors,
   onOpenDay,
   onPick,
   onEdit,
@@ -50,8 +58,11 @@ export function WeekView({
   date: string;
   byDay: Map<string, MonthAppt[]>;
   canWrite: boolean;
+  patients: PatientOption[];
+  doctors: DoctorOption[];
   onOpenDay: (day: string) => void;
-  onPick: (start: Date, end: Date) => void;
+  /** Escala al modal completo ("Más opciones" del popover rápido). */
+  onPick: (start: Date, end: Date, dentist?: string, draft?: QuickDraft) => void;
   onEdit: (a: MonthAppt) => void;
   onLink: (a: MonthAppt) => void;
 }) {
@@ -73,10 +84,19 @@ export function WeekView({
 
   // ── Popover state ──────────────────────────────────────────────────────────
   const [popover, setPopover] = useState<PopoverAppt | null>(null);
+  // Franja tentativa: el clic en un hueco solo la marca; el formulario completo
+  // ya no se abre solo (Esc / clic fuera la descarta).
+  const [draft, setDraft] = useState<DraftSlot | null>(null);
 
   function openPopover(appt: MonthAppt, el: HTMLElement) {
+    setDraft(null);
     setPopover({ appt, anchor: el.getBoundingClientRect() });
   }
+
+  // Al cambiar de semana la franja tentativa deja de tener sentido.
+  useEffect(() => {
+    setDraft(null);
+  }, [date]);
 
   const handleDrop = useCallback(
     async (apptId: string, slot: SlotTarget) => {
@@ -201,13 +221,35 @@ export function WeekView({
                         <button
                           key={s.toISOString()}
                           type="button"
-                          onClick={() => onPick(s, end)}
+                          onClick={(ev) => {
+                            setPopover(null);
+                            setDraft({
+                              start: s,
+                              end,
+                              day: k,
+                              anchor: (ev.currentTarget as HTMLElement).getBoundingClientRect(),
+                            });
+                          }}
                           aria-label={`Agendar ${WD[idx]} ${pad(s.getHours())}:${pad(s.getMinutes())}`}
                           className="absolute inset-x-0 z-0 transition hover:bg-green-100/60"
                           style={{ top: g.top * AXIS_H, height: g.height * AXIS_H }}
                         />
                       );
                     })}
+
+                  {/* Bloque tentativo de la franja elegida */}
+                  {draft && draft.day === k && (() => {
+                    const g = blockGeometry(draft.start, draft.end);
+                    return (
+                      <div
+                        className="pointer-events-none absolute inset-x-0 z-30 rounded border-2 border-dashed border-clinic bg-clinic/15"
+                        style={{
+                          top: g.top * AXIS_H,
+                          height: Math.max(g.height * AXIS_H, 16),
+                        }}
+                      />
+                    );
+                  })()}
 
                   {laid.map(({ appt: a, lane, lanes }) => {
                     const s = new Date(a.starts_at);
@@ -288,6 +330,22 @@ export function WeekView({
           onEdit={() => { onEdit(popover.appt); setPopover(null); }}
           onLink={() => { onLink(popover.appt); setPopover(null); }}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {/* Creación rápida sobre la franja elegida */}
+      {draft && canWrite && (
+        <QuickCreatePopover
+          patients={patients}
+          doctors={doctors}
+          start={draft.start}
+          end={draft.end}
+          anchor={draft.anchor}
+          onMoreOptions={(d) => {
+            onPick(draft.start, draft.end, undefined, d);
+            setDraft(null);
+          }}
+          onClose={() => setDraft(null)}
         />
       )}
     </div>

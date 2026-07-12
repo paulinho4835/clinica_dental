@@ -49,6 +49,18 @@ function nowFraction(day: string): number | null {
 }
 
 import { ApptPopover, type PopoverAppt } from "./ApptPopover";
+import { QuickCreatePopover, type QuickDraft } from "./QuickCreatePopover";
+import { type PatientOption } from "./PatientPicker";
+import { type DoctorOption } from "./apptHelpers";
+
+// Franja elegida que aún no es una cita: se dibuja como bloque tentativo y
+// ancla el popover de creación rápida (estilo Google Calendar).
+type DraftSlot = {
+  start: Date;
+  end: Date;
+  col: string | null;
+  anchor: DOMRect;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -57,6 +69,8 @@ export function DayView({
   appts,
   canWrite,
   highlightId,
+  patients,
+  doctors,
   onPick,
   onEdit,
   onLink,
@@ -66,7 +80,10 @@ export function DayView({
   appts: MonthAppt[];
   canWrite: boolean;
   highlightId: string | null;
-  onPick: (start: Date, end: Date, dentist?: string) => void;
+  patients: PatientOption[];
+  doctors: DoctorOption[];
+  /** Escala al modal completo (botón "Más opciones" del popover rápido). */
+  onPick: (start: Date, end: Date, dentist?: string, draft?: QuickDraft) => void;
   onEdit: (a: MonthAppt) => void;
   onLink: (a: MonthAppt) => void;
   /** Cuando se pasa, se usan estos nombres como columnas fijas (vista con doctores). */
@@ -82,8 +99,12 @@ export function DayView({
 
   // ── Popover state ──────────────────────────────────────────────────────────
   const [popover, setPopover] = useState<PopoverAppt | null>(null);
+  // Franja tentativa: el clic en un hueco ya NO abre el formulario completo,
+  // solo marca el bloque y abre el popover rápido (Esc / clic fuera lo descarta).
+  const [draft, setDraft] = useState<DraftSlot | null>(null);
 
   function openPopover(appt: MonthAppt, el: HTMLElement) {
+    setDraft(null);
     setPopover({ appt, anchor: el.getBoundingClientRect() });
   }
 
@@ -97,6 +118,11 @@ export function DayView({
       prev ? { ...prev, appt: appts.find((a) => a.id === prev.appt.id) ?? prev.appt } : null,
     );
   }, [appts]);
+
+  // Al cambiar de día la franja tentativa deja de tener sentido.
+  useEffect(() => {
+    setDraft(null);
+  }, [day]);
 
   const handleDrop = useCallback(
     async (apptId: string, slot: SlotTarget) => {
@@ -272,7 +298,8 @@ export function DayView({
                       />
                     ))}
 
-                    {/* Slots clicables para crear nueva cita */}
+                    {/* Slots clicables: marcan la franja tentativa (no abren el
+                        formulario completo de una; ver popover rápido abajo). */}
                     {canWrite &&
                       slots.map((s) => {
                         const end = new Date(s.getTime() + STEP_MIN * 60_000);
@@ -281,13 +308,39 @@ export function DayView({
                           <button
                             key={s.toISOString()}
                             type="button"
-                            onClick={() => onPick(s, end, col ?? undefined)}
+                            onClick={(ev) => {
+                              setPopover(null);
+                              setDraft({
+                                start: s,
+                                end,
+                                col,
+                                anchor: (ev.currentTarget as HTMLElement).getBoundingClientRect(),
+                              });
+                            }}
                             aria-label={`Agendar ${pad(s.getHours())}:${pad(s.getMinutes())}`}
                             className="absolute inset-x-0 z-0 transition hover:bg-green-100/60"
                             style={{ top: g.top * AXIS_H, height: g.height * AXIS_H }}
                           />
                         );
                       })}
+
+                    {/* Bloque tentativo de la franja elegida */}
+                    {draft && draft.col === col && (() => {
+                      const g = blockGeometry(draft.start, draft.end);
+                      return (
+                        <div
+                          className="pointer-events-none absolute inset-x-0 z-30 flex items-center justify-center rounded border-2 border-dashed border-clinic bg-clinic/15"
+                          style={{
+                            top: g.top * AXIS_H,
+                            height: Math.max(g.height * AXIS_H, 20),
+                          }}
+                        >
+                          <span className="truncate px-1 text-[10px] font-medium text-clinic">
+                            {pad(draft.start.getHours())}:{pad(draft.start.getMinutes())} · nueva cita
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Línea de "ahora" */}
                     {now !== null && (
@@ -449,6 +502,23 @@ export function DayView({
           onEdit={() => { onEdit(popover.appt); setPopover(null); }}
           onLink={() => { onLink(popover.appt); setPopover(null); }}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {/* Creación rápida sobre la franja elegida */}
+      {draft && canWrite && (
+        <QuickCreatePopover
+          patients={patients}
+          doctors={doctors}
+          start={draft.start}
+          end={draft.end}
+          dentist={draft.col ?? undefined}
+          anchor={draft.anchor}
+          onMoreOptions={(d) => {
+            onPick(draft.start, draft.end, draft.col ?? undefined, d);
+            setDraft(null);
+          }}
+          onClose={() => setDraft(null)}
         />
       )}
     </div>

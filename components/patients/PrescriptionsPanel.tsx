@@ -1,10 +1,17 @@
 // components/patients/PrescriptionsPanel.tsx
 "use client";
 
-import { useState } from "react";
-import { type PrescriptionRow } from "@/app/(dashboard)/pacientes/prescription-actions";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import {
+  deletePrescription,
+  type PrescriptionRow,
+} from "@/app/(dashboard)/pacientes/prescription-actions";
 import { PrescriptionModal } from "./PrescriptionModal";
 import { fmtBoliviaDateTime } from "@/lib/format";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 
 const fmtDateTime = fmtBoliviaDateTime;
 
@@ -18,6 +25,29 @@ export function PrescriptionsPanel({
   canWrite: boolean;
 }) {
   const [showModal, setShowModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  async function handleDelete(rx: PrescriptionRow) {
+    const ok = await confirm({
+      title: "Eliminar receta",
+      message: "¿Eliminar esta receta? No se puede deshacer.",
+      confirmText: "Sí, eliminar",
+      cancelText: "Volver",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDeletingId(rx.id);
+    const res = await deletePrescription(patientId, rx.id);
+    setDeletingId(null);
+    if ("error" in res) {
+      toast(res.error, "error");
+      return;
+    }
+    toast("Receta eliminada", "success");
+    startTransition(() => router.refresh());
+  }
 
   return (
     <div className="space-y-4">
@@ -74,7 +104,7 @@ export function PrescriptionsPanel({
                 {rx.medications.length}{" "}
                 {rx.medications.length === 1 ? "med." : "meds."}
               </span>
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-2">
                 <a
                   href={`/pacientes/${patientId}/receta/${rx.id}`}
                   target="_blank"
@@ -83,6 +113,18 @@ export function PrescriptionsPanel({
                 >
                   Ver / imprimir
                 </a>
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(rx)}
+                    disabled={pending || deletingId === rx.id}
+                    aria-label="Eliminar receta"
+                    title="Eliminar receta"
+                    className="rounded-md p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

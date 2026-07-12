@@ -11,11 +11,15 @@ export function PatientPicker({
   selected,
   onSelect,
   autoFocus,
+  openOnFocus = true,
 }: {
   patients: PatientOption[];
   selected: PatientOption | null;
   onSelect: (p: PatientOption | null) => void;
   autoFocus?: boolean;
+  /** false: la lista solo se abre al escribir (en el popover rápido el
+      autofocus abría el desplegable encima de los botones de acción). */
+  openOnFocus?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -57,7 +61,7 @@ export function PatientPicker({
           setQuery(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { if (openOnFocus || query.trim()) setOpen(true); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Buscar por nombre o CI…"
         className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${

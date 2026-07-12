@@ -3,7 +3,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV === "development";
 
-const supabaseConnect = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"} wss://*.supabase.co`;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co";
+// Realtime abre un WebSocket contra el mismo host de Supabase. En la nube lo
+// cubre wss://*.supabase.co; en local (http://127.0.0.1:54321) hay que permitir
+// el esquema ws:// equivalente o la CSP bloquea los módulos "en vivo".
+const supabaseWs = supabaseUrl.startsWith("http") ? supabaseUrl.replace(/^http/, "ws") : "";
+const supabaseConnect = `${supabaseUrl} wss://*.supabase.co ${supabaseWs}`.trim();
 
 // Cloudflare R2: las URLs firmadas usan el subdominio del bucket
 // ({bucket}.{account}.r2.cloudflarestorage.com), por eso el comodín. Se necesita

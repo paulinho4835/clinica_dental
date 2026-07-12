@@ -47,51 +47,66 @@ export function markColorOf(whole: string | null | undefined): string | null {
 export const CONDITION_COLORS: Record<string, string> = {
   sano: "var(--tooth-healthy)",
   caries: "#ef4444",
+  caries_recidivante: "#991b1b",
   resina: "#3b82f6",
   amalgama: "#64748b",
   sellante: "#22c55e",
   fractura: "#f97316",
+  desgaste: "#a16207",
   corona: "#eab308",
   endodoncia: "#a855f7",
+  perno: "#6366f1",
   implante: "#06b6d4",
   ausente: "#94a3b8",
   extraccion_indicada: "#dc2626",
   protesis: "#d946ef",
+  movilidad: "#ec4899",
+  en_erupcion: "#0d9488",
 };
 
 // Etiquetas legibles para paleta y leyenda.
 export const CONDITION_LABELS: Record<string, string> = {
   sano: "Sano",
   caries: "Caries",
+  caries_recidivante: "Caries recidivante",
   resina: "Resina",
   amalgama: "Amalgama",
   sellante: "Sellante",
   fractura: "Fractura",
+  desgaste: "Desgaste / abrasión",
   corona: "Corona",
   endodoncia: "Endodoncia",
+  perno: "Perno muñón",
   implante: "Implante",
   ausente: "Ausente",
   extraccion_indicada: "Extracción indicada",
   protesis: "Prótesis",
+  movilidad: "Movilidad",
+  en_erupcion: "En erupción / incluido",
 };
 
 // Condiciones que se pintan en UNA cara del diente (scope = surface).
 export const SURFACE_CONDITIONS = [
   "caries",
+  "caries_recidivante",
   "resina",
   "amalgama",
   "sellante",
   "fractura",
+  "desgaste",
 ] as const;
 
 // Condiciones que afectan al DIENTE COMPLETO (scope = whole).
 export const WHOLE_CONDITIONS = [
   "corona",
   "endodoncia",
+  "perno",
   "implante",
   "protesis",
   "extraccion_indicada",
   "ausente",
+  "movilidad",
+  "en_erupcion",
 ] as const;
 
 // Tipo anatómico según el segundo dígito FDI (1-2 incisivo, 3 canino,

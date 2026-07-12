@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus } from "lucide-react";
 import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR } from "@/lib/agenda";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
@@ -10,6 +10,7 @@ import { MonthView } from "./MonthView";
 import { DayView } from "./DayView";
 import { WeekView } from "./WeekView";
 import { ApptModal } from "./ApptModal";
+import { type QuickDraft } from "./QuickCreatePopover";
 import { LinkPatientModal } from "./LinkPatientModal";
 import {
   type MonthAppt,
@@ -32,7 +33,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-type ModalState = { start: Date; end: Date; appt?: MonthAppt; dentist?: string };
+type ModalState = {
+  start: Date;
+  end: Date;
+  appt?: MonthAppt;
+  dentist?: string;
+  /** Lo ya escrito en el popover rápido, al pulsar "Más opciones". */
+  prefill?: QuickDraft;
+};
 
 const VIEW_LABELS: Record<AgendaView, string> = {
   day: "Día",
@@ -285,36 +293,59 @@ export function AgendaShell({
     setModal({ start, end });
   }
 
-  // Clic en una fecha del calendario (vista Mes): además de seleccionar el día,
-  // abre directamente el formulario de nueva cita — sin pasos intermedios ni
-  // botones extra. Hora propuesta: si el día es hoy, la próxima media hora
-  // dentro del horario de atención; si es otro día, las 9:00. La hora se puede
-  // cambiar en el propio formulario.
+  // Clic en una fecha del calendario (vista Mes): flujo estilo Google Calendar.
+  // Ya NO abre el formulario de golpe: selecciona el día (la fecha queda
+  // capturada — la grilla de abajo se renderiza con ese día) y hace scroll
+  // suave hasta ella, con un resaltado breve para guiar la vista. Ahí el
+  // usuario elige la hora clickeando una franja, y la tarjeta rápida se abre
+  // con fecha y hora ya rellenas.
+  const dayDetailRef = useRef<HTMLDivElement>(null);
+  // Contador-disparador: cambia en cada clic (aunque sea el mismo día), para
+  // que el scroll/resaltado se repita también al re-seleccionar.
+  const [dayFocusTick, setDayFocusTick] = useState(0);
+
   function handleSelectDay(k: string) {
     setSelectedDay(k);
-    if (!canWrite) return;
-    const start = new Date(k + "T00:00:00");
-    if (k === dayKey(new Date())) {
-      const now = new Date();
-      start.setHours(
-        now.getHours(),
-        Math.ceil(now.getMinutes() / STEP_MIN) * STEP_MIN,
-        0,
-        0,
-      );
-      if (start.getHours() < OPEN_HOUR) start.setHours(OPEN_HOUR, 0, 0, 0);
-      if (start.getHours() >= CLOSE_HOUR)
-        start.setHours(CLOSE_HOUR - 1, 60 - STEP_MIN, 0, 0);
-    } else {
-      start.setHours(9, 0, 0, 0);
+    setDayFocusTick(Date.now());
+  }
+
+  useEffect(() => {
+    if (!dayFocusTick || !selectedDay) return;
+    // Corre después del render: la grilla del día ya está montada.
+    dayDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const t = setTimeout(() => setDayFocusTick(0), 1600); // apaga el resaltado
+    return () => clearTimeout(t);
+  }, [dayFocusTick, selectedDay]);
+
+  // Escalada del popover rápido al modal completo: conserva lo ya escrito
+  // (paciente, motivo, doctor) y las horas que el usuario haya ajustado ahí.
+  function openFullModal(
+    start: Date,
+    end: Date,
+    dentist?: string,
+    draft?: QuickDraft,
+  ) {
+    if (!draft) {
+      setModal({ start, end, dentist });
+      return;
     }
-    setModal({ start, end: new Date(start.getTime() + STEP_MIN * 60_000) });
+    const at = (hhmm: string) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      const d = new Date(start);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+    setModal({
+      start: at(draft.startTime),
+      end: at(draft.endTime),
+      dentist: draft.dentistName || dentist,
+      prefill: draft,
+    });
   }
 
   // Compartido por todas las vistas que muestran DayView
   const dayViewHandlers = {
-    onPick: (start: Date, end: Date, dentist?: string) =>
-      setModal({ start, end, dentist }),
+    onPick: openFullModal,
     onEdit: (a: MonthAppt) =>
       setModal({
         start: new Date(a.starts_at),
@@ -403,10 +434,22 @@ export function AgendaShell({
           {monthLabel}
         </span>
 
+        {/* "+ Nueva cita" en la barra (escritorio). En móvil vive como botón
+            flotante abajo a la derecha — ver al final del componente. */}
+        {canWrite && (
+          <button
+            onClick={openNewAppt}
+            className="ml-auto hidden items-center gap-1.5 rounded-md bg-clinic px-3 py-1.5 text-sm font-medium text-white hover:bg-clinic-fg sm:flex"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nueva cita
+          </button>
+        )}
+
         <button
           onClick={openPrint}
           title="Imprimir agenda del día"
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+          className={`flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 ${canWrite ? "" : "ml-auto"}`}
         >
           <Printer className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Imprimir día</span>
@@ -464,16 +507,28 @@ export function AgendaShell({
             byDay={visibleByDay}
             selectedDay={selectedDay}
             onSelectDay={handleSelectDay}
+            onSwipeMonth={shift}
           />
           {selectedDay && (
-            <DayView
-              day={selectedDay}
-              appts={visibleByDay.get(selectedDay) ?? []}
-              canWrite={canWrite}
-              highlightId={highlightId}
-              forcedColumns={forcedCols}
-              {...dayViewHandlers}
-            />
+            // scroll-mt compensa el banner fijo de vista previa del superadmin;
+            // el ring parpadea ~1.6s tras el scroll para enfocar la vista ahí.
+            <div
+              ref={dayDetailRef}
+              className={`scroll-mt-16 rounded-lg transition-shadow duration-500 ${
+                dayFocusTick ? "ring-2 ring-clinic shadow-lg" : "ring-0"
+              }`}
+            >
+              <DayView
+                day={selectedDay}
+                appts={visibleByDay.get(selectedDay) ?? []}
+                canWrite={canWrite}
+                highlightId={highlightId}
+                patients={patients}
+                doctors={doctors}
+                forcedColumns={forcedCols}
+                {...dayViewHandlers}
+              />
+            </div>
           )}
         </>
       )}
@@ -485,6 +540,8 @@ export function AgendaShell({
           appts={visibleByDay.get(date) ?? []}
           canWrite={canWrite}
           highlightId={highlightId}
+          patients={patients}
+          doctors={doctors}
           forcedColumns={forcedCols}
           {...dayViewHandlers}
         />
@@ -496,8 +553,10 @@ export function AgendaShell({
           date={date}
           byDay={visibleByDay}
           canWrite={canWrite}
+          patients={patients}
+          doctors={doctors}
           onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
-          onPick={(start, end) => setModal({ start, end })}
+          onPick={openFullModal}
           onEdit={(a) =>
             setModal({
               start: new Date(a.starts_at),
@@ -520,6 +579,7 @@ export function AgendaShell({
           end={modal.end}
           appt={modal.appt}
           dentist={modal.dentist}
+          prefill={modal.prefill}
           onClose={() => setModal(null)}
         />
       )}
@@ -535,6 +595,20 @@ export function AgendaShell({
       )}
       {showDoctorAviso && (
         <DoctorAgendaWhatsAppModal onClose={() => setShowDoctorAviso(false)} />
+      )}
+
+      {/* Botón flotante "+" (solo móvil), como Google Calendar: en el teléfono
+          la grilla horaria no existe (se usa la lista), así que este es el
+          camino para crear una cita en el día/fecha que se está viendo. */}
+      {canWrite && (
+        <button
+          type="button"
+          onClick={openNewAppt}
+          aria-label="Nueva cita"
+          className="fixed bottom-6 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-clinic text-white shadow-xl shadow-clinic/30 transition active:scale-95 sm:hidden"
+        >
+          <Plus className="h-7 w-7" />
+        </button>
       )}
     </div>
     </DoctorColorContext.Provider>

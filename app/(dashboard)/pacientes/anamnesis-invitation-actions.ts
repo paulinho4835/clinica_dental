@@ -100,9 +100,13 @@ export async function createPatientIntakeInvitation(input: {
 }): Promise<InvitationState> {
   const profile = await getProfile();
   if (!profile) return { ok: false, error: "Sesión expirada." };
-  // Solo admin y recepción envían el registro por WhatsApp (son quienes
-  // manejan el teléfono del paciente; los doctores no ven ese dato).
-  if (profile.role !== "admin" && !isReceptionistLike(profile.role))
+  // Solo admin, recepción y colega envían el registro por WhatsApp.
+  // Odontólogos y especialistas no (no manejan datos de contacto).
+  const canSendIntake =
+    profile.role === "admin" ||
+    profile.role === "colega" ||
+    isReceptionistLike(profile.role);
+  if (!canSendIntake)
     return { ok: false, error: "Sin permiso para enviar registros de pacientes." };
 
   const phone = input.phone?.trim() ?? "";

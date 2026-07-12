@@ -55,11 +55,13 @@ export default async function PatientsPage({
   const { data: patients } = await query;
 
   // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
-  // Solo admin y recepción: el panel muestra teléfonos y envía el enlace de
-  // registro por WhatsApp (los doctores no manejan datos de contacto).
+  // Solo admin, recepción y colega: el panel muestra teléfonos y envía el
+  // enlace de registro (odontólogos/especialistas no manejan contacto).
   const canRegister = can(profile?.role, "patients:write");
   const canIntake =
-    profile?.role === "admin" || isReceptionistLike(profile?.role);
+    profile?.role === "admin" ||
+    profile?.role === "colega" ||
+    isReceptionistLike(profile?.role);
   const intakesReady: IntakeItem[] = [];
   const intakesAwaiting: IntakeItem[] = [];
   let clinicName = "la clínica";

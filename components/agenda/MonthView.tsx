@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { type MonthAppt } from "./apptHelpers";
 import { useDoctorColor } from "@/lib/agenda/doctorColor";
 
@@ -9,22 +9,79 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+// Umbrales del swipe: distancia mínima para cambiar de mes, y dominancia
+// horizontal para no confundir el gesto con el scroll vertical de la página.
+const SWIPE_MIN_PX = 60;
+const SWIPE_INTENT_PX = 12;
+
 export function MonthView({
   month, // YYYY-MM-DD (cualquier día del mes visible)
   byDay,
   selectedDay,
   onSelectDay,
+  onSwipeMonth,
 }: {
   month: string;
   byDay: Map<string, MonthAppt[]>;
   selectedDay: string | null;
   onSelectDay: (day: string) => void;
+  /** Swipe horizontal (móvil): -1 mes anterior, +1 mes siguiente. */
+  onSwipeMonth?: (delta: 1 | -1) => void;
 }) {
   const getDoctorColor = useDoctorColor();
   const base = new Date(month + "T00:00:00");
   const year = base.getFullYear();
   const mon = base.getMonth();
   const todayKey = dayKey(new Date());
+
+  // ── Swipe táctil estilo Google Calendar ────────────────────────────────────
+  // El dedo arrastra la grilla en vivo (translateX); al soltar, si el gesto
+  // superó el umbral se navega al mes vecino, si no vuelve a su lugar.
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const dragging = useRef(false);
+  const [dragX, setDragX] = useState(0);
+  // Copia síncrona de dragX: en un flick rápido el touchend llega antes del
+  // re-render y el estado del closure quedaría viejo (el swipe se ignoraría).
+  const lastDx = useRef(0);
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    dragging.current = false;
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (!touchStart.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    if (!dragging.current) {
+      // Decidir la intención una sola vez: claramente horizontal → swipe;
+      // claramente vertical → dejar el scroll normal de la página en paz.
+      if (Math.abs(dx) > SWIPE_INTENT_PX && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        dragging.current = true;
+      } else if (Math.abs(dy) > SWIPE_INTENT_PX) {
+        touchStart.current = null;
+        return;
+      }
+    }
+    if (dragging.current) {
+      lastDx.current = dx;
+      setDragX(dx);
+    }
+  }
+
+  function onTouchEnd() {
+    const dx = lastDx.current;
+    if (dragging.current && Math.abs(dx) > SWIPE_MIN_PX && onSwipeMonth) {
+      // Deslizar a la izquierda = avanzar al mes siguiente (como GCal).
+      onSwipeMonth(dx < 0 ? 1 : -1);
+    }
+    setDragX(0);
+    lastDx.current = 0;
+    touchStart.current = null;
+    dragging.current = false;
+  }
 
   const cells = useMemo(() => {
     const first = new Date(year, mon, 1);
@@ -44,7 +101,17 @@ export function MonthView({
           <div key={w} className="py-2">{w}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      {/* touch-pan-y: el navegador conserva el scroll vertical; el horizontal
+          lo manejamos nosotros. Sin transición mientras se arrastra para que
+          la grilla siga al dedo sin lag. */}
+      <div
+        className={`grid touch-pan-y grid-cols-7 ${dragX === 0 ? "transition-transform duration-200" : ""}`}
+        style={{ transform: dragX ? `translateX(${dragX}px)` : undefined }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      >
         {cells.map((d) => {
           const k = dayKey(d);
           const inMonth = d.getMonth() === mon;
@@ -57,7 +124,7 @@ export function MonthView({
               type="button"
               disabled={!inMonth}
               onClick={() => onSelectDay(k)}
-              className={`flex min-h-[68px] flex-col items-start gap-1 border-b border-r border-slate-100 p-2 text-left transition ${
+              className={`flex min-h-[84px] flex-col items-start gap-1 border-b border-r border-slate-100 p-2 text-left transition sm:min-h-[68px] ${
                 !inMonth ? "cursor-default bg-slate-50/60 text-slate-300" : "hover:bg-clinic/5"
               } ${isSelected ? "ring-2 ring-inset ring-clinic" : ""}`}
             >

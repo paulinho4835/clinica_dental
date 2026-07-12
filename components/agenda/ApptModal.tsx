@@ -34,6 +34,7 @@ export function ApptModal({
   end,
   appt, // si viene → modo edición
   dentist, // odontólogo precargado (al agendar desde una columna)
+  prefill, // lo ya escrito en el popover rápido ("Más opciones")
   onClose,
 }: {
   patients: PatientOption[];
@@ -42,6 +43,11 @@ export function ApptModal({
   end: Date;
   appt?: MonthAppt;
   dentist?: string;
+  prefill?: {
+    patient: PatientOption | null;
+    patientName: string;
+    reason: string;
+  };
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -57,11 +63,18 @@ export function ApptModal({
     [appt, patients],
   );
 
-  const [selected, setSelected] = useState<PatientOption | null>(preselected);
-  const [mode, setMode] = useState<"registered" | "new">(
-    appt && isQuickConsult(appt) ? "new" : "registered",
+  const [selected, setSelected] = useState<PatientOption | null>(
+    preselected ?? prefill?.patient ?? null,
   );
-  const [patientName, setPatientName] = useState(appt?.patient_name ?? "");
+  const [mode, setMode] = useState<"registered" | "new">(() => {
+    if (appt) return isQuickConsult(appt) ? "new" : "registered";
+    // Viene del popover rápido: respeta el modo en que estaba escribiendo.
+    if (prefill && !prefill.patient && prefill.patientName.trim()) return "new";
+    return "registered";
+  });
+  const [patientName, setPatientName] = useState(
+    appt?.patient_name ?? prefill?.patientName ?? "",
+  );
   const [startTime, setStartTime] = useState(hhmmInput(start));
   const [endTime, setEndTime] = useState(hhmmInput(end));
   // Odontólogo seleccionado (por nombre). El id viaja en un hidden derivado,
@@ -254,7 +267,7 @@ export function ApptModal({
           <input
             name="reason"
             type="text"
-            defaultValue={appt?.reason ?? ""}
+            defaultValue={appt?.reason ?? prefill?.reason ?? ""}
             placeholder="ej. Control, limpieza…"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
           />

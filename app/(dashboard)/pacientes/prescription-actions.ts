@@ -47,3 +47,26 @@ export async function createPrescription(
   revalidatePath(`/pacientes/${patientId}`);
   return { id: data.id };
 }
+
+export async function deletePrescription(
+  patientId: string,
+  prescriptionId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  // Mismo criterio que emitir recetas: admin, recepción, colega y odontólogos.
+  if (!can(profile.role, "clinical:write")) return { error: "Sin permiso clínico." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("prescriptions")
+    .delete()
+    .eq("id", prescriptionId)
+    .eq("clinic_id", profile.clinicId)
+    .eq("patient_id", patientId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
+}
