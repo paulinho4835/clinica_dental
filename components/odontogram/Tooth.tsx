@@ -147,6 +147,26 @@ export function Tooth({ fdi, state = EMPTY, size = 46, onSurfaceClick, onWholeCl
               strokeDasharray="3 2"
             />
           )}
+          {state.whole === "perno" && (
+            <rect
+              x={c / 2 - 2.5}
+              y={c / 2 - 10}
+              width={5}
+              height={20}
+              rx={1.5}
+              fill="#6366f1"
+            />
+          )}
+          {state.whole === "movilidad" && (
+            <text x={c / 2} y={c / 2 + 5} textAnchor="middle" fontSize={16} fontWeight="bold" fill="#ec4899">
+              ↔
+            </text>
+          )}
+          {state.whole === "en_erupcion" && (
+            <text x={c / 2} y={c / 2 + 5} textAnchor="middle" fontSize={16} fontWeight="bold" fill="#0d9488">
+              ↑
+            </text>
+          )}
           {/* Marca X completa: tratamiento requerido (rojo) / existente (azul). */}
           {markColor && (
             <g stroke={markColor} strokeWidth={3} strokeLinecap="round">

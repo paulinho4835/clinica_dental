@@ -47,7 +47,7 @@ export function markColorOf(whole: string | null | undefined): string | null {
 export const CONDITION_COLORS: Record<string, string> = {
   sano: "var(--tooth-healthy)",
   caries: "#ef4444",
-  caries_recidivante: "#991b1b",
+  caries_recidivante: "#78350f",
   resina: "#3b82f6",
   amalgama: "#64748b",
   sellante: "#22c55e",

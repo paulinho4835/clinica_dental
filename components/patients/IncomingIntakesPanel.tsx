@@ -160,6 +160,7 @@ export function IncomingIntakesPanel({
           kind="new"
           proposed={reviewItem.proposed}
           personal={reviewItem.personal}
+          canEdit
           onClose={() => setReviewId(null)}
           onDone={(patientId) => {
             setReviewId(null);

@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, canEditAnamnesis, isReceptionistLike } from "@/lib/rbac";
-import { AnamnesisSchema, parseAnamnesis } from "@/lib/schemas/anamnesis";
-import { PatientIntakeSchema } from "@/lib/schemas/patient-intake";
+import { AnamnesisSchema, parseAnamnesis, type Anamnesis } from "@/lib/schemas/anamnesis";
+import { PatientIntakeSchema, type PatientIntake } from "@/lib/schemas/patient-intake";
 
 export type InvitationState =
   | { ok: true; url: string }
@@ -131,6 +131,62 @@ export async function createPatientIntakeInvitation(input: {
   if (error) return { ok: false, error: error.message };
 
   return { ok: true, url: `/h/${token}` };
+}
+
+// Corrige los datos que el paciente envió (ej. errores de dictado por voz con
+// el Asistente Virtual: nombre, C.I. o teléfono mal transcritos) antes de
+// aprobar el alta. Mismo permiso que ve el panel de "Registros entrantes":
+// admin, recepción y colega.
+export async function updateIntakeProposal(
+  invitationId: string,
+  input: {
+    personal: PatientIntake;
+    data: Anamnesis;
+    allergies: string[];
+    alerts: string[];
+  },
+): Promise<ReviewState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  const canEdit =
+    profile.role === "admin" ||
+    profile.role === "colega" ||
+    isReceptionistLike(profile.role);
+  if (!canEdit) return { error: "Sin permiso para editar este registro." };
+
+  const supabase = await createClient();
+  const { data: invite } = await supabase
+    .from("anamnesis_invitations")
+    .select("id, kind, completed_at, reviewed_at")
+    .eq("id", invitationId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (!invite) return { error: "Registro no encontrado." };
+  if (invite.kind !== "new")
+    return { error: "Solo se pueden editar registros de alta de paciente." };
+  if (!invite.completed_at)
+    return { error: "El paciente aún no envió sus datos." };
+  if (invite.reviewed_at) return { error: "Esta solicitud ya fue revisada." };
+
+  const person = PatientIntakeSchema.safeParse(input.personal);
+  if (!person.success)
+    return { error: person.error.issues[0]?.message ?? "Datos personales inválidos." };
+  const anamnesis = AnamnesisSchema.safeParse(input.data);
+  if (!anamnesis.success) return { error: "Datos del historial inválidos." };
+
+  const { error } = await supabase
+    .from("anamnesis_invitations")
+    .update({
+      submitted_personal: person.data,
+      submitted_data: anamnesis.data,
+      submitted_allergies: input.allergies,
+      submitted_alerts: input.alerts,
+    })
+    .eq("id", invite.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/pacientes");
+  return { ok: true };
 }
 
 // Aplica la propuesta enviada por el paciente. Para 'existing' actualiza el
