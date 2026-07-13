@@ -545,6 +545,7 @@ export function AgendaShell({
           patients={patients}
           doctors={doctors}
           forcedColumns={forcedCols}
+          onSwipeDay={shift}
           {...dayViewHandlers}
         />
       )}
@@ -569,6 +570,7 @@ export function AgendaShell({
             })
           }
           onLink={(a) => setLinkAppt(a)}
+          onSwipeWeek={shift}
         />
       )}
 

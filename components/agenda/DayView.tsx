@@ -31,6 +31,7 @@ import { MiniStatus } from "./MiniStatus";
 import { AgendaList } from "./AgendaList";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
+import { useEdgeSwipeNav } from "./useEdgeSwipeNav";
 import { X, Pencil, Link } from "lucide-react";
 
 const PX_PER_HOUR = 56;
@@ -76,6 +77,7 @@ export function DayView({
   onEdit,
   onLink,
   forcedColumns,
+  onSwipeDay,
 }: {
   day: string;
   appts: MonthAppt[];
@@ -89,6 +91,8 @@ export function DayView({
   onLink: (a: MonthAppt) => void;
   /** Cuando se pasa, se usan estos nombres como columnas fijas (vista con doctores). */
   forcedColumns?: string[];
+  /** Swipe horizontal (móvil): -1 día anterior, +1 día siguiente. */
+  onSwipeDay?: (delta: 1 | -1) => void;
 }) {
   const getDoctorColor = useDoctorColor();
   const [y, m, d] = day.split("-").map(Number);
@@ -166,6 +170,11 @@ export function DayView({
     onDrop: handleDrop,
   });
 
+  // Swipe táctil: día anterior / siguiente (mismo gesto que la vista Mes).
+  // Se adjunta a la lista móvil y al contenedor de columnas por separado;
+  // solo hay un gesto a la vez, así que compartir el hook es seguro.
+  const swipeNav = useEdgeSwipeNav(onSwipeDay);
+
   const columns = useMemo<(string | null)[]>(() => {
     if (forcedColumns && forcedColumns.length > 0) return forcedColumns;
     const names = dentistColumns(localAppts);
@@ -223,7 +232,7 @@ export function DayView({
       </div>
 
       {/* ── Vista de lista (solo móvil) ──────────────────────────────────── */}
-      <div className="sm:hidden">
+      <div className="sm:hidden" {...swipeNav}>
         <AgendaList
           appts={localAppts}
           canWrite={canWrite}
@@ -267,7 +276,7 @@ export function DayView({
         </div>
 
         {/* Columnas de doctores / columna única */}
-        <div className={isOverview ? "flex-1 overflow-x-auto" : "flex flex-1 gap-1"}>
+        <div className={isOverview ? "flex-1 overflow-x-auto" : "flex flex-1 gap-1"} {...swipeNav}>
           <div className={`flex gap-1 ${isOverview ? "min-w-max" : "flex-1"}`}>
             {columns.map((col) => {
               const colAppts =

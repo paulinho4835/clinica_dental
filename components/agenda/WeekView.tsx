@@ -25,6 +25,7 @@ import { type PatientOption } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
+import { useEdgeSwipeNav } from "./useEdgeSwipeNav";
 
 // Franja elegida que aún no es una cita (ver DayView).
 type DraftSlot = { start: Date; end: Date; day: string; anchor: DOMRect };
@@ -57,6 +58,7 @@ export function WeekView({
   onPick,
   onEdit,
   onLink,
+  onSwipeWeek,
 }: {
   date: string;
   byDay: Map<string, MonthAppt[]>;
@@ -68,6 +70,8 @@ export function WeekView({
   onPick: (start: Date, end: Date, dentist?: string, draft?: QuickDraft) => void;
   onEdit: (a: MonthAppt) => void;
   onLink: (a: MonthAppt) => void;
+  /** Swipe horizontal (móvil): -1 semana anterior, +1 semana siguiente. */
+  onSwipeWeek?: (delta: 1 | -1) => void;
 }) {
   const getDoctorColor = useDoctorColor();
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
@@ -156,6 +160,9 @@ export function WeekView({
     onDrop: handleDrop,
   });
 
+  // Swipe táctil: semana anterior / siguiente (mismo gesto que la vista Mes).
+  const swipeNav = useEdgeSwipeNav(onSwipeWeek);
+
   // ── Merged byDay (optimistic) ─────────────────────────────────────────────
   const mergedByDay = useMemo(() => {
     if (localAppts.length === 0) return byDay;
@@ -167,7 +174,10 @@ export function WeekView({
   }, [byDay, localAppts]);
 
   return (
-    <div className="overflow-x-auto rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
+    <div
+      className="overflow-x-auto rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
+      {...swipeNav}
+    >
       <div className="flex min-w-[680px]">
         {/* Eje de horas */}
         <div className="relative w-12 shrink-0" style={{ height: AXIS_H, marginTop: 28 }}>

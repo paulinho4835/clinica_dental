@@ -163,9 +163,14 @@ export default async function CuentasPacientesPage({
     <div className="space-y-6">
       <PageHeader title="Cuentas de pacientes" />
 
-      <div className="flex gap-6 items-start">
-        {/* Panel izquierdo: búsqueda + lista */}
-        <div className="w-72 shrink-0 space-y-3">
+      <div className="flex flex-col items-start gap-6 md:flex-row">
+        {/* Panel izquierdo: búsqueda + lista. En móvil se oculta al elegir un
+            paciente (evita el layout de 2 columnas apretado en pantallas chicas). */}
+        <div
+          className={`w-full space-y-3 md:w-72 md:shrink-0 ${
+            selectedPatient ? "hidden md:block" : ""
+          }`}
+        >
           <form method="get">
             <input
               name="q"
@@ -216,14 +221,21 @@ export default async function CuentasPacientesPage({
           </div>
         </div>
 
-        {/* Panel derecho: detalle de cuenta */}
-        <div className="min-w-0 flex-1">
+        {/* Panel derecho: detalle de cuenta. En móvil solo se muestra cuando
+            hay un paciente elegido (ver arriba). */}
+        <div className={`min-w-0 flex-1 ${!selectedPatient ? "hidden md:block" : ""}`}>
           {!selectedPatient ? (
             <div className="flex h-64 items-center justify-center rounded-lg bg-white text-sm text-slate-400 ring-1 ring-slate-200">
               Selecciona un paciente para ver su cuenta
             </div>
           ) : (
             <div className="space-y-4">
+              <Link
+                href={`/cuentas?${qParam}`}
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-clinic md:hidden"
+              >
+                ← Volver a la lista
+              </Link>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   {selectedPatient.full_name}
