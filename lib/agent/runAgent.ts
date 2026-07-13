@@ -73,6 +73,7 @@ function systemPrompt(
   canManage: boolean,
   canCheckAvailability: boolean,
   knownPatientName?: string,
+  clinicInfo?: string | null,
 ): string {
   const now = new Date();
   const todayIso = now.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
@@ -168,9 +169,22 @@ function systemPrompt(
     ``,
     `REGLA CRÍTICA 2: NADA queda guardado si no llamas la herramienta. Cuando el paciente elige o confirma un horario, DEBES llamar la herramienta correspondiente (book_appointment / reschedule_appointment / cancel_appointment) EN ESE MISMO turno, ANTES de responder. PROHIBIDO anunciar "tu cita quedó agendada/reprogramada/cancelada" sin haber recibido "OK:" de la herramienta en este turno. Mostrar horarios disponibles NO agenda ni cambia nada.`,
     ``,
+    ...(clinicInfo
+      ? [
+          `INFORMACIÓN OFICIAL DE LA CLÍNICA (fuente de verdad para tratamientos, precios, horarios, promociones y preguntas frecuentes — redactada y aprobada por la clínica):`,
+          clinicInfo,
+          ``,
+          `REGLAS DE LA INFORMACIÓN OFICIAL: cuando el paciente pregunte por tratamientos, precios, horarios de atención, dirección, formas de pago o promociones, responde SOLO con lo que dice la INFORMACIÓN OFICIAL de arriba, con naturalidad y en tono de WhatsApp. PROHIBIDO inventar, estimar o redondear precios y datos que no estén escritos ahí. Si la pregunta NO está cubierta por la información oficial (o pide más detalle del que hay), NO improvises: deriva con handoff_to_human. Los precios son referenciales: si el paciente quiere una cotización exacta para su caso, aclara que el doctor confirmará el precio en su evaluación. Aprovecha estas respuestas para invitar a agendar una cita cuando sea natural.`,
+        ]
+      : []),
+    ``,
     canManage
-      ? `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no puedas resolver con tus herramientas. No inventes respuestas sobre esos temas.`
-      : `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, quiera reprogramar o cancelar una cita, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no sea agendar una cita nueva. No inventes respuestas sobre esos temas.`,
+      ? clinicInfo
+        ? `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, pregunte algo NO cubierto por la INFORMACIÓN OFICIAL, tenga un reclamo, haga una consulta médica, o pida algo que no puedas resolver con tus herramientas. No inventes respuestas sobre esos temas.`
+        : `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no puedas resolver con tus herramientas. No inventes respuestas sobre esos temas.`
+      : clinicInfo
+        ? `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, quiera reprogramar o cancelar una cita, pregunte algo NO cubierto por la INFORMACIÓN OFICIAL, tenga un reclamo, haga una consulta médica, o pida algo que no sea agendar una cita nueva. No inventes respuestas sobre esos temas.`
+        : `DERIVA A UN HUMANO (handoff_to_human) cuando el paciente: pida hablar con una persona, quiera reprogramar o cancelar una cita, pregunte por precios, tenga un reclamo, haga una consulta médica, o pida algo que no sea agendar una cita nueva. No inventes respuestas sobre esos temas.`,
     ``,
     canCheckAvailability
       ? `ESTILO: profesional pero cercano, mensajes breves y naturales para WhatsApp (1-3 frases, salvo al listar horarios con el FORMATO DE HORARIOS, que sí usa varias líneas). Español neutro, sin voseo ("puedes", no "podés"). Trata al paciente de "usted" solo si él lo hace primero; por defecto usa un "tú" cordial. Un emoji ocasional está bien, sin abusar. Nunca inventes horarios, doctores ni datos: usa siempre las herramientas.`
@@ -199,6 +213,11 @@ export async function runAgent(opts: {
   // Con ficha conocida el agente NO pide carnet; sin ella, lo exige para
   // dejar la solicitud de registro pendiente de aprobación.
   knownPatientName?: string;
+  // Addon "agente_ia_info": bloque de información oficial de la clínica
+  // (tratamientos, precios, horarios, FAQ) ya compilado (getClinicAgentInfo).
+  // Con esto el agente responde esas preguntas en vez de derivarlas; sin él,
+  // comportamiento de siempre (precios → humano).
+  clinicInfo?: string | null;
 }): Promise<{ reply: string; handoff: boolean }> {
   const ctx: AgentContext = { handoffRequested: false };
   const canManage = opts.canManage ?? false;
@@ -223,6 +242,7 @@ export async function runAgent(opts: {
     canManage,
     canCheckAvailability,
     opts.knownPatientName,
+    opts.clinicInfo,
   );
 
   const runModel = () =>

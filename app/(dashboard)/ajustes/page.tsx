@@ -20,6 +20,7 @@ import {
   type ReceptionistaRow,
 } from "@/components/ajustes/ReceptionistasPanel";
 import { LogoUploader } from "@/components/ajustes/LogoUploader";
+import { AgentInfoPanel, type AgentInfoRow } from "@/components/ajustes/AgentInfoPanel";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 
 export default async function SettingsPage() {
@@ -126,6 +127,17 @@ export default async function SettingsPage() {
         isSystem: false,
         clinicId: t.clinic_id as string,
       }));
+  }
+
+  // Información oficial para el Agente de IA (addon "agente_ia_info").
+  let agentInfoEntries: AgentInfoRow[] = [];
+  if (isClinicAdmin && features.agente_ia_info && profile) {
+    const { data } = await supabase
+      .from("agent_info_entries")
+      .select("id, title, content, active")
+      .eq("clinic_id", profile.clinicId)
+      .order("position");
+    agentInfoEntries = (data ?? []) as AgentInfoRow[];
   }
 
   // Recepcionistas (nombres para "Cobrado por" en Mis Trabajos, sin cuenta propia).
@@ -261,6 +273,22 @@ export default async function SettingsPage() {
             systemTemplates={systemTemplates}
             clinicTemplates={clinicTemplates}
           />
+        </section>
+      )}
+
+      {isClinicAdmin && features.agente_ia_info && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Información para el Agente de IA
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Lo que escribas aquí es lo ÚNICO que el asistente de WhatsApp usará
+            para responder preguntas sobre tratamientos, precios, horarios o
+            promociones. Si una pregunta no está cubierta, derivará a un humano
+            como siempre. Consejo: usa precios "desde Bs X" si prefieres no
+            publicar tarifas exactas.
+          </p>
+          <AgentInfoPanel entries={agentInfoEntries} />
         </section>
       )}
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeFeatures } from "@/lib/features";
 import { runAgent, type AgentMessage } from "@/lib/agent/runAgent";
+import { getClinicAgentInfo } from "@/lib/agent/clinicInfo";
 
 // Webhook llamado por el whatsapp-service (Baileys) por CADA mensaje entrante de
 // un paciente. Corre el agente de IA y devuelve el texto a responder. Si la
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   // número (si el teléfono es verificado): con ficha conocida el agente saluda
   // por nombre y NO pide carnet; sin ella exige carnet para dejar la solicitud
   // de registro pendiente en "Registros entrantes".
-  const [{ data: convo }, { data: knownPatient }] = await Promise.all([
+  const [{ data: convo }, { data: knownPatient }, clinicInfo] = await Promise.all([
     admin
       .from("wa_conversations")
       .select("status, messages, paused_at")
@@ -78,6 +79,10 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    // Addon "agente_ia_info": información oficial (precios/horarios/FAQ) que
+    // el agente puede responder directamente. null si el addon está apagado o
+    // no hay entradas → comportamiento de siempre (precios → humano).
+    features.agente_ia_info ? getClinicAgentInfo(clinicId) : Promise.resolve(null),
   ]);
 
   // En pausa: el humano atiende. Solo se reanuda cuando pasan 24h desde la
@@ -107,6 +112,7 @@ export async function POST(req: NextRequest) {
       canManage,
       canCheckAvailability,
       knownPatientName: knownPatient?.full_name ?? undefined,
+      clinicInfo,
     });
     reply = out.reply;
     handoff = out.handoff;
