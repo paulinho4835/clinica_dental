@@ -38,9 +38,18 @@ export function fmtBoliviaTime(iso: string): string {
   });
 }
 
-// Fecha de hoy en Bolivia como "YYYY-MM-DD" (en-CA produce ese formato ISO).
+// Fecha de `d` en Bolivia como "YYYY-MM-DD" (en-CA produce ese formato ISO).
+// Generaliza boliviaTodayISO a cualquier instante, no solo "ahora" — necesario
+// para convertir un timestamp real (ej. starts_at de una cita) al día de
+// calendario que le corresponde en Bolivia, sin depender del huso horario del
+// dispositivo que ejecuta el JS.
+export function boliviaDateISO(d: Date): string {
+  return d.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
+}
+
+// Fecha de hoy en Bolivia como "YYYY-MM-DD".
 export function boliviaTodayISO(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
+  return boliviaDateISO(new Date());
 }
 
 // Fecha + hora en Bolivia ("DD/MM/AAAA, HH:MM" en 24h). Se usa 24h a propósito:

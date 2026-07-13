@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type MonthAppt } from "./apptHelpers";
 import { useDoctorColor } from "@/lib/agenda/doctorColor";
+import { boliviaTodayISO } from "@/lib/format";
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -32,7 +33,7 @@ export function MonthView({
   const base = new Date(month + "T00:00:00");
   const year = base.getFullYear();
   const mon = base.getMonth();
-  const todayKey = dayKey(new Date());
+  const todayKey = boliviaTodayISO();
 
   // ── Swipe táctil estilo Google Calendar ────────────────────────────────────
   // El dedo arrastra la grilla en vivo (translateX); al soltar, si el gesto

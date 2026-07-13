@@ -9,7 +9,9 @@ import {
   blockGeometry,
   dentistColumns,
   assignLanes,
+  boliviaMinutesOfDay,
 } from "@/lib/agenda";
+import { boliviaTodayISO } from "@/lib/format";
 import {
   type MonthAppt,
   apptName,
@@ -39,11 +41,9 @@ const hhmm = (d: Date) =>
 
 function nowFraction(day: string): number | null {
   const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const key = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  if (key !== day) return null;
+  if (boliviaTodayISO() !== day) return null;
   const total = (CLOSE_HOUR - OPEN_HOUR) * 60;
-  const min = now.getHours() * 60 + now.getMinutes() - OPEN_HOUR * 60;
+  const min = boliviaMinutesOfDay(now) - OPEN_HOUR * 60;
   if (min < 0 || min > total) return null;
   return min / total;
 }
@@ -220,20 +220,35 @@ export function DayView({
       {/* ── Grilla horaria (oculta en móvil) ─────────────────────────────── */}
       <div className="hidden sm:flex">
         {/* Eje de horas */}
-        <div className="relative z-10 w-12 shrink-0" style={{ height: AXIS_H }}>
-          {HOURS.map((h, i) => (
-            <div
-              key={h}
-              className="absolute right-1 -translate-y-1/2 text-[11px] tabular-nums text-slate-400"
-              style={{ top: (i / (CLOSE_HOUR - OPEN_HOUR)) * AXIS_H }}
-            >
-              {String(h).padStart(2, "0")}:00
+        <div className="w-12 shrink-0">
+          {/* Réplica invisible del encabezado de columna: cuando las columnas
+              tienen encabezado (nombre del doctor [+ conteo]), los carriles
+              arrancan más abajo que este eje. Sin esta compensación, las
+              etiquetas de hora quedan desalineadas ~35px respecto a los
+              bloques y una cita de 13:00 "parece" de las 14:00. Se replica el
+              mismo markup/clases (invisible) para que la altura coincida
+              exacta aunque cambie la tipografía. */}
+          {columns[0] !== null && (
+            <div className="invisible mb-1 text-center" aria-hidden="true">
+              <div className="text-xs font-semibold">·</div>
+              {isOverview && <div className="text-[10px]">·</div>}
             </div>
-          ))}
-          {/* Marcador invisible para el auto-scroll a la hora actual */}
-          {now !== null && (
-            <div ref={nowRef} className="absolute" style={{ top: now * AXIS_H }} />
           )}
+          <div className="relative z-10" style={{ height: AXIS_H }}>
+            {HOURS.map((h, i) => (
+              <div
+                key={h}
+                className="absolute right-1 -translate-y-1/2 text-[11px] tabular-nums text-slate-400"
+                style={{ top: (i / (CLOSE_HOUR - OPEN_HOUR)) * AXIS_H }}
+              >
+                {String(h).padStart(2, "0")}:00
+              </div>
+            ))}
+            {/* Marcador invisible para el auto-scroll a la hora actual */}
+            {now !== null && (
+              <div ref={nowRef} className="absolute" style={{ top: now * AXIS_H }} />
+            )}
+          </div>
         </div>
 
         {/* Columnas de doctores / columna única */}

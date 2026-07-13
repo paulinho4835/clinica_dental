@@ -1,9 +1,30 @@
 // Lógica pura de la agenda (sin React/DOM) para poder testearla aislada.
 
+import { BOLIVIA_TZ } from "./format";
+
 // ─── Config de la clínica ───────────────────────────────────────────────────
 export const OPEN_HOUR = 8; // apertura
 export const CLOSE_HOUR = 20; // cierre
 export const STEP_MIN = 30; // duración por defecto de un bloque
+
+// Minutos desde medianoche de `d` en la zona horaria de la clínica (Bolivia),
+// sin depender del huso horario del dispositivo/navegador donde corre el JS.
+// blockGeometry recibe instantes reales (Date de starts_at) y debe ubicarlos
+// según la hora en que la clínica realmente opera: si el dispositivo tiene un
+// huso horario distinto a Bolivia, usar getHours()/getMinutes() (hora LOCAL
+// del dispositivo) dibuja la cita en la fila equivocada aunque la etiqueta de
+// texto (que sí fuerza timeZone: "America/La_Paz") se vea con la hora correcta.
+export function boliviaMinutesOfDay(d: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BOLIVIA_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0") % 24;
+  const mi = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return h * 60 + mi;
+}
 
 // Minutos entre dos instantes (redondeado).
 export const mins = (a: Date, b: Date) =>
@@ -70,7 +91,7 @@ export type BlockGeom = { top: number; height: number };
 
 export function blockGeometry(start: Date, end: Date): BlockGeom {
   const total = (CLOSE_HOUR - OPEN_HOUR) * 60;
-  const toMin = (d: Date) => d.getHours() * 60 + d.getMinutes() - OPEN_HOUR * 60;
+  const toMin = (d: Date) => boliviaMinutesOfDay(d) - OPEN_HOUR * 60;
   const s = Math.max(0, Math.min(total, toMin(start)));
   const e = Math.max(0, Math.min(total, toMin(end)));
   return { top: s / total, height: Math.max(0, (e - s) / total) };

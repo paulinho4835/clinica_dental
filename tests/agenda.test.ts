@@ -157,6 +157,22 @@ describe("blockGeometry", () => {
     expect(g.top).toBeCloseTo(11 / 12, 5);
     expect(g.height).toBeCloseTo(1 / 12, 5);
   });
+
+  // Regresión: la posición del bloque debe fijarse por la hora BOLIVIA de la
+  // cita, sin importar el huso horario del dispositivo/servidor que ejecuta el
+  // JS. Antes se usaba d.getHours()/getMinutes() (hora LOCAL del runtime): si
+  // el dispositivo tenía un huso distinto a Bolivia, la cita se dibujaba en la
+  // fila equivocada aunque la etiqueta de texto (que sí fuerza timeZone
+  // "America/La_Paz") mostrara la hora correcta. Usamos timestamps con "Z"
+  // (instante UTC inequívoco) para que el test no dependa del TZ del runner.
+  it("posiciona por hora Bolivia, no por la hora local del runtime", () => {
+    // 2026-06-10T20:00:00Z = 16:00 en Bolivia (UTC-4, sin horario de verano).
+    const start = new Date("2026-06-10T20:00:00.000Z");
+    const end = new Date("2026-06-10T21:00:00.000Z");
+    const g = blockGeometry(start, end);
+    expect(g.top).toBeCloseTo(8 / 12, 5); // 16:00 = 8h desde apertura (08:00)
+    expect(g.height).toBeCloseTo(1 / 12, 5);
+  });
 });
 
 describe("gridRange", () => {

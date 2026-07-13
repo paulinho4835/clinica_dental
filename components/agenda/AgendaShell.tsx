@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus } from "lucide-react";
-import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR } from "@/lib/agenda";
+import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR, boliviaMinutesOfDay } from "@/lib/agenda";
+import { boliviaTodayISO, boliviaDateISO } from "@/lib/format";
 import { type PatientOption } from "./PatientPicker";
 import { SearchBar } from "./SearchBar";
 import { MonthView } from "./MonthView";
@@ -128,7 +129,7 @@ export function AgendaShell({
   const byDay = useMemo(() => {
     const map = new Map<string, MonthAppt[]>();
     for (const a of appts) {
-      const k = dayKey(new Date(a.starts_at));
+      const k = boliviaDateISO(new Date(a.starts_at));
       (map.get(k) ?? map.set(k, []).get(k)!).push(a);
     }
     return map;
@@ -200,7 +201,7 @@ export function AgendaShell({
   }
 
   function goToday() {
-    router.push(`/agenda?date=${dayKey(new Date())}&view=${view}`);
+    router.push(`/agenda?date=${boliviaTodayISO()}&view=${view}`);
   }
 
   // Abre la hoja imprimible del día enfocado (en mes, el día seleccionado).
@@ -226,7 +227,7 @@ export function AgendaShell({
       setSearchMsg(`Sin citas para "${raw.trim()}" en este mes.`);
       return;
     }
-    const k = dayKey(new Date(hit.starts_at));
+    const k = boliviaDateISO(new Date(hit.starts_at));
     setSelectedDay(k);
     setHighlightId(hit.id);
     if (view !== "day") router.push(`/agenda?date=${k}&view=day`);
@@ -271,14 +272,15 @@ export function AgendaShell({
   function openNewAppt() {
     const baseDay = view === "month" && selectedDay ? selectedDay : date;
     const day = new Date(baseDay + "T00:00:00");
-    const isToday = dayKey(day) === dayKey(new Date());
+    const isToday = baseDay === boliviaTodayISO();
 
     let start: Date;
     if (isToday) {
-      const now = new Date();
-      const roundedMin = Math.ceil(now.getMinutes() / STEP_MIN) * STEP_MIN;
+      const nowMin = boliviaMinutesOfDay(new Date());
+      const nowHour = Math.floor(nowMin / 60);
+      const roundedMin = Math.ceil((nowMin % 60) / STEP_MIN) * STEP_MIN;
       start = new Date(day);
-      start.setHours(now.getHours(), roundedMin, 0, 0);
+      start.setHours(nowHour, roundedMin, 0, 0);
       const openTime = new Date(day);
       openTime.setHours(OPEN_HOUR, 0, 0, 0);
       const lastSlot = new Date(day);

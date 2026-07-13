@@ -8,7 +8,9 @@ import {
   blockGeometry,
   assignLanes,
   weekDays,
+  boliviaMinutesOfDay,
 } from "@/lib/agenda";
+import { boliviaTodayISO } from "@/lib/format";
 import { type MonthAppt, apptName, apptBlockClass } from "./apptHelpers";
 import { useDoctorColor } from "@/lib/agenda/doctorColor";
 import {
@@ -39,7 +41,7 @@ const hhmm = (d: Date) => d.toLocaleTimeString("es-BO", { timeZone: "America/La_
 function nowFraction(): number | null {
   const now = new Date();
   const total = (CLOSE_HOUR - OPEN_HOUR) * 60;
-  const min = now.getHours() * 60 + now.getMinutes() - OPEN_HOUR * 60;
+  const min = boliviaMinutesOfDay(now) - OPEN_HOUR * 60;
   if (min < 0 || min > total) return null;
   return min / total;
 }
@@ -68,7 +70,7 @@ export function WeekView({
 }) {
   const getDoctorColor = useDoctorColor();
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
-  const todayKey = dayKey(new Date());
+  const todayKey = boliviaTodayISO();
 
   // Línea de "ahora": fracción del eje recalculada cada minuto.
   const [now, setNow] = useState<number | null>(null);
@@ -106,10 +108,11 @@ export function WeekView({
 
       const oldTime = new Date(movedAppt.starts_at);
       const [h, m] = slot.time.split(":").map(Number);
-      
+
       // Si la cita no se movió de su día y hora original, ignorar el drop
+      // (comparar en hora Bolivia, no la del dispositivo: ver boliviaMinutesOfDay).
       const isSameDate = movedAppt.starts_at.startsWith(slot.date);
-      if (isSameDate && oldTime.getHours() === h && oldTime.getMinutes() === m) {
+      if (isSameDate && boliviaMinutesOfDay(oldTime) === h * 60 + m) {
         return;
       }
 
