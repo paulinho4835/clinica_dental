@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
-import { FEATURES, type FeatureKey } from "@/lib/features";
+import { FEATURES, MODULE_KEYS, MODULE_PRESETS, type FeatureKey, type ModulePreset } from "@/lib/features";
 import { inviteClinicUser } from "@/lib/inviteUser";
 import type { VapiClinicConfig } from "@/lib/vapi";
 
@@ -199,6 +199,32 @@ export async function toggleFeature(formData: FormData) {
 
   const features = { ...(clinic?.features as Record<string, boolean> | null) };
   features[key] = enabled;
+
+  await admin.from("clinics").update({ features }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+  revalidatePath("/agenda");
+  revalidatePath("/", "layout");
+}
+
+// ── Preset de módulos (Consultorio / Clínica completa) ───────────────────────
+// Enciende/apaga de golpe los módulos (no-core, no-opt-in) según el plan.
+// Los add-ons opt-in NO se tocan: se venden aparte en cualquier plan.
+export async function applyModulePreset(formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  const preset = String(formData.get("preset") ?? "") as ModulePreset;
+  if (!clinicId || !(preset in MODULE_PRESETS)) return;
+
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("features")
+    .eq("id", clinicId)
+    .single();
+
+  const features = { ...(clinic?.features as Record<string, boolean> | null) };
+  const on = new Set(MODULE_PRESETS[preset]);
+  for (const key of MODULE_KEYS) features[key] = on.has(key);
 
   await admin.from("clinics").update({ features }).eq("id", clinicId);
   revalidatePath("/superadmin");

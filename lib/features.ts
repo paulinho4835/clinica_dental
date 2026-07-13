@@ -30,6 +30,7 @@ export type FeatureKey =
   | "agente_ia"
   | "agente_ia_t2"
   | "agente_ia_t3"
+  | "agente_ia_info"
   | "logo"
   | "periodontograma";
 
@@ -89,6 +90,11 @@ export const FEATURES: FeatureMeta[] = [
   // ciegas" con la hora que el paciente pida y solo avisa si choca. Independiente
   // de T2: T2 sin T3 reprograma directo (falla si choca, igual que agendar).
   { key: "agente_ia_t3", label: "Agente de IA T3 (consulta disponibilidad real)", href: "/agenda", optIn: true },
+  // Addon del agente de IA: información oficial de la clínica (tratamientos,
+  // precios, horarios, promociones, FAQ) que el bot usa para responder esas
+  // preguntas en vez de derivarlas a un humano. La clínica cura el contenido en
+  // Ajustes; el bot SOLO sabe lo que está escrito ahí. Requiere agente_ia.
+  { key: "agente_ia_info", label: "Agente de IA · Info de la clínica (precios/FAQ)", href: "/ajustes", optIn: true },
   // Addon: subir el logo de la clínica para que aparezca en los documentos
   // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
   { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },
@@ -144,4 +150,42 @@ export function normalizeFeatures(raw: unknown): Features {
 
 export function isEnabled(features: Features, key: FeatureKey): boolean {
   return features[key];
+}
+
+// Presets de "Módulos" (los no-core, no-opt-in) para clínicas grandes vs
+// consultorios pequeños de 1 doctor. Los add-ons (opt-in) NO forman parte del
+// preset: se venden aparte y se prenden igual en cualquier plan.
+// Fuente de verdad de qué claves son "módulo": FEATURES sin core ni optIn.
+export const MODULE_KEYS: FeatureKey[] = [
+  "agenda", "pacientes", "mis_trabajos", "tratamientos",
+  "inventario", "caja", "cuentas", "auditoria",
+];
+
+export type ModulePreset = "consultorio" | "clinica";
+
+export const MODULE_PRESET_LABELS: Record<ModulePreset, string> = {
+  consultorio: "Consultorio",
+  clinica: "Clínica completa",
+};
+
+// Módulos encendidos por preset. Todo lo que no aparezca aquí se apaga
+// explícitamente al aplicar el preset (no se asume nada por ausencia).
+export const MODULE_PRESETS: Record<ModulePreset, FeatureKey[]> = {
+  // Consultorio de 1 doctor: solo lo esencial para atender pacientes. Sin
+  // inventario, caja, cuentas de pacientes ni auditoría (no maneja stock,
+  // finanzas de equipo ni necesita trazabilidad multi-usuario).
+  consultorio: ["agenda", "pacientes", "mis_trabajos", "tratamientos"],
+  // Clínica con equipo: todos los módulos encendidos.
+  clinica: [...MODULE_KEYS],
+};
+
+// Si el conjunto actual de módulos ON coincide exactamente con un preset,
+// devuelve su nombre; si no, null (plan "personalizado" armado a mano).
+export function detectModulePreset(features: Features): ModulePreset | null {
+  for (const preset of Object.keys(MODULE_PRESETS) as ModulePreset[]) {
+    const on = new Set(MODULE_PRESETS[preset]);
+    const matches = MODULE_KEYS.every((k) => features[k] === on.has(k));
+    if (matches) return preset;
+  }
+  return null;
 }

@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search, Users, Download } from "lucide-react";
-import type { Features, FeatureKey } from "@/lib/features";
+import { detectModulePreset, type Features, type FeatureKey } from "@/lib/features";
 import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
 import { AddonToggle } from "@/components/superadmin/AddonToggle";
+import { ModulePresetButtons } from "@/components/superadmin/ModulePresetButtons";
 import { PlanSelect } from "@/components/superadmin/PlanSelect";
 import { ClinicUsers, type ClinicUser } from "@/components/superadmin/ClinicUsers";
 import { AddUserForm } from "@/components/superadmin/AddUserForm";
@@ -196,9 +197,12 @@ function ClinicCard({
         <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
           {/* Módulos principales */}
           <div>
-            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Módulos
-            </h3>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                Módulos
+              </h3>
+              <ModulePresetButtons clinicId={c.id} active={detectModulePreset(c.features)} />
+            </div>
             <div className="flex flex-wrap gap-2">
               {modules.map((f) => (
                 <FeatureToggle
