@@ -31,7 +31,7 @@ export const isQuickConsult = (a: MonthAppt) =>
 // ─── Color por estado de cita ───────────────────────────────────────────────
 export function apptRowStyle(status: string) {
   if (status === "finished") return "border-l-2 border-emerald-400 bg-emerald-50/60";
-  if (status === "no_show") return "border-l-2 border-slate-300 bg-slate-50/60 opacity-60";
+  if (status === "no_show") return "border-l-2 border-slate-500 bg-slate-200/70";
   return "border-l-2 border-clinic/60 bg-clinic/5"; // scheduled
 }
 
@@ -39,13 +39,13 @@ export const apptNameColor = (status: string) =>
   status === "finished"
     ? "text-emerald-700"
     : status === "no_show"
-      ? "text-slate-400 line-through"
+      ? "text-slate-600 line-through"
       : "text-slate-800";
 
 // Fondo del bloque en las vistas Día/Semana, por estado.
 export function apptBlockStyle(status: string) {
   if (status === "finished") return "border-emerald-400 bg-emerald-50 text-emerald-800";
-  if (status === "no_show") return "border-slate-300 bg-slate-100 text-slate-400";
+  if (status === "no_show") return "border-slate-500 bg-slate-200 text-slate-600";
   return "border-clinic/50 bg-clinic/10 text-slate-800"; // scheduled
 }
 
@@ -53,7 +53,7 @@ export function apptBlockStyle(status: string) {
 // Devuelve clases extra que se aplican sobre el color base del doctor.
 export function apptBlockClass(status: string): string {
   if (status === "no_show")
-    return "opacity-70 border-dashed !border-slate-300 !bg-slate-100 !text-slate-400";
+    return "border-dashed !border-slate-500 !bg-slate-200 !text-slate-600";
   if (status === "in_chair")
     return "ring-2 ring-offset-0 animate-pulse-ring";
   if (status === "waiting")

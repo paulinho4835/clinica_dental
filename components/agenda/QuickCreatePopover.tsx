@@ -109,7 +109,11 @@ export function QuickCreatePopover({
   }, [onClose]);
 
   const POPOVER_W = 300;
-  const ESTIMATED_H = 340;
+  // El formulario real (horario + toggle + buscador + odontólogo + motivo +
+  // botones) mide más que esto en la mayoría de los casos; se usa solo para
+  // decidir de qué lado clampear "top". El maxHeight + overflow de abajo es
+  // la red de seguridad real para que nunca quede contenido inalcanzable.
+  const ESTIMATED_H = 460;
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
 
@@ -120,6 +124,7 @@ export function QuickCreatePopover({
   let top = anchor.top - 40;
   if (top + ESTIMATED_H > vh - 8) top = vh - ESTIMATED_H - 8;
   if (top < 8) top = 8;
+  const maxHeight = vh - top - 8;
 
   const header = start.toLocaleDateString("es-BO", {
     weekday: "long",
@@ -132,8 +137,8 @@ export function QuickCreatePopover({
       ref={ref}
       role="dialog"
       aria-label="Nueva cita"
-      style={{ position: "fixed", top, left, width: POPOVER_W, zIndex: 9999 }}
-      className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ring-1 ring-slate-100"
+      style={{ position: "fixed", top, left, width: POPOVER_W, maxHeight, zIndex: 9999 }}
+      className="overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ring-1 ring-slate-100"
     >
       <form action={formAction} className="space-y-2.5">
         <input type="hidden" name="starts_at" value={startsAt} />

@@ -79,7 +79,7 @@ export function ApptPopover({
     return () => document.removeEventListener("keydown", handle);
   }, [onClose]);
 
-  const POPOVER_W = 220;
+  const POPOVER_W = 240;
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
 
@@ -88,7 +88,7 @@ export function ApptPopover({
   if (left < 8) left = 8;
 
   let top = anchor.top;
-  const estimatedH = 150;
+  const estimatedH = 190;
   if (top + estimatedH > vh - 8) top = vh - estimatedH - 8;
   if (top < 8) top = 8;
 
@@ -106,15 +106,15 @@ export function ApptPopover({
       className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ring-1 ring-slate-100"
     >
       <div className="mb-2 border-b border-slate-100 pb-2">
-        <p className="truncate text-sm font-semibold text-slate-800">{apptName(appt)}</p>
+        <p className="break-words text-sm font-semibold text-slate-800">{apptName(appt)}</p>
         <p className="text-xs text-slate-400 tabular-nums">
           {hhmm(s)} – {hhmm(e)}
         </p>
         {appt.dentist_name && (
-          <p className="truncate text-xs text-slate-400">{appt.dentist_name}</p>
+          <p className="break-words text-xs text-slate-400">{appt.dentist_name}</p>
         )}
         {appt.reason && (
-          <p className="mt-0.5 truncate text-xs italic text-slate-500">{appt.reason}</p>
+          <p className="mt-0.5 break-words text-xs italic text-slate-500">{appt.reason}</p>
         )}
       </div>
 

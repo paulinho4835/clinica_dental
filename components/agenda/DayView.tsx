@@ -30,6 +30,7 @@ import {
 import { MiniStatus } from "./MiniStatus";
 import { AgendaList } from "./AgendaList";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
+import { confirm } from "@/lib/confirm";
 import { X, Pencil, Link } from "lucide-react";
 
 const PX_PER_HOUR = 56;
@@ -129,11 +130,25 @@ export function DayView({
       const movedAppt = appts.find((a) => a.id === apptId);
       if (!movedAppt) return;
 
-      const [h, m] = slot.time.split(":").map(Number);
       const updated = applyOptimisticMove(appts, apptId, slot.date, slot.time);
+      const moved = updated.find((a) => a.id === apptId)!;
+
+      // Confirmación explícita: un arrastre accidental de unos px no debe
+      // reagendar la cita sin avisar. Se muestra la posición ya movida (para
+      // que el usuario vea adónde iría) y se revierte si cancela.
       setLocalAppts(updated);
+      const ok = await confirm({
+        title: "Mover cita",
+        message: `¿Mover la cita de ${apptName(movedAppt)} de ${hhmm(new Date(movedAppt.starts_at))} a ${hhmm(new Date(moved.starts_at))}?`,
+        confirmText: "Sí, mover",
+        cancelText: "Cancelar",
+      });
+      if (!ok) {
+        setLocalAppts(revertMove(updated, appts));
+        return;
+      }
+
       try {
-        const moved = updated.find((a) => a.id === apptId)!;
         const res = await rescheduleAppointment(apptId, moved.starts_at, moved.ends_at);
         if (res.error) throw new Error(res.error);
       } catch {
