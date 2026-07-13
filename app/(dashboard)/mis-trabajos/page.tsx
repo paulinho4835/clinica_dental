@@ -43,6 +43,8 @@ type WorkRow = {
   lab_commission_amount: number;
   patient_name: string | null;
   commission_paid: boolean;
+  // Abonos parciales de comisión recibidos (0 = nada abonado aún).
+  commission_paid_amount: number;
   // null = trabajo registrado antes de existir el campo (sin dato).
   invoiced: boolean | null;
   patients: { full_name?: string } | null;
@@ -95,7 +97,7 @@ export default async function MisTrabajosPage({
   let worksQuery = supabase
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, invoiced, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, commission_paid_amount, invoiced, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -217,11 +219,23 @@ export default async function MisTrabajosPage({
         .reduce((s, w) => s + Number(w.amount_paid), 0)
     : totalPaid;
 
-  // Comisiones pendientes de pago (visible en el período/filtro actual)
+  // Comisiones pendientes de pago (visible en el período/filtro actual).
+  // Pendiente = comisión total − abonos parciales recibidos: un trabajo con
+  // adelanto cuenta solo por su restante, para cuadrar con /pagos.
   const totalPendingCommission = !isRecepcionista
     ? rows
         .filter((w) => !w.commission_paid)
-        .reduce((s, w) => s + Number(w.commission_amount) + Number(w.lab_commission_amount), 0)
+        .reduce(
+          (s, w) =>
+            s +
+            Math.max(
+              0,
+              Number(w.commission_amount) +
+                Number(w.lab_commission_amount) -
+                Number(w.commission_paid_amount ?? 0),
+            ),
+          0,
+        )
     : 0;
 
   // Resumen por doctor (solo admin viendo todos)
@@ -236,7 +250,8 @@ export default async function MisTrabajosPage({
             entry.count++;
             const comm = Number(w.commission_amount) + Number(w.lab_commission_amount);
             entry.totalComm += comm;
-            if (!w.commission_paid) entry.pendingComm += comm;
+            if (!w.commission_paid)
+              entry.pendingComm += Math.max(0, comm - Number(w.commission_paid_amount ?? 0));
           }
           return [...map.values()].sort((a, b) => b.pendingComm - a.pendingComm);
         })()
@@ -257,7 +272,11 @@ export default async function MisTrabajosPage({
     cobrado: Number(w.amount_paid),
     metodo: w.payment_method ?? "",
     factura: w.invoiced === true ? "Sí" : w.invoiced === false ? "No" : "",
-    comision_pagada: w.commission_paid ? "Sí" : "No",
+    comision_pagada: w.commission_paid
+      ? "Sí"
+      : Number(w.commission_paid_amount ?? 0) > 0
+        ? `Parcial (${Number(w.commission_paid_amount).toFixed(2)})`
+        : "No",
     notas: w.notes ?? "",
   }));
 
@@ -479,6 +498,11 @@ export default async function MisTrabajosPage({
                   </span>
                   {w.commission_paid && (
                     <span className="block text-xs font-medium text-emerald-600">Pagada ✓</span>
+                  )}
+                  {!w.commission_paid && Number(w.commission_paid_amount ?? 0) > 0 && (
+                    <span className="block text-xs font-medium text-amber-600">
+                      Abono {bs(Number(w.commission_paid_amount))}
+                    </span>
                   )}
                 </div>
                 <span className="text-right tabular-nums">{bs(Number(w.amount_paid))}</span>

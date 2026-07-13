@@ -9,6 +9,9 @@ export type UnpaidWork = {
   patient_name: string | null;
   commission_amount: number;
   lab_commission_amount: number;
+  // Abonos de comisión ya recibidos por este trabajo (adelantos parciales).
+  // Restante = commission_amount + lab_commission_amount − commission_paid_amount.
+  commission_paid_amount: number;
   performed_at: string;
   // Ítem del plan al que pertenece (para agrupar varias cuotas en una sola barra)
   planItemId: string | null;
@@ -24,16 +27,23 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
 
   const admin = createAdminClient();
 
-  // 1. Traer trabajos pendientes de comisión incluyendo treatment_item_id
+  // 1. Traer trabajos del doctor incluyendo treatment_item_id. NO filtramos por
+  // commission_paid=false aquí: la comisión es proporcional a amount_paid, así
+  // que puede saldarse por completo en un solo abono mientras el PACIENTE
+  // recién empezó a pagar el tratamiento. Si filtráramos por comisión pendiente,
+  // ese trabajo (y la barra de progreso del paciente) desaparecería del panel
+  // aunque el paciente esté lejos de terminar de pagar. El filtro real
+  // (comisión pendiente O paciente sin terminar de pagar) se aplica más abajo,
+  // después de calcular planItemPrice/planItemPaid.
   const { data } = await admin
     .from("doctor_works")
     .select(
-      "id, description, patient_name, commission_amount, lab_commission_amount, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
+      "id, description, patient_name, commission_amount, lab_commission_amount, commission_paid_amount, commission_paid, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
     )
     .eq("clinic_id", profile.clinicId)
     .eq("doctor_id", doctorId)
-    .eq("commission_paid", false)
-    .order("performed_at", { ascending: false });
+    .order("performed_at", { ascending: false })
+    .limit(500);
 
   const works = data ?? [];
 
@@ -86,7 +96,17 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
     }
   }
 
-  return works.map((w) => {
+  return works
+    .filter((w) => {
+      if (!w.commission_paid) return true; // comisión pendiente: siempre visible
+      // Comisión ya saldada: mantener visible solo si el paciente no terminó
+      // de pagar (así la barra de progreso no desaparece antes de tiempo).
+      const itemId = w.treatment_item_id as string | null;
+      const price = itemId ? (priceByItem.get(itemId) ?? Number(w.cost)) : Number(w.cost);
+      const paid = itemId ? (paidByItem.get(itemId) ?? Number(w.amount_paid)) : Number(w.amount_paid);
+      return paid < price - 0.005;
+    })
+    .map((w) => {
     const itemId = w.treatment_item_id as string | null;
     // Si el trabajo está vinculado a un plan, usar datos del plan
     // Si no, usar los datos propios del doctor_work como fallback
@@ -101,6 +121,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
           (w.patient_name as string | null)) || null,
       commission_amount: Number(w.commission_amount),
       lab_commission_amount: Number(w.lab_commission_amount),
+      commission_paid_amount: Number(w.commission_paid_amount ?? 0),
       performed_at: w.performed_at as string,
       planItemId: itemId,
       planItemName: itemId ? (nameByItem.get(itemId) || (w.description as string)) : (w.description as string),

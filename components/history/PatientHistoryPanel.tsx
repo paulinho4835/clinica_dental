@@ -12,10 +12,12 @@ import {
 import { Modal } from "@/components/ui/Modal";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { DoneToggle, type Work, type Dentist } from "@/components/treatments/TreatmentPlanPanel";
+import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
 import { Badge } from "@/components/ui/Badge";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { bs } from "@/lib/format";
+import type { PlanItemRow } from "@/lib/treatments/planItems";
 
 export type PaymentRow = {
   id: string;
@@ -44,13 +46,6 @@ export type ApptRow = {
 };
 
 type Recepcionista = { id: string; full_name: string };
-
-type PlanItem = {
-  id: string;
-  name: string;
-  price: number;
-  paidAmount: number;
-};
 
 const initial: ActionState = {};
 
@@ -150,6 +145,7 @@ export function PatientHistoryPanel({
   canManagePayments = false,
   payments,
   works,
+  planItems = [],
   doctors,
   recepcionistas,
   totalQuoted,
@@ -160,6 +156,9 @@ export function PatientHistoryPanel({
   canManagePayments?: boolean;
   payments: PaymentRow[];
   works?: WorkDebtRow[];
+  // Tratamientos del plan con su progreso de pago (misma fuente que Pagos a
+  // personal usa para la comisión del doctor: treatment_items + payments).
+  planItems?: PlanItemRow[];
   doctors: Dentist[];
   recepcionistas?: Recepcionista[];
   totalQuoted: number;
@@ -181,6 +180,31 @@ export function PatientHistoryPanel({
         <SummaryCard label="Total pagado" value={bs(totalPaid)} tone="green" />
         <SummaryCard label="Saldo pendiente" value={bs(saldo)} tone={saldo > 0 ? "red" : "slate"} />
       </div>
+
+      {/* Tratamientos y progreso de pago — misma barra y mismos números que
+          Pagos a personal, para que ambos módulos coincidan siempre. */}
+      {planItems.length > 0 && (
+        <div>
+          <span className="mb-2 block text-xs font-medium uppercase text-slate-400">
+            Tratamientos
+          </span>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+            {planItems.map((item) => (
+              <div key={item.id} className="flex flex-col gap-1 px-4 py-2.5 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 truncate text-slate-700">{item.name}</span>
+                  {item.doctorName && (
+                    <span className="hidden truncate text-xs text-slate-400 sm:block">
+                      {item.doctorName}
+                    </span>
+                  )}
+                </div>
+                <TreatmentProgressBar paid={item.paidAmount} total={item.price} size="md" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Trabajos realizados (deuda) */}
       {works && works.length > 0 && (
@@ -245,6 +269,7 @@ export function PatientHistoryPanel({
             patientId={patientId}
             doctors={doctors}
             recepcionistas={recepcionistas}
+            planItems={planItems}
           />
         )}
         <div className="mt-2 overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
@@ -530,10 +555,14 @@ function PaymentForm({
   patientId,
   doctors,
   recepcionistas,
+  planItems,
 }: {
   patientId: string;
   doctors: Dentist[];
   recepcionistas?: Recepcionista[];
+  // Tratamientos del plan (precio/pagado), ya cargados por el Server Component
+  // padre — evita un segundo fetch al mismo endpoint que usa /pagos.
+  planItems: PlanItemRow[];
 }) {
   const [state, formAction, pending] = useActionState(addPatientPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -544,19 +573,7 @@ function PaymentForm({
   const [pct, setPct] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [collectedById, setCollectedById] = useState("");
-  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [itemId, setItemId] = useState("");
-
-  // Cargar ítems del plan para poder aplicar el pago a un tratamiento concreto
-  // (así sube la barra de progreso de ese ítem).
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/patients/${patientId}/plan-items`)
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d) => { if (!cancelled) setPlanItems(d.items ?? []); })
-      .catch(() => { if (!cancelled) setPlanItems([]); });
-    return () => { cancelled = true; };
-  }, [patientId]);
 
   const amountN = Number(amount) || 0;
   const pctN = Number(pct) || 0;

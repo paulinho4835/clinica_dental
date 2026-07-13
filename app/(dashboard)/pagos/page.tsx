@@ -36,8 +36,11 @@ type WorkDetail = {
   description: string;
   patient_name: string | null;
   performed_at: string;
-  commission_amount: number;
-  lab_commission_amount: number;
+  // Monto abonado a este trabajo EN ESTE pago (bitácora staff_payment_works).
+  // Con adelantos parciales ya no coincide con la comisión total del trabajo.
+  paid_amount: number;
+  // true si el abono no cubrió la comisión completa del trabajo (adelanto).
+  is_partial: boolean;
 };
 
 type PaymentRow = {
@@ -181,26 +184,68 @@ export default async function PagosPage({
     employee: resolvePayee(p),
   }));
 
-  // Traer los works asociados a los pagos visibles
+  // Traer los abonos asociados a los pagos visibles.
+  // Fuente principal: la bitácora staff_payment_works (monto abonado real, que
+  // con adelantos parciales difiere de la comisión total). Fallback legacy:
+  // pagos anteriores a la bitácora, vinculados solo por doctor_works.staff_payment_id.
   const paymentIds = baseRows.map((r) => r.id);
   let worksByPayment = new Map<string, WorkDetail[]>();
 
   if (paymentIds.length > 0) {
-    const { data: worksRaw } = await supabase
-      .from("doctor_works")
-      .select("staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount")
-      .in("staff_payment_id", paymentIds)
-      .order("performed_at", { ascending: false });
+    const [{ data: ledgerRaw }, { data: legacyRaw }] = await Promise.all([
+      supabase
+        .from("staff_payment_works")
+        .select(
+          "staff_payment_id, amount, work:doctor_works(description, patient_name, performed_at, commission_amount, lab_commission_amount)",
+        )
+        .in("staff_payment_id", paymentIds),
+      supabase
+        .from("doctor_works")
+        .select(
+          "id, staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount",
+        )
+        .in("staff_payment_id", paymentIds)
+        .order("performed_at", { ascending: false }),
+    ]);
 
-    for (const w of worksRaw ?? []) {
+    const ledgeredPayments = new Set<string>();
+    for (const row of ledgerRaw ?? []) {
+      const pid = row.staff_payment_id as string;
+      ledgeredPayments.add(pid);
+      const w = row.work as {
+        description?: string;
+        patient_name?: string | null;
+        performed_at?: string;
+        commission_amount?: number;
+        lab_commission_amount?: number;
+      } | null;
+      if (!w) continue;
+      const commTotal = Number(w.commission_amount) + Number(w.lab_commission_amount);
+      if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
+      worksByPayment.get(pid)!.push({
+        description: (w.description as string) ?? "",
+        patient_name: (w.patient_name as string | null) ?? null,
+        performed_at: (w.performed_at as string) ?? "",
+        paid_amount: Number(row.amount),
+        is_partial: Number(row.amount) < commTotal - 0.005,
+      });
+    }
+    for (const list of worksByPayment.values()) {
+      list.sort((a, b) => (a.performed_at < b.performed_at ? 1 : -1));
+    }
+
+    // Legacy: solo pagos SIN filas en la bitácora (el flujo viejo marcaba la
+    // comisión completa, así que el abono mostrado es la comisión total).
+    for (const w of legacyRaw ?? []) {
       const pid = w.staff_payment_id as string;
+      if (ledgeredPayments.has(pid)) continue;
       if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
       worksByPayment.get(pid)!.push({
         description: w.description as string,
         patient_name: w.patient_name as string | null,
         performed_at: w.performed_at as string,
-        commission_amount: Number(w.commission_amount),
-        lab_commission_amount: Number(w.lab_commission_amount),
+        paid_amount: Number(w.commission_amount) + Number(w.lab_commission_amount),
+        is_partial: false,
       });
     }
   }
@@ -365,25 +410,27 @@ export default async function PagosPage({
 
               {p.works.length > 0 && (
                 <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
-                  {p.works.map((w, i) => {
-                    const comm = w.commission_amount + w.lab_commission_amount;
-                    return (
-                      <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="shrink-0 tabular-nums text-slate-400">
-                          {fmtShortDate(w.performed_at)}
+                  {p.works.map((w, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="shrink-0 tabular-nums text-slate-400">
+                        {fmtShortDate(w.performed_at)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-slate-600">
+                        {w.description || "—"}
+                        {w.patient_name && (
+                          <span className="text-slate-400"> · {w.patient_name}</span>
+                        )}
+                      </span>
+                      {w.is_partial && (
+                        <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
+                          abono
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-slate-600">
-                          {w.description || "—"}
-                          {w.patient_name && (
-                            <span className="text-slate-400"> · {w.patient_name}</span>
-                          )}
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
-                          {bs(comm)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      )}
+                      <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
+                        {bs(w.paid_amount)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -452,30 +499,32 @@ export default async function PagosPage({
                   {p.works.length > 0 && (
                     <div className="border-b border-slate-100 bg-slate-50/50 px-4 pb-2.5 last:border-b-0">
                       <div className="ml-[7.5rem] space-y-0.5">
-                        {p.works.map((w, i) => {
-                          const comm = w.commission_amount + w.lab_commission_amount;
-                          return (
-                            <div
-                              key={i}
-                              className="flex items-center gap-3 rounded px-2 py-1 text-xs text-slate-500"
-                            >
-                              <span className="w-10 shrink-0 tabular-nums text-slate-400">
-                                {fmtShortDate(w.performed_at)}
+                        {p.works.map((w, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-3 rounded px-2 py-1 text-xs text-slate-500"
+                          >
+                            <span className="w-10 shrink-0 tabular-nums text-slate-400">
+                              {fmtShortDate(w.performed_at)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-slate-600">
+                              {w.description || "—"}
+                            </span>
+                            {w.patient_name && (
+                              <span className="max-w-[8rem] truncate text-slate-400">
+                                {w.patient_name}
                               </span>
-                              <span className="min-w-0 flex-1 truncate text-slate-600">
-                                {w.description || "—"}
+                            )}
+                            {w.is_partial && (
+                              <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
+                                abono parcial
                               </span>
-                              {w.patient_name && (
-                                <span className="max-w-[8rem] truncate text-slate-400">
-                                  {w.patient_name}
-                                </span>
-                              )}
-                              <span className="tabular-nums font-medium text-clinic whitespace-nowrap">
-                                {bs(comm)}
-                              </span>
-                            </div>
-                          );
-                        })}
+                            )}
+                            <span className="tabular-nums font-medium text-clinic whitespace-nowrap">
+                              {bs(w.paid_amount)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

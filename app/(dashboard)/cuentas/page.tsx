@@ -12,6 +12,7 @@ import {
   type PaymentRow,
   type WorkDebtRow,
 } from "@/components/history/PatientHistoryPanel";
+import { fetchPatientPlanItems, type PlanItemRow } from "@/lib/treatments/planItems";
 
 export default async function CuentasPacientesPage({
   searchParams,
@@ -48,6 +49,7 @@ export default async function CuentasPacientesPage({
   let selectedPatient: { id: string; full_name: string } | null = null;
   let paymentRows: PaymentRow[] = [];
   let workRows: WorkDebtRow[] = [];
+  let planItems: PlanItemRow[] = [];
   let totalQuoted = 0;
   let totalPaid = 0;
 
@@ -95,7 +97,7 @@ export default async function CuentasPacientesPage({
     if (pat) {
       selectedPatient = pat as { id: string; full_name: string };
 
-      const [{ data: payments }, { data: works }] = await Promise.all([
+      const [{ data: payments }, { data: works }, items] = await Promise.all([
         supabase
           .from("payments")
           .select(
@@ -105,10 +107,16 @@ export default async function CuentasPacientesPage({
           .order("received_at", { ascending: false }),
         supabase
           .from("doctor_works")
-          .select("id, description, cost, performed_at, doctor:profiles!doctor_works_doctor_id_fkey(full_name)")
+          .select(
+            "id, description, cost, performed_at, treatment_item_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
+          )
           .eq("patient_id", selectedId)
           .order("performed_at", { ascending: false }),
+        // Misma fuente que /api/patients/[id]/plan-items: precio vs. pagado por
+        // tratamiento del plan, para la barra de progreso por tratamiento.
+        fetchPatientPlanItems(supabase, selectedId),
       ]);
+      planItems = items;
 
       paymentRows = (payments ?? []).map((p) => ({
         id: p.id as string,
@@ -131,7 +139,21 @@ export default async function CuentasPacientesPage({
       }));
 
       totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
-      totalQuoted = workRows.reduce((s, w) => s + w.cost, 0);
+
+      // "Total facturado" = costo de sesiones ya registradas (doctor_works) +
+      // precio de tratamientos del plan que AÚN no tienen ninguna sesión
+      // registrada. Sin esto, un adelanto de pago sobre un tratamiento
+      // planificado pero no iniciado clínicamente mostraba "facturado" en
+      // Bs 0 y un "saldo pendiente" negativo.
+      const itemIdsWithWork = new Set(
+        (works ?? [])
+          .map((w) => w.treatment_item_id as string | null)
+          .filter((id): id is string => !!id),
+      );
+      const unstartedPlanItemsTotal = planItems
+        .filter((item) => !itemIdsWithWork.has(item.id))
+        .reduce((s, item) => s + item.price, 0);
+      totalQuoted = workRows.reduce((s, w) => s + w.cost, 0) + unstartedPlanItemsTotal;
     }
   }
 
@@ -219,6 +241,7 @@ export default async function CuentasPacientesPage({
                 canManagePayments={canManagePayments}
                 payments={paymentRows}
                 works={workRows}
+                planItems={planItems}
                 doctors={doctors ?? []}
                 recepcionistas={recepcionistas ?? []}
                 totalQuoted={totalQuoted}

@@ -42,8 +42,9 @@ export type PrintPaymentRow = {
     description: string;
     patient_name: string | null;
     performed_at: string;
-    commission_amount: number;
-    lab_commission_amount: number;
+    // Monto abonado en este pago (puede ser un adelanto parcial de la comisión).
+    paid_amount: number;
+    is_partial: boolean;
   }>;
 };
 
@@ -70,17 +71,17 @@ export function PrintPagosButton({
           r.works.length > 0
             ? `<table class="works-table">
                 <tr>
-                  <th>Fecha</th><th>Trabajo</th><th>Paciente</th><th class="num">Comisión</th>
+                  <th>Fecha</th><th>Trabajo</th><th>Paciente</th><th class="num">Abonado</th>
                 </tr>
                 ${r.works
                   .map(
                     (w) => `
                   <tr>
                     <td style="white-space:nowrap;color:#64748b">${fmtDate(w.performed_at)}</td>
-                    <td>${w.description || "—"}</td>
+                    <td>${w.description || "—"}${w.is_partial ? ' <span style="color:#b45309;font-size:8px">(abono parcial)</span>' : ""}</td>
                     <td style="color:#64748b">${w.patient_name || "—"}</td>
                     <td class="num" style="color:#0e7490;font-weight:600">
-                      ${bs(w.commission_amount + w.lab_commission_amount)}
+                      ${bs(w.paid_amount)}
                     </td>
                   </tr>`,
                   )
