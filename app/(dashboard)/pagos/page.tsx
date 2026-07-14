@@ -1,13 +1,15 @@
+import Link from "next/link";
 import { requireNavAccess } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { boliviaTodayISO, bs, fmtBoliviaTime } from "@/lib/format";
+import { COMMISSION_ROLES, sumPendingCommissions } from "@/lib/pagos";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Stat } from "@/components/ui/Stat";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Banknote, Receipt } from "lucide-react";
-import { StaffPaymentForm } from "@/components/pagos/StaffPaymentForm";
+import { Banknote, Receipt, Users } from "lucide-react";
+import { StaffPaymentForm, type Payee } from "@/components/pagos/StaffPaymentForm";
 import { PagosFilter } from "@/components/pagos/PagosFilter";
 import { DeletePaymentButton } from "@/components/pagos/DeletePaymentButton";
 import { DisbursedToggle } from "@/components/pagos/DisbursedToggle";
@@ -29,8 +31,9 @@ const ROLE_LABEL: Record<string, string> = {
   asistente: "Asistente",
 };
 
+// Tabla del historial (una sola persona → sin columnas Trabajador/Rol).
 const GRID =
-  "grid grid-cols-[7rem_minmax(0,1fr)_7rem_minmax(0,1.2fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
+  "grid grid-cols-[7rem_minmax(0,1.5fr)_7rem_8rem_8rem_2.5rem] items-center gap-x-4";
 
 type WorkDetail = {
   description: string;
@@ -51,7 +54,6 @@ type PaymentRow = {
   paid_at: string;
   created_at: string;
   disbursed: boolean;
-  employee: { id: string; full_name: string; role: string } | null;
   works: WorkDetail[];
 };
 
@@ -70,44 +72,26 @@ function fmtShortDate(d: string) {
   });
 }
 
-// Un pago apunta a un empleado (profiles) O a una recepcionista sin cuenta
-// (clinic_receptionists). Devuelve un destinatario unificado {id, full_name, role}.
-function resolvePayee(p: {
-  employee?: unknown;
-  receptionist?: unknown;
-}): { id: string; full_name: string; role: string } | null {
-  const emp = (Array.isArray(p.employee) ? p.employee[0] : p.employee) as
-    | { id: string; full_name: string; role: string }
-    | null;
-  if (emp) return emp;
-  const rec = (Array.isArray(p.receptionist) ? p.receptionist[0] : p.receptionist) as
-    | { id: string; name: string }
-    | null;
-  if (rec) return { id: rec.id, full_name: rec.name, role: "recepcionista" };
-  return null;
-}
-
 export default async function PagosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ employee?: string; month?: string }>;
+  searchParams: Promise<{ q?: string; p?: string; month?: string }>;
 }) {
   await requireNavAccess("pagos");
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const params = await searchParams;
+  const { q = "", p: selectedKey, month } = await searchParams;
   const today = boliviaTodayISO();
   const currentMonth = today.slice(0, 7);
-  const selectedMonth = params.month ?? currentMonth;
-  const selectedEmployee = params.employee ?? "all";
-
+  const selectedMonth = month ?? currentMonth;
   const isAllMonths = selectedMonth === "all";
 
-  const [year, month] = isAllMonths ? [0, 0] : selectedMonth.split("-").map(Number);
+  const [year, monthNum] = isAllMonths ? [0, 0] : selectedMonth.split("-").map(Number);
   const monthStart = isAllMonths ? "" : `${selectedMonth}-01`;
-  const nextMonthStart = isAllMonths ? "" : new Date(year, month, 1).toISOString().slice(0, 10);
+  const nextMonthStart = isAllMonths ? "" : new Date(year, monthNum, 1).toISOString().slice(0, 10);
 
+  // ── Panel izquierdo: personas + comisiones pendientes ─────────────────
   const platformAdminIds = await getPlatformAdminIds();
   let empQuery = supabase
     .from("profiles")
@@ -117,46 +101,39 @@ export default async function PagosPage({
   if (platformAdminIds.length > 0) {
     empQuery = empQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
+  if (q.trim()) empQuery = empQuery.ilike("full_name", `%${q.trim()}%`);
 
-  // Recepcionistas sin cuenta de login (tabla clinic_receptionists). Se les puede
-  // registrar pagos (sueldo) aunque no hagan trabajos clínicos.
-  const recepQuery = supabase
+  // Recepcionistas sin cuenta de login (tabla clinic_receptionists). Se les
+  // puede registrar pagos (sueldo) aunque no hagan trabajos clínicos.
+  let recepQuery = supabase
     .from("clinic_receptionists")
     .select("id, name")
     .eq("clinic_id", profile!.clinicId)
     .eq("active", true)
     .order("name");
+  if (q.trim()) recepQuery = recepQuery.ilike("name", `%${q.trim()}%`);
 
-  let paymentsQuery = supabase
-    .from("staff_payments")
-    .select(
-      "id, amount, method, concept, paid_at, created_at, disbursed, employee:profiles!staff_payments_employee_id_fkey(id, full_name, role), receptionist:clinic_receptionists!staff_payments_receptionist_id_fkey(id, name)",
-    )
-    .order("paid_at", { ascending: false })
-    .order("created_at", { ascending: false });
+  // Comisiones no saldadas de toda la clínica → badge "Bs X pendiente" por
+  // persona. Query liviana: solo trabajos con commission_paid=false.
+  const pendingQuery = supabase
+    .from("doctor_works")
+    .select("doctor_id, commission_amount, lab_commission_amount, commission_paid_amount")
+    .eq("clinic_id", profile!.clinicId)
+    .eq("commission_paid", false);
 
-  if (!isAllMonths) {
-    paymentsQuery = paymentsQuery.gte("paid_at", monthStart).lt("paid_at", nextMonthStart);
-  }
+  const [{ data: employees }, { data: receptionists }, { data: pendingRaw }] =
+    await Promise.all([empQuery, recepQuery, pendingQuery]);
 
-  // El filtro de persona usa IDs compuestos: "p:<uuid>" (perfil) y "r:<uuid>"
-  // (recepcionista). Compat: un valor sin prefijo se asume perfil.
-  if (selectedEmployee !== "all") {
-    if (selectedEmployee.startsWith("r:")) {
-      paymentsQuery = paymentsQuery.eq("receptionist_id", selectedEmployee.slice(2));
-    } else {
-      const empId = selectedEmployee.startsWith("p:")
-        ? selectedEmployee.slice(2)
-        : selectedEmployee;
-      paymentsQuery = paymentsQuery.eq("employee_id", empId);
-    }
-  }
+  const pendingByDoctor = sumPendingCommissions(
+    (pendingRaw ?? []).map((r) => ({
+      doctor_id: r.doctor_id as string,
+      commission_amount: Number(r.commission_amount),
+      lab_commission_amount: Number(r.lab_commission_amount),
+      commission_paid_amount: Number(r.commission_paid_amount ?? 0),
+    })),
+  );
 
-  const [{ data: employees }, { data: receptionists }, { data: rawPayments }] =
-    await Promise.all([empQuery, recepQuery, paymentsQuery]);
-
-  // Lista unificada de destinatarios para el formulario y el filtro.
-  const payees = [
+  const payees: Payee[] = [
     ...(employees ?? []).map((e) => ({
       key: `p:${e.id}`,
       id: e.id as string,
@@ -173,111 +150,112 @@ export default async function PagosPage({
     })),
   ];
 
-  const baseRows = (rawPayments ?? []).map((p) => ({
-    id: p.id as string,
-    amount: Number(p.amount),
-    method: p.method as string,
-    concept: p.concept as string | null,
-    paid_at: p.paid_at as string,
-    created_at: p.created_at as string,
-    disbursed: Boolean(p.disbursed),
-    employee: resolvePayee(p),
-  }));
+  // Persona inexistente o de otra clínica → no está en payees → placeholder.
+  const selectedPayee = payees.find((pp) => pp.key === selectedKey) ?? null;
 
-  // Traer los abonos asociados a los pagos visibles.
-  // Fuente principal: la bitácora staff_payment_works (monto abonado real, que
-  // con adelantos parciales difiere de la comisión total). Fallback legacy:
-  // pagos anteriores a la bitácora, vinculados solo por doctor_works.staff_payment_id.
-  const paymentIds = baseRows.map((r) => r.id);
-  let worksByPayment = new Map<string, WorkDetail[]>();
+  // ── Panel derecho: detalle de la persona seleccionada ─────────────────
+  let rows: PaymentRow[] = [];
+  let paidMonth = 0;
+  let pendingDisburse = 0;
 
-  if (paymentIds.length > 0) {
-    const [{ data: ledgerRaw }, { data: legacyRaw }] = await Promise.all([
-      supabase
-        .from("staff_payment_works")
-        .select(
-          "staff_payment_id, amount, work:doctor_works(description, patient_name, performed_at, commission_amount, lab_commission_amount)",
-        )
-        .in("staff_payment_id", paymentIds),
-      supabase
-        .from("doctor_works")
-        .select(
-          "id, staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount",
-        )
-        .in("staff_payment_id", paymentIds)
-        .order("performed_at", { ascending: false }),
-    ]);
+  if (selectedPayee) {
+    let paymentsQuery = supabase
+      .from("staff_payments")
+      .select("id, amount, method, concept, paid_at, created_at, disbursed")
+      .order("paid_at", { ascending: false })
+      .order("created_at", { ascending: false });
 
-    const ledgeredPayments = new Set<string>();
-    for (const row of ledgerRaw ?? []) {
-      const pid = row.staff_payment_id as string;
-      ledgeredPayments.add(pid);
-      const w = row.work as {
-        description?: string;
-        patient_name?: string | null;
-        performed_at?: string;
-        commission_amount?: number;
-        lab_commission_amount?: number;
-      } | null;
-      if (!w) continue;
-      const commTotal = Number(w.commission_amount) + Number(w.lab_commission_amount);
-      if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
-      worksByPayment.get(pid)!.push({
-        description: (w.description as string) ?? "",
-        patient_name: (w.patient_name as string | null) ?? null,
-        performed_at: (w.performed_at as string) ?? "",
-        paid_amount: Number(row.amount),
-        is_partial: Number(row.amount) < commTotal - 0.005,
-      });
+    if (selectedPayee.kind === "receptionist") {
+      paymentsQuery = paymentsQuery.eq("receptionist_id", selectedPayee.id);
+    } else {
+      paymentsQuery = paymentsQuery.eq("employee_id", selectedPayee.id);
     }
-    for (const list of worksByPayment.values()) {
-      list.sort((a, b) => (a.performed_at < b.performed_at ? 1 : -1));
+    if (!isAllMonths) {
+      paymentsQuery = paymentsQuery.gte("paid_at", monthStart).lt("paid_at", nextMonthStart);
     }
 
-    // Legacy: solo pagos SIN filas en la bitácora (el flujo viejo marcaba la
-    // comisión completa, así que el abono mostrado es la comisión total).
-    for (const w of legacyRaw ?? []) {
-      const pid = w.staff_payment_id as string;
-      if (ledgeredPayments.has(pid)) continue;
-      if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
-      worksByPayment.get(pid)!.push({
-        description: w.description as string,
-        patient_name: w.patient_name as string | null,
-        performed_at: w.performed_at as string,
-        paid_amount: Number(w.commission_amount) + Number(w.lab_commission_amount),
-        is_partial: false,
-      });
-    }
-  }
+    const { data: rawPayments } = await paymentsQuery;
 
-  const rows: PaymentRow[] = baseRows.map((r) => ({
-    ...r,
-    works: worksByPayment.get(r.id) ?? [],
-  }));
+    const baseRows = (rawPayments ?? []).map((p) => ({
+      id: p.id as string,
+      amount: Number(p.amount),
+      method: p.method as string,
+      concept: p.concept as string | null,
+      paid_at: p.paid_at as string,
+      created_at: p.created_at as string,
+      disbursed: Boolean(p.disbursed),
+    }));
 
-  const totalMonth = rows.filter((p) => p.disbursed).reduce((s, p) => s + p.amount, 0);
-  const totalPending = rows.filter((p) => !p.disbursed).reduce((s, p) => s + p.amount, 0);
+    // Traer los abonos asociados a los pagos visibles.
+    // Fuente principal: la bitácora staff_payment_works (monto abonado real, que
+    // con adelantos parciales difiere de la comisión total). Fallback legacy:
+    // pagos anteriores a la bitácora, vinculados solo por doctor_works.staff_payment_id.
+    const paymentIds = baseRows.map((r) => r.id);
+    const worksByPayment = new Map<string, WorkDetail[]>();
 
-  const byEmployee = rows.reduce<Record<string, { name: string; role: string; total: number; count: number; pending: number }>>(
-    (acc, p) => {
-      const key = p.employee?.id ?? "unknown";
-      if (!acc[key]) {
-        acc[key] = {
-          name: p.employee?.full_name ?? "—",
-          role: p.employee?.role ?? "",
-          total: 0,
-          count: 0,
-          pending: 0,
-        };
+    if (paymentIds.length > 0) {
+      const [{ data: ledgerRaw }, { data: legacyRaw }] = await Promise.all([
+        supabase
+          .from("staff_payment_works")
+          .select(
+            "staff_payment_id, amount, work:doctor_works(description, patient_name, performed_at, commission_amount, lab_commission_amount)",
+          )
+          .in("staff_payment_id", paymentIds),
+        supabase
+          .from("doctor_works")
+          .select(
+            "id, staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount",
+          )
+          .in("staff_payment_id", paymentIds)
+          .order("performed_at", { ascending: false }),
+      ]);
+
+      const ledgeredPayments = new Set<string>();
+      for (const row of ledgerRaw ?? []) {
+        const pid = row.staff_payment_id as string;
+        ledgeredPayments.add(pid);
+        const w = row.work as {
+          description?: string;
+          patient_name?: string | null;
+          performed_at?: string;
+          commission_amount?: number;
+          lab_commission_amount?: number;
+        } | null;
+        if (!w) continue;
+        const commTotal = Number(w.commission_amount) + Number(w.lab_commission_amount);
+        if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
+        worksByPayment.get(pid)!.push({
+          description: (w.description as string) ?? "",
+          patient_name: (w.patient_name as string | null) ?? null,
+          performed_at: (w.performed_at as string) ?? "",
+          paid_amount: Number(row.amount),
+          is_partial: Number(row.amount) < commTotal - 0.005,
+        });
       }
-      if (p.disbursed) acc[key].total += p.amount;
-      else acc[key].pending += p.amount;
-      acc[key].count += 1;
-      return acc;
-    },
-    {},
-  );
-  const employeeSummary = Object.values(byEmployee).sort((a, b) => b.total - a.total);
+      for (const list of worksByPayment.values()) {
+        list.sort((a, b) => (a.performed_at < b.performed_at ? 1 : -1));
+      }
+
+      // Legacy: solo pagos SIN filas en la bitácora (el flujo viejo marcaba la
+      // comisión completa, así que el abono mostrado es la comisión total).
+      for (const w of legacyRaw ?? []) {
+        const pid = w.staff_payment_id as string;
+        if (ledgeredPayments.has(pid)) continue;
+        if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
+        worksByPayment.get(pid)!.push({
+          description: w.description as string,
+          patient_name: w.patient_name as string | null,
+          performed_at: w.performed_at as string,
+          paid_amount: Number(w.commission_amount) + Number(w.lab_commission_amount),
+          is_partial: false,
+        });
+      }
+    }
+
+    rows = baseRows.map((r) => ({ ...r, works: worksByPayment.get(r.id) ?? [] }));
+    paidMonth = rows.filter((p) => p.disbursed).reduce((s, p) => s + p.amount, 0);
+    pendingDisburse = rows.filter((p) => !p.disbursed).reduce((s, p) => s + p.amount, 0);
+  }
 
   const monthLabel = isAllMonths
     ? "Todos los meses"
@@ -286,10 +264,15 @@ export default async function PagosPage({
         year: "numeric",
       });
 
+  const pendingCommission =
+    selectedPayee && selectedPayee.kind === "profile" && COMMISSION_ROLES.has(selectedPayee.role)
+      ? (pendingByDoctor.get(selectedPayee.id) ?? 0)
+      : null;
+
   const printRows: PrintPaymentRow[] = rows.map((r) => ({
     id: r.id,
-    employeeName: r.employee?.full_name ?? "—",
-    employeeRole: r.employee?.role ?? "",
+    employeeName: selectedPayee?.full_name ?? "—",
+    employeeRole: selectedPayee?.role ?? "",
     amount: r.amount,
     method: r.method,
     concept: r.concept,
@@ -298,249 +281,296 @@ export default async function PagosPage({
     works: r.works,
   }));
 
+  const qParam = q.trim() ? `q=${encodeURIComponent(q.trim())}&` : "";
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Pagos a personal"
         subtitle="Registra y controla los pagos realizados a doctores, recepcionistas y personal de la clínica."
       />
 
-      <StaffPaymentForm payees={payees} today={today} />
+      <div className="flex flex-col items-start gap-6 md:flex-row">
+        {/* Panel izquierdo: búsqueda + lista de personas. En móvil se oculta al
+            elegir a alguien (evita el layout de 2 columnas apretado). */}
+        <div
+          className={`w-full space-y-3 md:w-72 md:shrink-0 ${
+            selectedPayee ? "hidden md:block" : ""
+          }`}
+        >
+          <form method="get">
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por nombre…"
+              autoComplete="off"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+            />
+          </form>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat
-          label={`Desembolsado — ${monthLabel}`}
-          value={bs(totalMonth)}
-          icon={<Banknote className="h-5 w-5" />}
-          valueClassName="text-emerald-600"
-        />
-        {totalPending > 0 && (
-          <Stat
-            label="Pendiente de desembolso"
-            value={bs(totalPending)}
-            icon={<Receipt className="h-5 w-5" />}
-            valueClassName="text-amber-600"
-          />
-        )}
-        <Stat
-          label="Pagos registrados"
-          value={String(rows.length)}
-          icon={<Receipt className="h-5 w-5" />}
-        />
-      </div>
+          <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+            {payees.length === 0 ? (
+              <EmptyState
+                icon={<Users className="h-6 w-6" />}
+                title={q ? `Sin resultados para “${q}”` : "Aún no hay personal"}
+                description={
+                  q
+                    ? "Prueba con otro nombre."
+                    : "Registra doctores o recepcionistas para pagarles aquí."
+                }
+              />
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {payees.map((pp) => {
+                  const pending =
+                    pp.kind === "profile" && COMMISSION_ROLES.has(pp.role)
+                      ? (pendingByDoctor.get(pp.id) ?? 0)
+                      : 0;
+                  return (
+                    <Link
+                      key={pp.key}
+                      href={`/pagos?${qParam}p=${pp.key}`}
+                      className={`block px-4 py-3 transition-colors hover:bg-slate-50 ${
+                        selectedKey === pp.key
+                          ? "border-l-2 border-clinic bg-clinic/5"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-800">
+                            {pp.full_name}
+                          </div>
+                          <div className="mt-0.5 text-xs text-slate-400">
+                            {ROLE_LABEL[pp.role] ?? pp.role}
+                          </div>
+                        </div>
+                        {pending > 0 && (
+                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-500/10">
+                            {bs(pending)} pendiente
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
-      {/* Resumen por empleado */}
-      {employeeSummary.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-medium text-slate-500 uppercase tracking-wide">
-            Resumen — {monthLabel}
-          </h2>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {employeeSummary.map((e) => (
-              <div
-                key={e.name}
-                className="rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200"
+        {/* Panel derecho: detalle de pagos. En móvil solo se muestra cuando
+            hay alguien elegido (ver arriba). */}
+        <div className={`min-w-0 flex-1 ${!selectedPayee ? "hidden md:block" : ""}`}>
+          {!selectedPayee ? (
+            <div className="flex h-64 items-center justify-center rounded-lg bg-white text-sm text-slate-400 ring-1 ring-slate-200">
+              Selecciona a una persona para ver sus pagos
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Link
+                href={`/pagos?${qParam}`}
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-clinic md:hidden"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-slate-700">{e.name}</div>
-                    <div className="text-xs text-slate-400">
-                      {ROLE_LABEL[e.role] ?? e.role} · {e.count} pago{e.count !== 1 ? "s" : ""}
-                    </div>
-                  </div>
-                  <span className="tabular-nums font-semibold text-emerald-600">{bs(e.total)}</span>
-                </div>
-                {e.pending > 0 && (
-                  <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1">
-                    <span className="text-xs text-slate-400">Pendiente</span>
-                    <span className="tabular-nums text-xs font-medium text-amber-600">{bs(e.pending)}</span>
-                  </div>
+                ← Volver a la lista
+              </Link>
+
+              <div>
+                <h2 className="text-lg font-semibold">{selectedPayee.full_name}</h2>
+                <p className="text-xs text-slate-400">
+                  {ROLE_LABEL[selectedPayee.role] ?? selectedPayee.role}
+                </p>
+              </div>
+
+              {/* Tarjetas de resumen */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                {pendingCommission !== null && (
+                  <Stat
+                    label="Comisión pendiente"
+                    value={bs(pendingCommission)}
+                    icon={<Receipt className="h-5 w-5" />}
+                    valueClassName={pendingCommission > 0 ? "text-amber-600" : "text-emerald-600"}
+                  />
+                )}
+                <Stat
+                  label={`Pagado — ${monthLabel}`}
+                  value={bs(paidMonth)}
+                  icon={<Banknote className="h-5 w-5" />}
+                  valueClassName="text-emerald-600"
+                />
+                {pendingDisburse > 0 && (
+                  <Stat
+                    label="Pendiente de desembolso"
+                    value={bs(pendingDisburse)}
+                    icon={<Receipt className="h-5 w-5" />}
+                    valueClassName="text-amber-600"
+                  />
                 )}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
 
-      {/* Filtros + tabla */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <PagosFilter
-            payees={payees}
-            selectedEmployee={selectedEmployee}
-            selectedMonth={selectedMonth}
-          />
-          <PrintPagosButton rows={printRows} monthLabel={monthLabel} />
-        </div>
+              {/* Formulario (incluye el panel de trabajos pendientes).
+                  key={...} resetea el estado del form al cambiar de persona. */}
+              <StaffPaymentForm key={selectedPayee.key} payee={selectedPayee} today={today} />
 
-        {/* ── Lista en tarjetas (solo móvil) ─────────────────────────────
-            La tabla de escritorio usa un grid de ancho fijo (min-w-[52rem])
-            pensado para hacer scroll horizontal; en pantallas angostas eso
-            terminaba comprimiendo columnas hasta solaparlas. Aquí cada pago
-            es una tarjeta apilada verticalmente: no hay ancho fijo que
-            desbordar. */}
-        <div className="space-y-2 sm:hidden">
-          {rows.map((p) => (
-            <div key={p.id} className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-700">
-                    {p.employee?.full_name ?? "—"}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {ROLE_LABEL[p.employee?.role ?? ""] ?? p.employee?.role ?? "—"} ·{" "}
-                    {fmtDate(p.paid_at)}
-                  </p>
+              {/* Historial de pagos de la persona */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <PagosFilter selectedMonth={selectedMonth} />
+                  <PrintPagosButton rows={printRows} monthLabel={monthLabel} />
                 </div>
-                <span className="shrink-0 whitespace-nowrap text-right tabular-nums font-semibold text-emerald-600">
-                  {bs(p.amount)}
-                </span>
-              </div>
 
-              {p.concept && (
-                <p className="mt-1.5 truncate text-sm text-slate-600">{p.concept}</p>
-              )}
-
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="text-xs text-slate-500">
-                  {METHOD_LABEL[p.method] ?? p.method}
-                </span>
-                <DisbursedToggle id={p.id} disbursed={p.disbursed} />
-              </div>
-
-              {p.works.length > 0 && (
-                <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
-                  {p.works.map((w, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
-                      <span className="shrink-0 tabular-nums text-slate-400">
-                        {fmtShortDate(w.performed_at)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-600">
-                        {w.description || "—"}
-                        {w.patient_name && (
-                          <span className="text-slate-400"> · {w.patient_name}</span>
-                        )}
-                      </span>
-                      {w.is_partial && (
-                        <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
-                          abono
+                {/* ── Lista en tarjetas (solo móvil) ───────────────────── */}
+                <div className="space-y-2 sm:hidden">
+                  {rows.map((p) => (
+                    <div key={p.id} className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-700">
+                            {p.concept ?? "Pago"}
+                          </p>
+                          <p className="text-xs text-slate-400">{fmtDate(p.paid_at)}</p>
+                        </div>
+                        <span className="shrink-0 whitespace-nowrap text-right tabular-nums font-semibold text-emerald-600">
+                          {bs(p.amount)}
                         </span>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">
+                          {METHOD_LABEL[p.method] ?? p.method}
+                        </span>
+                        <DisbursedToggle id={p.id} disbursed={p.disbursed} />
+                      </div>
+
+                      {p.works.length > 0 && (
+                        <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                          {p.works.map((w, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                              <span className="shrink-0 tabular-nums text-slate-400">
+                                {fmtShortDate(w.performed_at)}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-slate-600">
+                                {w.description || "—"}
+                                {w.patient_name && (
+                                  <span className="text-slate-400"> · {w.patient_name}</span>
+                                )}
+                              </span>
+                              {w.is_partial && (
+                                <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
+                                  abono
+                                </span>
+                              )}
+                              <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
+                                {bs(w.paid_amount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
-                        {bs(w.paid_amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
-              <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
-                <DeletePaymentButton id={p.id} />
-              </div>
-            </div>
-          ))}
-          {rows.length === 0 && (
-            <EmptyState
-              icon={<Receipt className="h-6 w-6" />}
-              title="Sin pagos en este período"
-              description="Ajusta el rango de fechas o registra un pago a personal."
-            />
-          )}
-        </div>
-
-        {/* ── Tabla (escritorio) ──────────────────────────────────────── */}
-        <div className="hidden overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200 sm:block">
-          <div className="min-w-[52rem]">
-            <div className={`${GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
-              <span>Fecha</span>
-              <span>Trabajador</span>
-              <span>Rol</span>
-              <span>Concepto</span>
-              <span>Método</span>
-              <span className="text-right">Monto</span>
-              <span>Desembolso</span>
-              <span />
-            </div>
-            <div className="divide-y divide-slate-100">
-              {rows.map((p) => (
-                <div key={p.id}>
-                  {/* Fila principal del pago */}
-                  <div
-                    className={`${GRID} px-4 py-2.5 text-sm transition hover:bg-slate-50/70 ${p.works.length > 0 ? "" : "border-b border-slate-100 last:border-b-0"}`}
-                  >
-                    <div className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                      <div>{fmtDate(p.paid_at)}</div>
-                      <div className="text-slate-300">{fmtBoliviaTime(p.created_at)}</div>
-                    </div>
-                    <span className="truncate font-medium text-slate-700">
-                      {p.employee?.full_name ?? "—"}
-                    </span>
-                    <span className="truncate text-slate-500 text-xs">
-                      {ROLE_LABEL[p.employee?.role ?? ""] ?? p.employee?.role ?? "—"}
-                    </span>
-                    <span className="truncate text-slate-600">
-                      {p.concept ?? <span className="text-slate-400">—</span>}
-                    </span>
-                    <span className="text-slate-500 whitespace-nowrap">
-                      {METHOD_LABEL[p.method] ?? p.method}
-                    </span>
-                    <span className="text-right tabular-nums font-semibold text-emerald-600 whitespace-nowrap">
-                      {bs(p.amount)}
-                    </span>
-                    <div>
-                      <DisbursedToggle id={p.id} disbursed={p.disbursed} />
-                    </div>
-                    <div className="flex justify-end">
-                      <DeletePaymentButton id={p.id} />
-                    </div>
-                  </div>
-
-                  {/* Sub-filas: trabajos incluidos en este pago */}
-                  {p.works.length > 0 && (
-                    <div className="border-b border-slate-100 bg-slate-50/50 px-4 pb-2.5 last:border-b-0">
-                      <div className="ml-[7.5rem] space-y-0.5">
-                        {p.works.map((w, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-3 rounded px-2 py-1 text-xs text-slate-500"
-                          >
-                            <span className="w-10 shrink-0 tabular-nums text-slate-400">
-                              {fmtShortDate(w.performed_at)}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-slate-600">
-                              {w.description || "—"}
-                            </span>
-                            {w.patient_name && (
-                              <span className="max-w-[8rem] truncate text-slate-400">
-                                {w.patient_name}
-                              </span>
-                            )}
-                            {w.is_partial && (
-                              <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
-                                abono parcial
-                              </span>
-                            )}
-                            <span className="tabular-nums font-medium text-clinic whitespace-nowrap">
-                              {bs(w.paid_amount)}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
+                        <DeletePaymentButton id={p.id} />
                       </div>
                     </div>
+                  ))}
+                  {rows.length === 0 && (
+                    <EmptyState
+                      icon={<Receipt className="h-6 w-6" />}
+                      title="Sin pagos en este período"
+                      description="Ajusta el mes o registra un pago con el formulario."
+                    />
                   )}
                 </div>
-              ))}
-              {rows.length === 0 && (
-                <EmptyState
-                  icon={<Receipt className="h-6 w-6" />}
-                  title="Sin pagos en este período"
-                  description="Ajusta el rango de fechas o registra un pago a personal."
-                />
-              )}
+
+                {/* ── Tabla (escritorio) ───────────────────────────────── */}
+                <div className="hidden overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200 sm:block">
+                  <div className="min-w-[42rem]">
+                    <div className={`${GRID} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
+                      <span>Fecha</span>
+                      <span>Concepto</span>
+                      <span>Método</span>
+                      <span className="text-right">Monto</span>
+                      <span>Desembolso</span>
+                      <span />
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {rows.map((p) => (
+                        <div key={p.id}>
+                          {/* Fila principal del pago */}
+                          <div
+                            className={`${GRID} px-4 py-2.5 text-sm transition hover:bg-slate-50/70 ${p.works.length > 0 ? "" : "border-b border-slate-100 last:border-b-0"}`}
+                          >
+                            <div className="whitespace-nowrap tabular-nums text-xs text-slate-400">
+                              <div>{fmtDate(p.paid_at)}</div>
+                              <div className="text-slate-300">{fmtBoliviaTime(p.created_at)}</div>
+                            </div>
+                            <span className="truncate text-slate-600">
+                              {p.concept ?? <span className="text-slate-400">—</span>}
+                            </span>
+                            <span className="text-slate-500 whitespace-nowrap">
+                              {METHOD_LABEL[p.method] ?? p.method}
+                            </span>
+                            <span className="text-right tabular-nums font-semibold text-emerald-600 whitespace-nowrap">
+                              {bs(p.amount)}
+                            </span>
+                            <div>
+                              <DisbursedToggle id={p.id} disbursed={p.disbursed} />
+                            </div>
+                            <div className="flex justify-end">
+                              <DeletePaymentButton id={p.id} />
+                            </div>
+                          </div>
+
+                          {/* Sub-filas: trabajos incluidos en este pago */}
+                          {p.works.length > 0 && (
+                            <div className="border-b border-slate-100 bg-slate-50/50 px-4 pb-2.5 last:border-b-0">
+                              <div className="ml-[7.5rem] space-y-0.5">
+                                {p.works.map((w, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-center gap-3 rounded px-2 py-1 text-xs text-slate-500"
+                                  >
+                                    <span className="w-10 shrink-0 tabular-nums text-slate-400">
+                                      {fmtShortDate(w.performed_at)}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-slate-600">
+                                      {w.description || "—"}
+                                    </span>
+                                    {w.patient_name && (
+                                      <span className="shrink-0 text-slate-400">
+                                        {w.patient_name}
+                                      </span>
+                                    )}
+                                    {w.is_partial && (
+                                      <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10">
+                                        abono parcial
+                                      </span>
+                                    )}
+                                    <span className="tabular-nums font-medium text-clinic whitespace-nowrap">
+                                      {bs(w.paid_amount)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {rows.length === 0 && (
+                        <EmptyState
+                          icon={<Receipt className="h-6 w-6" />}
+                          title="Sin pagos en este período"
+                          description="Ajusta el mes o registra un pago con el formulario."
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
-          </div>
+          )}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

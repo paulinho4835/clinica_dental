@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/actions";
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
+import { COMMISSION_ROLES } from "@/lib/pagos";
 import { bs } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
@@ -30,31 +31,12 @@ type WorkGroup = {
 
 // Destinatario de un pago: un empleado con cuenta (profiles) o una recepcionista
 // sin cuenta (clinic_receptionists). `key` es el id compuesto ("p:uuid"/"r:uuid").
-type Payee = {
+export type Payee = {
   key: string;
   id: string;
   full_name: string;
   role: string;
   kind: "profile" | "receptionist";
-};
-
-// Roles que ganan comisión por trabajos clínicos. El admin se incluye porque en
-// clínicas chicas suele atender pacientes además de administrar (tiene
-// doctor_works y comisiones, igual que un doctor). Un admin puramente
-// administrativo no tendrá trabajos pendientes → el panel sale vacío, sin daño.
-const COMMISSION_ROLES = new Set([
-  "odontologo_general",
-  "especialista",
-  "colega",
-  "admin",
-]);
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: "Admin",
-  odontologo_general: "Odontólogo",
-  especialista: "Especialista",
-  recepcionista: "Recepcionista",
-  asistente: "Asistente",
 };
 
 const initial: ActionState = {};
@@ -66,19 +48,20 @@ function fmtShortDate(d: string) {
   });
 }
 
+// La persona viene fijada por la selección del panel izquierdo (layout
+// maestro-detalle) — este form ya no tiene dropdown "Pagar a". El padre debe
+// montarlo con key={payee.key} para resetear el estado al cambiar de persona.
 export function StaffPaymentForm({
-  payees,
+  payee,
   today,
 }: {
-  payees: Payee[];
+  payee: Payee;
   today: string;
 }) {
   const [state, formAction, pending] = useActionState(createStaffPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  // `payeeKey` es el id compuesto seleccionado en el dropdown ("p:uuid"/"r:uuid").
-  const [payeeKey, setPayeeKey] = useState("");
   const [amount, setAmount] = useState("");
   const [concept, setConcept] = useState("");
   const [unpaidWorks, setUnpaidWorks] = useState<UnpaidWork[]>([]);
@@ -87,14 +70,19 @@ export function StaffPaymentForm({
   const [groupAmounts, setGroupAmounts] = useState<Map<string, string>>(new Map());
   const [fetching, startFetch] = useTransition();
 
-  const selectedPayee = payees.find((e) => e.key === payeeKey);
-  const isProfile = selectedPayee?.kind === "profile";
-  const earnsCommission =
-    isProfile && selectedPayee ? COMMISSION_ROLES.has(selectedPayee.role) : false;
+  const isProfile = payee.kind === "profile";
+  const earnsCommission = isProfile && COMMISSION_ROLES.has(payee.role);
 
-  // Recepcionistas y empleados con cuenta van en grupos separados del <select>.
-  const profilePayees = payees.filter((e) => e.kind === "profile");
-  const receptionistPayees = payees.filter((e) => e.kind === "receptionist");
+  // Cargar los trabajos pendientes de la persona al montar. Solo los empleados
+  // con cuenta (profiles) que ganan comisión tienen trabajos que cargar.
+  useEffect(() => {
+    if (!earnsCommission) return;
+    startFetch(async () => {
+      const works = await fetchDoctorUnpaidWorks(payee.id);
+      setUnpaidWorks(works);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payee.id]);
 
   // Agrupar trabajos por treatment_item_id → una barra por tratamiento.
   // Los trabajos sin plan (manuales) quedan como grupo individual sin barra.
@@ -159,24 +147,6 @@ export function StaffPaymentForm({
   );
   const hasSelection = groupAmounts.size > 0;
 
-  function onPayeeChange(key: string) {
-    setPayeeKey(key);
-    setGroupAmounts(new Map());
-    setUnpaidWorks([]);
-    setAmount("");
-    setConcept("");
-
-    // Solo los empleados con cuenta (profiles) que ganan comisión tienen trabajos
-    // pendientes que cargar. Las recepcionistas sin cuenta no.
-    const payee = payees.find((e) => e.key === key);
-    if (payee && payee.kind === "profile" && COMMISSION_ROLES.has(payee.role)) {
-      startFetch(async () => {
-        const works = await fetchDoctorUnpaidWorks(payee.id);
-        setUnpaidWorks(works);
-      });
-    }
-  }
-
   function syncDerived(next: Map<string, string>) {
     setGroupAmounts(next);
     const selected = groups.filter((g) => next.has(g.key));
@@ -232,15 +202,13 @@ export function StaffPaymentForm({
       setAmount("");
       setConcept("");
       setGroupAmounts(new Map());
-      // Mantener el empleado seleccionado y refrescar sus trabajos pendientes,
-      // para que los que se acaban de pagar desaparezcan sin necesidad de F5.
-      if (selectedPayee && earnsCommission) {
+      // Refrescar los trabajos pendientes de la persona, para que los que se
+      // acaban de pagar desaparezcan sin necesidad de F5.
+      if (earnsCommission) {
         startFetch(async () => {
-          const works = await fetchDoctorUnpaidWorks(selectedPayee.id);
+          const works = await fetchDoctorUnpaidWorks(payee.id);
           setUnpaidWorks(works);
         });
-      } else {
-        setUnpaidWorks([]);
       }
       router.refresh();
     }
@@ -253,19 +221,17 @@ export function StaffPaymentForm({
       action={formAction}
       className="space-y-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
-      <p className="text-sm font-medium text-slate-700">Registrar pago</p>
+      <p className="text-sm font-medium text-slate-700">
+        Registrar pago a {payee.full_name}
+      </p>
 
       {/* Destinatario + work_ids via hidden inputs (valores controlados).
           Se manda employee_id O receptionist_id según el tipo de destinatario. */}
-      <input
-        type="hidden"
-        name="employee_id"
-        value={isProfile ? (selectedPayee?.id ?? "") : ""}
-      />
+      <input type="hidden" name="employee_id" value={isProfile ? payee.id : ""} />
       <input
         type="hidden"
         name="receptionist_id"
-        value={selectedPayee?.kind === "receptionist" ? selectedPayee.id : ""}
+        value={payee.kind === "receptionist" ? payee.id : ""}
       />
       {/* Abonos por trabajo: pares alineados work_ids[i] ↔ work_amounts[i]. */}
       {allocations.map((a) => (
@@ -274,46 +240,6 @@ export function StaffPaymentForm({
           <input type="hidden" name="work_amounts" value={a.amount} />
         </span>
       ))}
-
-      {/* Fila 1: Empleado + Fecha */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs">
-          <span className="mb-1 block text-slate-500">Pagar a *</span>
-          <select
-            required
-            value={payeeKey}
-            onChange={(e) => onPayeeChange(e.target.value)}
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
-          >
-            <option value="" disabled>— Selecciona persona —</option>
-            {profilePayees.map((e) => (
-              <option key={e.key} value={e.key}>
-                {e.full_name} ({ROLE_LABEL[e.role] ?? e.role})
-              </option>
-            ))}
-            {receptionistPayees.length > 0 && (
-              <optgroup label="Recepcionistas (sin cuenta)">
-                {receptionistPayees.map((e) => (
-                  <option key={e.key} value={e.key}>
-                    {e.full_name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
-
-        <label className="text-xs">
-          <span className="mb-1 block text-slate-500">Fecha</span>
-          <input
-            name="paid_at"
-            type="date"
-            defaultValue={today}
-            required
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
-          />
-        </label>
-      </div>
 
       {/* Panel de trabajos — para quienes ganan comisión (doctores y admin clínico) */}
       {earnsCommission && (
@@ -340,7 +266,7 @@ export function StaffPaymentForm({
             <p className="py-2 text-xs text-slate-400">Cargando trabajos…</p>
           )}
 
-          {!fetching && payeeKey && unpaidWorks.length === 0 && (
+          {!fetching && unpaidWorks.length === 0 && (
             <p className="py-1 text-xs text-slate-400">Sin comisiones pendientes.</p>
           )}
 
@@ -383,7 +309,7 @@ export function StaffPaymentForm({
                         )}
                       </span>
                       {g.patient_name && (
-                        <span className="max-w-[8rem] truncate text-xs text-slate-400">
+                        <span className="shrink-0 text-xs text-slate-400">
                           {g.patient_name}
                         </span>
                       )}
@@ -407,9 +333,13 @@ export function StaffPaymentForm({
                     )}
                     {/* Barra del PACIENTE (pagos del tratamiento): informativa,
                         independiente de la comisión — no desaparece hasta que
-                        el paciente salde, sin importar los adelantos al doctor. */}
+                        el paciente salde, sin importar los adelantos al doctor.
+                        El rótulo evita confundirla con la comisión del doctor. */}
                     {g.hasBar && (
                       <div className="ml-6">
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Pago del paciente
+                        </span>
                         <TreatmentProgressBar paid={g.planItemPaid} total={g.planItemPrice} />
                       </div>
                     )}
@@ -461,8 +391,19 @@ export function StaffPaymentForm({
         </div>
       )}
 
-      {/* Fila 2: Monto + Método + Concepto */}
+      {/* Campos del pago: Fecha + Monto + Método + Concepto */}
       <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs">
+          <span className="mb-1 block text-slate-500">Fecha</span>
+          <input
+            name="paid_at"
+            type="date"
+            defaultValue={today}
+            required
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
+          />
+        </label>
+
         <label className="text-xs">
           <span className="mb-1 block text-slate-500">
             Monto (Bs) *
@@ -516,7 +457,7 @@ export function StaffPaymentForm({
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={pending || !payeeKey || Boolean(invalidGroup)}
+          disabled={pending || Boolean(invalidGroup)}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
           {pending ? "…" : "Registrar pago"}
