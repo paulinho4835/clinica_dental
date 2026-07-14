@@ -72,6 +72,17 @@ function fmtShortDate(d: string) {
   });
 }
 
+// doctor_works.patient_name suele quedar vacío cuando el trabajo está vinculado
+// a un paciente real (patient_id) — el nombre vive en el join a `patients`.
+// Mismo patrón de resolución que work-actions.ts (fetchDoctorUnpaidWorks).
+function resolveWorkPatientName(w: {
+  patient_name?: string | null;
+  patients?: { full_name?: string } | { full_name?: string }[] | null;
+}): string | null {
+  const joined = Array.isArray(w.patients) ? w.patients[0] : w.patients;
+  return joined?.full_name ?? w.patient_name ?? null;
+}
+
 export default async function PagosPage({
   searchParams,
 }: {
@@ -198,13 +209,13 @@ export default async function PagosPage({
         supabase
           .from("staff_payment_works")
           .select(
-            "staff_payment_id, amount, work:doctor_works(description, patient_name, performed_at, commission_amount, lab_commission_amount)",
+            "staff_payment_id, amount, work:doctor_works(description, patient_name, performed_at, commission_amount, lab_commission_amount, patients(full_name))",
           )
           .in("staff_payment_id", paymentIds),
         supabase
           .from("doctor_works")
           .select(
-            "id, staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount",
+            "id, staff_payment_id, description, patient_name, performed_at, commission_amount, lab_commission_amount, patients(full_name)",
           )
           .in("staff_payment_id", paymentIds)
           .order("performed_at", { ascending: false }),
@@ -220,13 +231,14 @@ export default async function PagosPage({
           performed_at?: string;
           commission_amount?: number;
           lab_commission_amount?: number;
+          patients?: { full_name?: string } | { full_name?: string }[] | null;
         } | null;
         if (!w) continue;
         const commTotal = Number(w.commission_amount) + Number(w.lab_commission_amount);
         if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
         worksByPayment.get(pid)!.push({
           description: (w.description as string) ?? "",
-          patient_name: (w.patient_name as string | null) ?? null,
+          patient_name: resolveWorkPatientName(w),
           performed_at: (w.performed_at as string) ?? "",
           paid_amount: Number(row.amount),
           is_partial: Number(row.amount) < commTotal - 0.005,
@@ -244,7 +256,7 @@ export default async function PagosPage({
         if (!worksByPayment.has(pid)) worksByPayment.set(pid, []);
         worksByPayment.get(pid)!.push({
           description: w.description as string,
-          patient_name: w.patient_name as string | null,
+          patient_name: resolveWorkPatientName(w),
           performed_at: w.performed_at as string,
           paid_amount: Number(w.commission_amount) + Number(w.lab_commission_amount),
           is_partial: false,
