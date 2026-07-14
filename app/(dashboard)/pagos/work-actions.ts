@@ -19,6 +19,8 @@ export type UnpaidWork = {
   // Progreso del pago del plan de tratamiento (fuente: tabla payments)
   planItemPrice: number;
   planItemPaid: number;
+  // % de comisión manual del doctor sobre este trabajo (doctor_works.commission_pct).
+  commission_pct: number;
 };
 
 export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWork[]> {
@@ -38,7 +40,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
   const { data } = await admin
     .from("doctor_works")
     .select(
-      "id, description, patient_name, commission_amount, lab_commission_amount, commission_paid_amount, commission_paid, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
+      "id, description, patient_name, commission_amount, lab_commission_amount, commission_paid_amount, commission_paid, commission_pct, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
     )
     .eq("clinic_id", profile.clinicId)
     .eq("doctor_id", doctorId)
@@ -127,6 +129,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
       planItemName: itemId ? (nameByItem.get(itemId) || (w.description as string)) : (w.description as string),
       planItemPrice,
       planItemPaid,
+      commission_pct: Number(w.commission_pct ?? 0),
     };
   });
 }

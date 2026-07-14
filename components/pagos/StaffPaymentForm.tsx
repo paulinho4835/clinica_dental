@@ -17,7 +17,15 @@ type WorkGroup = {
   name: string;
   // Trabajos del grupo ordenados del más antiguo al más nuevo; los abonos
   // parciales se asignan en ese orden (primero se salda la cuota más vieja).
-  works: { id: string; remaining: number }[];
+  // performed_at/description/commission_pct alimentan la tabla de detalle que
+  // se muestra al seleccionar el grupo.
+  works: {
+    id: string;
+    remaining: number;
+    performed_at: string;
+    description: string;
+    commission_pct: number;
+  }[];
   commission: number;
   // Comisión ya abonada (adelantos) y restante por pagar del grupo.
   commissionPaid: number;
@@ -95,7 +103,13 @@ export function StaffPaymentForm({
       const remaining = Math.max(0, Math.round((comm - paid) * 100) / 100);
       const existing = map.get(key);
       if (existing) {
-        existing.works.push({ id: w.id, remaining });
+        existing.works.push({
+          id: w.id,
+          remaining,
+          performed_at: w.performed_at,
+          description: w.description,
+          commission_pct: w.commission_pct,
+        });
         existing.commission += comm;
         existing.commissionPaid += paid;
         existing.remaining = Math.round((existing.remaining + remaining) * 100) / 100;
@@ -104,7 +118,15 @@ export function StaffPaymentForm({
         map.set(key, {
           key,
           name: w.planItemId ? w.planItemName : w.description,
-          works: [{ id: w.id, remaining }],
+          works: [
+            {
+              id: w.id,
+              remaining,
+              performed_at: w.performed_at,
+              description: w.description,
+              commission_pct: w.commission_pct,
+            },
+          ],
           commission: comm,
           commissionPaid: paid,
           remaining,
@@ -346,6 +368,39 @@ export function StaffPaymentForm({
                           Pago del paciente
                         </span>
                         <TreatmentProgressBar paid={g.planItemPaid} total={g.planItemPrice} />
+                      </div>
+                    )}
+                    {/* Detalle al seleccionar: una fila por sesión/cuota del grupo. */}
+                    {checked && (
+                      <div className="ml-6 overflow-hidden rounded border border-slate-200">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-400">
+                              <th className="px-2 py-1 font-medium">Fecha</th>
+                              <th className="px-2 py-1 font-medium">Paciente</th>
+                              <th className="px-2 py-1 font-medium">Tratamiento</th>
+                              <th className="px-2 py-1 text-right font-medium">Monto pagado</th>
+                              <th className="px-2 py-1 text-right font-medium">% Comisión</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {g.works.map((w) => (
+                              <tr key={w.id}>
+                                <td className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-500">
+                                  {fmtShortDate(w.performed_at)}
+                                </td>
+                                <td className="px-2 py-1 text-slate-600">{g.patient_name ?? "—"}</td>
+                                <td className="px-2 py-1 text-slate-600">{w.description || "—"}</td>
+                                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-slate-600">
+                                  {bs(g.planItemPaid)}
+                                </td>
+                                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-slate-600">
+                                  {w.commission_pct}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                     {/* Monto a abonar (editable → adelanto parcial) */}
