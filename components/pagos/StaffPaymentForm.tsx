@@ -8,6 +8,7 @@ import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressB
 import { COMMISSION_ROLES, isOverdue } from "@/lib/pagos";
 import { bs } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { confirm } from "@/lib/confirm";
 
 // Agrupación de trabajos pendientes por ítem del plan de tratamiento.
 // Varias cuotas/sesiones del mismo tratamiento se muestran como una sola
@@ -77,6 +78,9 @@ export function StaffPaymentForm({
   // adelantos parciales). key del grupo → monto como string del input.
   const [groupAmounts, setGroupAmounts] = useState<Map<string, string>>(new Map());
   const [fetching, startFetch] = useTransition();
+  // Evita repreguntar: tras confirmar, disparamos el submit real y esta bandera
+  // deja pasar ese segundo evento sin volver a mostrar el diálogo.
+  const skipConfirmRef = useRef(false);
 
   const isProfile = payee.kind === "profile";
   const earnsCommission = isProfile && COMMISSION_ROLES.has(payee.role);
@@ -237,10 +241,31 @@ export function StaffPaymentForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Confirma antes de registrar el pago (evita registros por error/doble
+  // clic). Al confirmar, reenvía el formulario con skipConfirmRef=true para
+  // no volver a preguntar en ese segundo submit.
+  async function handleSubmit(e: React.FormEvent) {
+    if (skipConfirmRef.current) {
+      skipConfirmRef.current = false;
+      return;
+    }
+    e.preventDefault();
+    const ok = await confirm({
+      title: "Registrar pago",
+      message: `¿Confirmas registrar un pago de ${bs(Number(amount) || 0)} a ${payee.full_name}?`,
+      confirmText: "Sí, registrar",
+      cancelText: "Cancelar",
+    });
+    if (!ok) return;
+    skipConfirmRef.current = true;
+    formRef.current?.requestSubmit();
+  }
+
   return (
     <form
       ref={formRef}
       action={formAction}
+      onSubmit={handleSubmit}
       className="space-y-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
       <p className="text-sm font-medium text-slate-700">
