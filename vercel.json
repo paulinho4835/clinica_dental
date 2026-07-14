@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 5 * * 0"
+    },
+    {
+      "path": "/api/cron/audit-archive",
+      "schedule": "0 6 * * 0"
     }
   ]
 }
