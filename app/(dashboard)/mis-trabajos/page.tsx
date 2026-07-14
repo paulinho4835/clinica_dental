@@ -1,4 +1,4 @@
-import { Briefcase, Banknote, Percent, Clock } from "lucide-react";
+import { Briefcase, Banknote, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
@@ -55,7 +55,6 @@ type WorkRow = {
 type DoctorSummaryRow = {
   name: string;
   count: number;
-  totalComm: number;
   pendingComm: number;
 };
 
@@ -208,10 +207,6 @@ export default async function MisTrabajosPage({
 
   const rows = (works as WorkRow[] | null) ?? [];
   const totalCost = rows.reduce((s, w) => s + Number(w.cost), 0);
-  const totalCommission = rows.reduce(
-    (s, w) => s + Number(w.commission_amount) + Number(w.lab_commission_amount),
-    0,
-  );
   const totalPaid = rows.reduce((s, w) => s + Number(w.amount_paid), 0);
   const todayPaid = isRecepcionista
     ? rows
@@ -245,11 +240,10 @@ export default async function MisTrabajosPage({
           const map = new Map<string, DoctorSummaryRow>();
           for (const w of rows) {
             const name = w.doctor?.full_name ?? "Sin asignar";
-            if (!map.has(name)) map.set(name, { name, count: 0, totalComm: 0, pendingComm: 0 });
+            if (!map.has(name)) map.set(name, { name, count: 0, pendingComm: 0 });
             const entry = map.get(name)!;
             entry.count++;
             const comm = Number(w.commission_amount) + Number(w.lab_commission_amount);
-            entry.totalComm += comm;
             if (!w.commission_paid)
               entry.pendingComm += Math.max(0, comm - Number(w.commission_paid_amount ?? 0));
           }
@@ -339,11 +333,12 @@ export default async function MisTrabajosPage({
         />
       )}
 
-      {/* Stats — los doctores solo ven sus comisiones (acumulada y pendiente),
+      {/* Stats — los doctores solo ven su comisión pendiente (lo acumulado
+          confundía al admin: lo accionable es cuánto falta pagar/cobrar),
           no los montos facturados ni lo cobrado a pacientes. */}
       <div
         className={`grid grid-cols-1 gap-4 ${
-          isRecepcionista ? "sm:grid-cols-3" : isDoctor ? "sm:grid-cols-2" : "sm:grid-cols-4"
+          isRecepcionista ? "sm:grid-cols-2" : isDoctor ? "sm:grid-cols-1" : "sm:grid-cols-3"
         }`}
       >
         {isAdmin && (
@@ -351,14 +346,6 @@ export default async function MisTrabajosPage({
             label="Trabajos facturados"
             value={bs(totalCost)}
             icon={<Briefcase className="h-5 w-5" />}
-          />
-        )}
-        {!isRecepcionista && (
-          <Stat
-            label="Comisión acumulada"
-            value={bs(totalCommission)}
-            icon={<Percent className="h-5 w-5" />}
-            valueClassName="text-clinic"
           />
         )}
         {!isDoctor && (
@@ -384,22 +371,18 @@ export default async function MisTrabajosPage({
         <section>
           <h2 className="mb-2 text-lg font-semibold">Resumen por doctor</h2>
           <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="grid grid-cols-[minmax(0,1fr)_5rem_9rem_9rem] px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="grid grid-cols-[minmax(0,1fr)_5rem_9rem] px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500">
               <span>Doctor</span>
               <span className="text-right">Trabajos</span>
-              <span className="text-right">Comisión total</span>
               <span className="text-right">Pendiente</span>
             </div>
             {doctorSummary.map((d) => (
               <div
                 key={d.name}
-                className="grid grid-cols-[minmax(0,1fr)_5rem_9rem_9rem] border-t border-slate-100 px-4 py-2.5 text-sm"
+                className="grid grid-cols-[minmax(0,1fr)_5rem_9rem] border-t border-slate-100 px-4 py-2.5 text-sm"
               >
                 <span className="font-medium text-slate-800">{d.name}</span>
                 <span className="text-right tabular-nums text-slate-500">{d.count}</span>
-                <span className="text-right tabular-nums font-medium text-clinic">
-                  {bs(d.totalComm)}
-                </span>
                 <span
                   className={`text-right tabular-nums font-medium ${
                     d.pendingComm > 0 ? "text-amber-600" : "text-emerald-600"
