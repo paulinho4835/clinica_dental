@@ -373,28 +373,28 @@ export function StaffPaymentForm({
                     {/* Detalle al seleccionar: una fila por sesión/cuota del grupo. */}
                     {checked && (
                       <div className="ml-6 overflow-hidden rounded border border-slate-200">
-                        <table className="w-full text-xs">
+                        <table className="w-full text-sm">
                           <thead>
-                            <tr className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-400">
-                              <th className="px-2 py-1 font-medium">Fecha</th>
-                              <th className="px-2 py-1 font-medium">Paciente</th>
-                              <th className="px-2 py-1 font-medium">Tratamiento</th>
-                              <th className="px-2 py-1 text-right font-medium">Monto pagado</th>
-                              <th className="px-2 py-1 text-right font-medium">% Comisión</th>
+                            <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                              <th className="px-3 py-2 font-medium">Fecha</th>
+                              <th className="px-3 py-2 font-medium">Paciente</th>
+                              <th className="px-3 py-2 font-medium">Tratamiento</th>
+                              <th className="px-3 py-2 text-right font-medium">Monto pagado</th>
+                              <th className="px-3 py-2 text-right font-medium">% Comisión</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {g.works.map((w) => (
                               <tr key={w.id}>
-                                <td className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-500">
+                                <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-500">
                                   {fmtShortDate(w.performed_at)}
                                 </td>
-                                <td className="px-2 py-1 text-slate-600">{g.patient_name ?? "—"}</td>
-                                <td className="px-2 py-1 text-slate-600">{w.description || "—"}</td>
-                                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-slate-600">
+                                <td className="px-3 py-2 text-slate-700">{g.patient_name ?? "—"}</td>
+                                <td className="px-3 py-2 text-slate-700">{w.description || "—"}</td>
+                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
                                   {bs(g.planItemPaid)}
                                 </td>
-                                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-slate-600">
+                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
                                   {w.commission_pct}%
                                 </td>
                               </tr>
