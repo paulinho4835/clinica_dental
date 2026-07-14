@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/auth";
 import { can, canSeeNav, canEditAnamnesis } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
+import { OdontogramTabs } from "@/components/odontogram/OdontogramTabs";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import { DeletePatientButton } from "@/components/patients/DeletePatientButton";
 import {
@@ -473,12 +474,44 @@ export default async function PatientPage({
 
       <section className="space-y-3">
         <h2 className="mb-3 text-lg font-semibold">Odontograma</h2>
-        <OdontogramEditor
-          patientId={patient.id}
-          initialTeeth={teeth}
-          canWrite={canEditClinical}
-        />
-        <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
+        {odontogramaPediatricoEnabled ? (
+          // Addon activo: un solo bloque con selector Adulto / Pediátrico para
+          // no recargar la ficha con dos odontogramas apilados.
+          <OdontogramTabs
+            adult={
+              <>
+                <OdontogramEditor
+                  patientId={patient.id}
+                  initialTeeth={teeth}
+                  canWrite={canEditClinical}
+                />
+                <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
+              </>
+            }
+            pediatric={
+              <>
+                <OdontogramEditor
+                  patientId={patient.id}
+                  initialTeeth={teethPediatric}
+                  canWrite={canEditClinical}
+                  quadrants={PEDIATRIC_QUADRANTS}
+                  quadrantNumbers={PEDIATRIC_QUADRANT_NUMBERS}
+                  saveAction={savePediatricOdontogram}
+                />
+                <OdontogramHistory events={odoPedEvents} canSeeHistory={canSeeHistory} />
+              </>
+            }
+          />
+        ) : (
+          <>
+            <OdontogramEditor
+              patientId={patient.id}
+              initialTeeth={teeth}
+              canWrite={canEditClinical}
+            />
+            <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
+          </>
+        )}
       </section>
 
       {perioEnabled && (
@@ -490,21 +523,6 @@ export default async function PatientPage({
             canWrite={canEditClinical}
             canDelete={profile?.role === "admin"}
           />
-        </section>
-      )}
-
-      {odontogramaPediatricoEnabled && (
-        <section className="space-y-3">
-          <h2 className="mb-3 text-lg font-semibold">Odontograma Pediátrico</h2>
-          <OdontogramEditor
-            patientId={patient.id}
-            initialTeeth={teethPediatric}
-            canWrite={canEditClinical}
-            quadrants={PEDIATRIC_QUADRANTS}
-            quadrantNumbers={PEDIATRIC_QUADRANT_NUMBERS}
-            saveAction={savePediatricOdontogram}
-          />
-          <OdontogramHistory events={odoPedEvents} canSeeHistory={canSeeHistory} />
         </section>
       )}
 
