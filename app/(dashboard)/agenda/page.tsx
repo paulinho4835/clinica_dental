@@ -67,13 +67,15 @@ export default async function AgendaPage({
 
   // Query de odontólogos (dropdown de admin y recepcionista), excluyendo
   // superadmins y usuarios desactivados (no se asignan citas nuevas a ellos).
-  // El rol "admin" es de gestión, no tratante: se omite del filtro/selector de
-  // doctores (si el dueño también atiende, se le asigna un rol clínico).
+  // "admin" se incluye porque en clínicas chicas el dueño suele atender
+  // pacientes además de administrar (mismo criterio que cuentas/page.tsx y
+  // COMMISSION_ROLES en lib/pagos.ts) — si no, el admin no puede agendarse a
+  // sí mismo ni aparece en el filtro "Mi Agenda".
   let doctorsQuery = canViewAll && profile
     ? supabase
         .from("profiles")
         .select("id, full_name")
-        .in("role", ["odontologo_general", "especialista", "colega"])
+        .in("role", ["odontologo_general", "especialista", "colega", "admin"])
         .eq("clinic_id", profile.clinicId)
         .eq("active", true)
         .order("full_name")
