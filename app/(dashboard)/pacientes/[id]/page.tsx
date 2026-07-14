@@ -18,6 +18,8 @@ import {
   type Dentist,
 } from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
+import { PEDIATRIC_QUADRANTS, PEDIATRIC_QUADRANT_NUMBERS } from "@/lib/odontogram/pediatricTypes";
+import { savePediatricOdontogram } from "@/app/(dashboard)/pacientes/pediatric-odontogram-actions";
 import { bs } from "@/lib/format";
 import Link from "next/link";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
@@ -298,6 +300,51 @@ export default async function PatientPage({
     }));
   }
 
+  // Odontograma pediátrico (addon "odontograma_pediatrico"): dentición
+  // temporal, independiente del odontograma de adultos. Mismo patrón que
+  // perioExams: solo se consulta si el addon está encendido.
+  const odontogramaPediatricoEnabled = features.odontograma_pediatrico;
+  let teethPediatric: TeethMap = {};
+  let odoPedEvents: {
+    id: string;
+    tooth_fdi: string;
+    surface: string | null;
+    prev_state: string | null;
+    new_state: string | null;
+    created_at: string;
+    actor_name: string | null;
+  }[] = [];
+  if (odontogramaPediatricoEnabled) {
+    const { data: odoPed } = await supabase
+      .from("odontograms_pediatric")
+      .select("teeth")
+      .eq("patient_id", id)
+      .maybeSingle();
+    teethPediatric = (odoPed?.teeth as TeethMap) ?? {};
+
+    const { data: rawOdoPedEvents } = await supabase
+      .from("odontogram_pediatric_events")
+      .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(id, full_name)")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false });
+    odoPedEvents = (rawOdoPedEvents ?? []).map((e) => {
+      const actor = e.actor as { id?: string; full_name?: string } | null;
+      const actorName =
+        !actor || platformAdminIdSet.has(actor.id ?? "")
+          ? null
+          : actor.full_name ?? null;
+      return {
+        id: e.id as string,
+        tooth_fdi: e.tooth_fdi as string,
+        surface: (e.surface as string | null) ?? null,
+        prev_state: (e.prev_state as string | null) ?? null,
+        new_state: (e.new_state as string | null) ?? null,
+        created_at: e.created_at as string,
+        actor_name: actorName,
+      };
+    });
+  }
+
   const consentRows: ConsentRow[] = (rawConsents ?? []).map((c) => ({
     id: c.id as string,
     title: c.title as string,
@@ -443,6 +490,21 @@ export default async function PatientPage({
             canWrite={canEditClinical}
             canDelete={profile?.role === "admin"}
           />
+        </section>
+      )}
+
+      {odontogramaPediatricoEnabled && (
+        <section className="space-y-3">
+          <h2 className="mb-3 text-lg font-semibold">Odontograma Pediátrico</h2>
+          <OdontogramEditor
+            patientId={patient.id}
+            initialTeeth={teethPediatric}
+            canWrite={canEditClinical}
+            quadrants={PEDIATRIC_QUADRANTS}
+            quadrantNumbers={PEDIATRIC_QUADRANT_NUMBERS}
+            saveAction={savePediatricOdontogram}
+          />
+          <OdontogramHistory events={odoPedEvents} canSeeHistory={canSeeHistory} />
         </section>
       )}
 

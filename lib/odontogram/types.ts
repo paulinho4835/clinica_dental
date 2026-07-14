@@ -110,14 +110,25 @@ export const WHOLE_CONDITIONS = [
 ] as const;
 
 // Tipo anatómico según el segundo dígito FDI (1-2 incisivo, 3 canino,
-// 4-5 premolar, 6-8 molar). Define la forma del diente en el dibujo.
+// 4-5 premolar para dentición permanente, 4-5 molar para temporal,
+// 6-8 molar). Define la forma del diente en el dibujo.
 export type ToothType = "incisor" | "canine" | "premolar" | "molar";
 
 export function toothType(fdi: string): ToothType {
-  const n = Number(fdi[1]);
-  if (n >= 6) return "molar";
-  if (n >= 4) return "premolar";
-  if (n === 3) return "canine";
+  const quadrant = Number(fdi[0]);
+  const position = Number(fdi[1]);
+
+  // Dentición temporal (cuadrantes 5-8): no tiene premolares
+  if (quadrant >= 5) {
+    if (position >= 4) return "molar";
+    if (position === 3) return "canine";
+    return "incisor";
+  }
+
+  // Dentición permanente (cuadrantes 1-4)
+  if (position >= 6) return "molar";
+  if (position >= 4) return "premolar";
+  if (position === 3) return "canine";
   return "incisor";
 }
 

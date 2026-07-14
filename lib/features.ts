@@ -32,7 +32,8 @@ export type FeatureKey =
   | "agente_ia_t3"
   | "agente_ia_info"
   | "logo"
-  | "periodontograma";
+  | "periodontograma"
+  | "odontograma_pediatrico";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -101,6 +102,9 @@ export const FEATURES: FeatureMeta[] = [
   // Addon premium: carta periodontal (6 sitios por diente) con exámenes fechados
   // e índices automáticos. Vive en la ficha del paciente. Opt-in.
   { key: "periodontograma", label: "Periodontograma", href: "/pacientes", optIn: true },
+  // Addon opt-in: odontograma de dentición temporal (FDI 51-85), independiente
+  // del odontograma de adultos. Vive en la ficha del paciente.
+  { key: "odontograma_pediatrico", label: "Odontograma Pediátrico", href: "/pacientes", optIn: true },
 ];
 
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el

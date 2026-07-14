@@ -17,10 +17,20 @@ interface Props {
   teeth: TeethMap;
   onSurfaceClick?: (fdi: string, surface: Surface) => void;
   onWholeClick?: (fdi: string) => void;
+  /** Cuadrantes a dibujar; por defecto la dentición permanente (adultos). */
+  quadrants?: string[][];
+  /** Números FDI de cuadrante a mostrar, en orden [top-l, top-r, bottom-l, bottom-r]. */
+  quadrantNumbers?: [number, number, number, number];
 }
 
 // Odontograma completo dibujado 100% en SVG desde el JSONB. Ninguna imagen.
-export function Odontogram({ teeth, onSurfaceClick, onWholeClick }: Props) {
+export function Odontogram({
+  teeth,
+  onSurfaceClick,
+  onWholeClick,
+  quadrants = QUADRANTS,
+  quadrantNumbers = [1, 2, 4, 3],
+}: Props) {
   const row = (fdis: string[]) => (
     <div className="flex gap-1">
       {fdis.map((fdi) => (
@@ -50,21 +60,23 @@ export function Odontogram({ teeth, onSurfaceClick, onWholeClick }: Props) {
     </span>
   );
 
+  const [topLeft, topRight, bottomLeft, bottomRight] = quadrantNumbers;
+
   return (
     <div className="space-y-4">
       <div className="inline-block overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="min-w-max">
           {/* Etiquetas de cuadrantes superiores */}
           <div className="mb-1 flex justify-between px-1">
-            {qLabel(1, "l")}
-            {qLabel(2, "r")}
+            {qLabel(topLeft, "l")}
+            {qLabel(topRight, "r")}
           </div>
 
           {/* Arcada superior */}
           <div className="flex items-start">
-            {row(QUADRANTS[0])}
+            {row(quadrants[0])}
             {midline}
-            {row(QUADRANTS[1])}
+            {row(quadrants[1])}
           </div>
 
           {/* Línea de oclusión (separa maxilar de mandíbula) */}
@@ -72,15 +84,15 @@ export function Odontogram({ teeth, onSurfaceClick, onWholeClick }: Props) {
 
           {/* Arcada inferior */}
           <div className="flex items-start">
-            {row(QUADRANTS[2])}
+            {row(quadrants[2])}
             {midline}
-            {row(QUADRANTS[3])}
+            {row(quadrants[3])}
           </div>
 
           {/* Etiquetas de cuadrantes inferiores */}
           <div className="mt-1 flex justify-between px-1">
-            {qLabel(4, "l")}
-            {qLabel(3, "r")}
+            {qLabel(bottomLeft, "l")}
+            {qLabel(bottomRight, "r")}
           </div>
         </div>
       </div>

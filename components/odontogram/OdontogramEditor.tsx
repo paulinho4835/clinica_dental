@@ -28,15 +28,33 @@ type Tool =
   | { kind: "mark"; code: MarkColor } // X de color sobre el diente
   | { kind: "erase" }; // borra cara/diente
 
+// Firma compartida con saveOdontogram/savePediatricOdontogram: ambas devuelven
+// el mismo shape de ActionState sin acoplar este componente a un archivo de
+// acciones específico.
+type SaveAction = (
+  patientId: string,
+  prevTeeth: TeethMap,
+  nextTeeth: TeethMap,
+) => Promise<{ error?: string; ok?: boolean }>;
+
 export function OdontogramEditor({
   patientId,
   initialTeeth,
   canWrite,
+  quadrants,
+  quadrantNumbers,
+  saveAction = saveOdontogram,
 }: {
   patientId: string;
   initialTeeth: TeethMap;
   /** Solo admin y doctores pueden editar; el resto ve el odontograma en solo lectura. */
   canWrite: boolean;
+  /** Cuadrantes a dibujar; por defecto la dentición permanente (adultos). */
+  quadrants?: string[][];
+  /** Números FDI de cuadrante a mostrar; ver Odontogram.tsx. */
+  quadrantNumbers?: [number, number, number, number];
+  /** Server action de guardado; por defecto saveOdontogram (adultos). */
+  saveAction?: SaveAction;
 }) {
   const router = useRouter();
   const [teeth, setTeeth] = useState<TeethMap>(initialTeeth);
@@ -83,7 +101,7 @@ export function OdontogramEditor({
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await saveOdontogram(patientId, baseline, teeth);
+    const res = await saveAction(patientId, baseline, teeth);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -126,7 +144,13 @@ export function OdontogramEditor({
           Vista de solo lectura. Solo los doctores y el administrador pueden modificar el
           odontograma.
         </p>
-        <Odontogram teeth={teeth} onSurfaceClick={() => {}} onWholeClick={() => {}} />
+        <Odontogram
+          teeth={teeth}
+          onSurfaceClick={() => {}}
+          onWholeClick={() => {}}
+          quadrants={quadrants}
+          quadrantNumbers={quadrantNumbers}
+        />
       </div>
     );
   }
@@ -207,7 +231,13 @@ export function OdontogramEditor({
         </div>
       </div>
 
-      <Odontogram teeth={teeth} onSurfaceClick={onSurfaceClick} onWholeClick={onWholeClick} />
+      <Odontogram
+        teeth={teeth}
+        onSurfaceClick={onSurfaceClick}
+        onWholeClick={onWholeClick}
+        quadrants={quadrants}
+        quadrantNumbers={quadrantNumbers}
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
