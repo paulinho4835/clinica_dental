@@ -302,6 +302,9 @@ export function StaffPaymentForm({
                   checked &&
                   (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > g.remaining + 0.005);
                 const sessions = g.works.length;
+                // % de comisión representativo del grupo (todas las cuotas de un
+                // mismo tratamiento comparten el mismo % configurado).
+                const commissionPct = g.works[0]?.commission_pct;
                 return (
                   <div
                     key={g.key}
@@ -346,6 +349,11 @@ export function StaffPaymentForm({
                             ? bs(g.remaining)
                             : bs(g.commission)}
                       </span>
+                      {commissionPct !== undefined && (
+                        <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
+                          ({commissionPct}%)
+                        </span>
+                      )}
                       {g.remaining > 0 && isOverdue(g.performed_at, today) && (
                         <span className="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10">
                           atrasado

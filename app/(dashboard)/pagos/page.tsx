@@ -354,7 +354,7 @@ export default async function PagosPage({
         {/* Panel izquierdo: búsqueda + lista de personas. En móvil se oculta al
             elegir a alguien (evita el layout de 2 columnas apretado). */}
         <div
-          className={`w-full space-y-3 md:w-72 md:shrink-0 ${
+          className={`w-full space-y-3 md:w-64 md:shrink-0 ${
             selectedPayee || showOverdueView ? "hidden md:block" : ""
           }`}
         >
@@ -390,7 +390,7 @@ export default async function PagosPage({
                     <Link
                       key={pp.key}
                       href={`/pagos?${qParam}p=${pp.key}`}
-                      className={`block px-4 py-3 transition-colors hover:bg-slate-50 ${
+                      className={`block px-3 py-2 transition-colors hover:bg-slate-50 ${
                         selectedKey === pp.key
                           ? "border-l-2 border-clinic bg-clinic/5"
                           : ""
@@ -401,13 +401,13 @@ export default async function PagosPage({
                           <div className="truncate text-sm font-medium text-slate-800">
                             {pp.full_name}
                           </div>
-                          <div className="mt-0.5 text-xs text-slate-400">
+                          <div className="text-xs text-slate-400">
                             {ROLE_LABEL[pp.role] ?? pp.role}
                           </div>
                         </div>
                         {pending > 0 && (
                           <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-500/10">
-                            {bs(pending)} pendiente
+                            {bs(pending)}
                           </span>
                         )}
                       </div>
