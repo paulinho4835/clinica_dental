@@ -406,7 +406,14 @@ export function StaffPaymentForm({
                     {/* Detalle al seleccionar: una fila por sesión/cuota del grupo. */}
                     {checked && (
                       <div className="ml-6 overflow-hidden rounded border border-slate-200">
-                        <table className="w-full text-sm">
+                        <table className="w-full table-fixed text-sm">
+                          <colgroup>
+                            <col className="w-[12%]" />
+                            <col className="w-[24%]" />
+                            <col className="w-[34%]" />
+                            <col className="w-[16%]" />
+                            <col className="w-[14%]" />
+                          </colgroup>
                           <thead>
                             <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
                               <th className="px-3 py-2 font-medium">Fecha</th>
@@ -422,8 +429,8 @@ export function StaffPaymentForm({
                                 <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-500">
                                   {fmtShortDate(w.performed_at)}
                                 </td>
-                                <td className="px-3 py-2 text-slate-700">{g.patient_name ?? "—"}</td>
-                                <td className="px-3 py-2 text-slate-700">{w.description || "—"}</td>
+                                <td className="truncate px-3 py-2 text-slate-700">{g.patient_name ?? "—"}</td>
+                                <td className="truncate px-3 py-2 text-slate-700">{w.description || "—"}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
                                   {bs(g.planItemPaid)}
                                 </td>
