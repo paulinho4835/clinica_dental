@@ -117,3 +117,19 @@ describe("campanas (addon independiente de Baileys)", () => {
     expect(entry?.href).toBe("/campanas");
   });
 });
+
+describe("odontograma_pediatrico (addon opt-in)", () => {
+  it("apagado por defecto", () => {
+    expect(normalizeFeatures({}).odontograma_pediatrico).toBe(false);
+  });
+
+  it("se enciende con true explícito", () => {
+    expect(normalizeFeatures({ odontograma_pediatrico: true }).odontograma_pediatrico).toBe(true);
+  });
+
+  it("está en el catálogo FEATURES como opt-in", () => {
+    const entry = FEATURES.find((f) => f.key === "odontograma_pediatrico");
+    expect(entry?.optIn).toBe(true);
+    expect(entry?.href).toBe("/pacientes");
+  });
+});
