@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/actions";
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
-import { COMMISSION_ROLES } from "@/lib/pagos";
+import { COMMISSION_ROLES, isOverdue } from "@/lib/pagos";
 import { bs } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
@@ -324,6 +324,11 @@ export function StaffPaymentForm({
                             ? bs(g.remaining)
                             : bs(g.commission)}
                       </span>
+                      {g.remaining > 0 && isOverdue(g.performed_at, today) && (
+                        <span className="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10">
+                          atrasado
+                        </span>
+                      )}
                     </label>
                     {/* Comisión con abono previo: mostrar el avance del doctor */}
                     {g.commissionPaid > 0 && g.remaining > 0 && (

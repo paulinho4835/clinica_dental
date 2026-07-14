@@ -4,11 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { boliviaTodayISO, bs, fmtBoliviaTime } from "@/lib/format";
-import { COMMISSION_ROLES, sumPendingCommissions } from "@/lib/pagos";
+import {
+  COMMISSION_ROLES,
+  sumPendingCommissions,
+  summarizePendingByDoctor,
+  isOverdue,
+  daysSince,
+} from "@/lib/pagos";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Stat } from "@/components/ui/Stat";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Banknote, Receipt, Users } from "lucide-react";
+import { AlertTriangle, Banknote, Receipt, Users } from "lucide-react";
 import { StaffPaymentForm, type Payee } from "@/components/pagos/StaffPaymentForm";
 import { PagosFilter } from "@/components/pagos/PagosFilter";
 import { DeletePaymentButton } from "@/components/pagos/DeletePaymentButton";
@@ -86,13 +92,14 @@ function resolveWorkPatientName(w: {
 export default async function PagosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; p?: string; month?: string }>;
+  searchParams: Promise<{ q?: string; p?: string; month?: string; view?: string }>;
 }) {
   await requireNavAccess("pagos");
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const { q = "", p: selectedKey, month } = await searchParams;
+  const { q = "", p: selectedKey, month, view } = await searchParams;
+  const showOverdueView = view === "pendientes";
   const today = boliviaTodayISO();
   const currentMonth = today.slice(0, 7);
   const selectedMonth = month ?? currentMonth;
@@ -163,6 +170,38 @@ export default async function PagosPage({
 
   // Persona inexistente o de otra clínica → no está en payees → placeholder.
   const selectedPayee = payees.find((pp) => pp.key === selectedKey) ?? null;
+
+  // ── Vista "Pagos pendientes": comisiones atrasadas de toda la clínica ──
+  // Solo se consulta cuando se pide la vista (evita el costo en la carga normal).
+  type OverdueRow = { payee: Payee; amount: number; days: number };
+  let overdueRows: OverdueRow[] = [];
+
+  if (showOverdueView) {
+    const { data: overdueRaw } = await supabase
+      .from("doctor_works")
+      .select("doctor_id, commission_amount, lab_commission_amount, commission_paid_amount, performed_at")
+      .eq("clinic_id", profile!.clinicId)
+      .eq("commission_paid", false);
+
+    const summaryByDoctor = summarizePendingByDoctor(
+      (overdueRaw ?? []).map((r) => ({
+        doctor_id: r.doctor_id as string,
+        commission_amount: Number(r.commission_amount),
+        lab_commission_amount: Number(r.lab_commission_amount),
+        commission_paid_amount: Number(r.commission_paid_amount ?? 0),
+        performed_at: r.performed_at as string,
+      })),
+    );
+
+    overdueRows = payees
+      .filter((pp) => pp.kind === "profile" && COMMISSION_ROLES.has(pp.role))
+      .flatMap((pp) => {
+        const summary = summaryByDoctor.get(pp.id);
+        if (!summary || !isOverdue(summary.oldestPerformedAt, today)) return [];
+        return [{ payee: pp, amount: summary.amount, days: daysSince(summary.oldestPerformedAt, today) }];
+      })
+      .sort((a, b) => b.days - a.days);
+  }
 
   // ── Panel derecho: detalle de la persona seleccionada ─────────────────
   let rows: PaymentRow[] = [];
@@ -300,6 +339,15 @@ export default async function PagosPage({
       <PageHeader
         title="Pagos a personal"
         subtitle="Registra y controla los pagos realizados a doctores, recepcionistas y personal de la clínica."
+        action={
+          <Link
+            href="/pagos?view=pendientes"
+            className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            Pagos pendientes
+          </Link>
+        }
       />
 
       <div className="flex flex-col items-start gap-6 md:flex-row">
@@ -307,7 +355,7 @@ export default async function PagosPage({
             elegir a alguien (evita el layout de 2 columnas apretado). */}
         <div
           className={`w-full space-y-3 md:w-72 md:shrink-0 ${
-            selectedPayee ? "hidden md:block" : ""
+            selectedPayee || showOverdueView ? "hidden md:block" : ""
           }`}
         >
           <form method="get">
@@ -371,10 +419,57 @@ export default async function PagosPage({
           </div>
         </div>
 
-        {/* Panel derecho: detalle de pagos. En móvil solo se muestra cuando
-            hay alguien elegido (ver arriba). */}
-        <div className={`min-w-0 flex-1 ${!selectedPayee ? "hidden md:block" : ""}`}>
-          {!selectedPayee ? (
+        {/* Panel derecho: detalle de pagos, o la vista "Pagos pendientes" cuando
+            se pide vía ?view=pendientes. En móvil solo se muestra cuando hay
+            alguien elegido o esta vista está activa (ver arriba). */}
+        <div className={`min-w-0 flex-1 ${!selectedPayee && !showOverdueView ? "hidden md:block" : ""}`}>
+          {showOverdueView ? (
+            <div className="space-y-4">
+              <Link
+                href="/pagos"
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-clinic"
+              >
+                ← Volver
+              </Link>
+              <div>
+                <h2 className="text-lg font-semibold">Pagos pendientes</h2>
+                <p className="text-xs text-slate-400">
+                  Comisiones sin pagar hace más de 30 días, de más a menos atrasada.
+                </p>
+              </div>
+              {overdueRows.length === 0 ? (
+                <EmptyState
+                  icon={<AlertTriangle className="h-6 w-6" />}
+                  title="Sin comisiones atrasadas"
+                  description="Nadie tiene comisiones sin pagar hace más de 30 días."
+                />
+              ) : (
+                <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                  <div className="divide-y divide-slate-100">
+                    {overdueRows.map(({ payee, amount, days }) => (
+                      <Link
+                        key={payee.key}
+                        href={`/pagos?p=${payee.key}`}
+                        className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-800">
+                            {payee.full_name}
+                          </div>
+                          <div className="mt-0.5 text-xs text-slate-400">
+                            {ROLE_LABEL[payee.role] ?? payee.role} · {days} días de atraso
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-500/10">
+                          {bs(amount)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : !selectedPayee ? (
             <div className="flex h-64 items-center justify-center rounded-lg bg-white text-sm text-slate-400 ring-1 ring-slate-200">
               Selecciona a una persona para ver sus pagos
             </div>
