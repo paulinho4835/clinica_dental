@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
+import { rm } from "fs/promises";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import cron from "node-cron";
 import QRCode from "qrcode";
@@ -204,7 +205,11 @@ async function disconnect(clinicId: string) {
   s.isConnected = false;
   s.lastQR = null;
   sessions.delete(clinicId);
-  console.log(`[${clinicId}] Desconectado.`);
+  // logout() invalida las credenciales del lado de WhatsApp; si quedan en
+  // disco, el próximo connect() intenta restaurar una sesión muerta y nunca
+  // emite QR ("Esperando QR..." infinito). Borrarlas fuerza QR fresco.
+  await rm(`auth_info/${clinicId}`, { recursive: true, force: true }).catch(() => {});
+  console.log(`[${clinicId}] Desconectado (credenciales borradas).`);
 }
 
 // ── Cron: 09:00 Bolivia todos los días, procesa TODAS las clínicas activas ─
