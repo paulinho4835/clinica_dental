@@ -90,12 +90,14 @@ async function sendMessage(clinicId: string, to: string, message: string) {
   // siempre releer s.sock, nunca capturar la referencia vieja.
   try {
     if (!(await waitForConnection(s, 15000))) throw new Error("WhatsApp no conectado");
-    await s.sock!.sendMessage(jid, { text: message });
+    const sent = await s.sock!.sendMessage(jid, { text: message });
+    console.log(`[${clinicId}] ⇨ enviado a ${jid} (msgId: ${sent?.key?.id ?? "?"})`);
   } catch (e) {
     console.error(`[${clinicId}] envío falló, reintentando en 3s:`, e);
     await sleep(3000);
     if (!(await waitForConnection(s, 15000))) throw new Error("WhatsApp no conectado");
-    await s.sock!.sendMessage(jid, { text: message });
+    const sent = await s.sock!.sendMessage(jid, { text: message });
+    console.log(`[${clinicId}] ⇨ enviado a ${jid} en reintento (msgId: ${sent?.key?.id ?? "?"})`);
   }
 }
 
@@ -145,6 +147,7 @@ async function connect(clinicId: string): Promise<void> {
       const phone = realPhone || jid.split("@")[0];
       // phoneVerified: false solo si es @lid y no vino senderPn (número oculto
       // irrecuperable) → el agente le pedirá su celular al paciente.
+      console.log(`[${clinicId}] ⇦ mensaje entrante de ${jid} (tel: ${phone || "?"})`);
       await handleIncomingMessage(clinicId, jid, phone, text.trim(), Boolean(realPhone));
     }
   });
@@ -270,8 +273,11 @@ async function handleIncomingMessage(
       }
       const body = (await res.json()) as { reply?: string | null };
       if (body.reply && body.reply.trim()) {
+        console.log(`[${clinicId}] agente respondió (${body.reply.trim().length} chars), enviando a ${jid}...`);
         // Responder al JID original (soporta @lid), no al número reconstruido.
         await sendMessage(clinicId, jid, body.reply.trim());
+      } else {
+        console.log(`[${clinicId}] agente devolvió reply null/vacío — no se envía nada`);
       }
       return;
     } catch (e) {
