@@ -1,6 +1,7 @@
 import "server-only";
 import { generateText, stepCountIs, type ModelMessage, type LanguageModel } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createGroq } from "@ai-sdk/groq";
 import { deepseek } from "@ai-sdk/deepseek";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { BOLIVIA_TZ } from "@/lib/format";
@@ -24,11 +25,12 @@ function agentModel(): LanguageModel {
   const provider = process.env.AGENT_PROVIDER;
   const groqKey = process.env.GROQ_API_KEY;
   if (provider === "groq" && groqKey) {
-    const groq = createOpenAICompatible({
-      name: "groq",
-      baseURL: "https://api.groq.com/openai/v1",
-      apiKey: groqKey,
-    });
+    // Proveedor oficial @ai-sdk/groq (no el cliente OpenAI-compatible genérico):
+    // los modelos razonadores de Groq (gpt-oss, qwen) devuelven reasoning_content,
+    // y el cliente genérico lo reenviaba en el historial del siguiente paso de
+    // tool-calling → Groq responde 400 "property 'reasoning_content' is
+    // unsupported". El proveedor oficial maneja ese campo correctamente.
+    const groq = createGroq({ apiKey: groqKey });
     return groq(process.env.AGENT_MODEL_GROQ ?? "llama-3.3-70b-versatile");
   }
   const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_API_KEY;
