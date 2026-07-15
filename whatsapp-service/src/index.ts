@@ -101,6 +101,11 @@ async function sendMessage(clinicId: string, to: string, message: string) {
 
 async function connect(clinicId: string): Promise<void> {
   const s = getSession(clinicId);
+  // Guard: si ya hay un socket en curso (conectando o conectado) para esta
+  // clínica, no crear otro. Sin esto, el polling del frontend a /connect o
+  // /qr disparaba múltiples sockets simultáneos para el mismo número, y
+  // WhatsApp cerraba la sesión por comportamiento anómalo (bucle de logout).
+  if (s.sock) return;
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState(
     `auth_info/${clinicId}`
@@ -160,6 +165,7 @@ async function connect(clinicId: string): Promise<void> {
 
       if (connection === "close") {
         s.isConnected = false;
+        s.sock = null;
         const code = (lastDisconnect?.error as Boom)?.output?.statusCode;
         if (code === DisconnectReason.loggedOut) {
           console.log(
