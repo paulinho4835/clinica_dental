@@ -147,8 +147,14 @@ async function connect(clinicId: string): Promise<void> {
       const phone = realPhone || jid.split("@")[0];
       // phoneVerified: false solo si es @lid y no vino senderPn (número oculto
       // irrecuperable) → el agente le pedirá su celular al paciente.
-      console.log(`[${clinicId}] ⇦ mensaje entrante de ${jid} (tel: ${phone || "?"})`);
-      await handleIncomingMessage(clinicId, jid, phone, text.trim(), Boolean(realPhone));
+      // Destino de la respuesta: si el chat vino por @lid pero conocemos el
+      // número real (senderPn), responder al JID del teléfono. Enviar al @lid
+      // con una sesión recién vinculada es un agujero negro: el servidor acepta
+      // el mensaje (devuelve msgId) pero nunca lo entrega. El JID por número
+      // siempre enruta y WhatsApp lo unifica en el mismo chat del paciente.
+      const replyJid = isLid && senderPn ? senderPn : jid;
+      console.log(`[${clinicId}] ⇦ mensaje entrante de ${jid} (tel: ${phone || "?"}, respondiendo a ${replyJid})`);
+      await handleIncomingMessage(clinicId, replyJid, phone, text.trim(), Boolean(realPhone));
     }
   });
 
