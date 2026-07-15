@@ -414,7 +414,124 @@ export default async function MisTrabajosPage({
             </div>
           )}
         </div>
-        <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+        {/* Móvil: tarjetas apiladas — la grilla de columnas fijas de abajo se
+            aplasta y trunca el texto en pantallas angostas (bug visto en
+            producción). Desde sm (≥640px) se usa la grilla con scroll. */}
+        <div className="space-y-3 sm:hidden">
+          {rows.map((w) => (
+            <div
+              key={w.id}
+              className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-800">
+                    {w.patients?.full_name ?? w.patient_name ?? "—"}
+                  </p>
+                  <p className="truncate text-sm text-slate-500">{w.description}</p>
+                </div>
+                <div className="shrink-0 text-right tabular-nums">
+                  <p className="font-medium text-slate-800">{bs(Number(w.amount_paid))}</p>
+                  <p className="text-xs text-slate-400">cobrado</p>
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                <span className="whitespace-nowrap tabular-nums">
+                  {fmtDate(w.performed_at)} · {fmtBoliviaTime(w.created_at)}
+                </span>
+                {isAdmin && w.doctor?.full_name && (
+                  <span className="truncate">Dr(a). {w.doctor.full_name}</span>
+                )}
+                <span className="truncate">
+                  Cobró: {w.collected_by?.name ??
+                    (w.amount_paid > 0 ? w.doctor?.full_name : undefined) ?? "—"}
+                </span>
+              </div>
+
+              {w.lab_work && (
+                <span className="mt-2 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                  Lab: {w.lab_work}
+                </span>
+              )}
+              {w.notes && (
+                <p className="mt-1 truncate text-xs text-slate-400">{w.notes}</p>
+              )}
+
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-sm">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Costo</p>
+                  <p className="tabular-nums">
+                    {bs(Number(w.cost))}
+                    {Number(w.lab_cost) > 0 && (
+                      <span className="ml-1 text-xs text-amber-600">
+                        +{bs(Number(w.lab_cost))} lab
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Comisión</p>
+                  <p className="tabular-nums font-medium text-clinic">
+                    {bs(Number(w.commission_amount))}
+                    <span className="ml-1 text-xs font-normal text-slate-400">
+                      ({Number(w.commission_pct)}%)
+                    </span>
+                  </p>
+                  {w.commission_paid && (
+                    <p className="text-xs font-medium text-emerald-600">Pagada ✓</p>
+                  )}
+                  {!w.commission_paid && Number(w.commission_paid_amount ?? 0) > 0 && (
+                    <p className="text-xs font-medium text-amber-600">
+                      Abono {bs(Number(w.commission_paid_amount))}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Método</p>
+                  <p>
+                    {w.payment_method
+                      ? (METHOD_LABEL[w.payment_method] ?? w.payment_method)
+                      : <span className="text-slate-300">—</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Comprobante</p>
+                  <p>
+                    {w.invoiced === true && (
+                      <span className="font-medium text-sky-600">Factura ✓</span>
+                    )}
+                    {w.invoiced === false && (
+                      <span className="text-slate-400">Sin factura</span>
+                    )}
+                    {w.invoiced === null && <span className="text-slate-300">—</span>}
+                  </p>
+                </div>
+              </div>
+
+              {(canSendFeedback || isAdmin) && (
+                <div className="mt-2 flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
+                  {canSendFeedback && <RequestFeedbackButton workId={w.id} />}
+                  {isAdmin && <EditWorkButton work={w} />}
+                  {isAdmin && <DeleteWorkButton id={w.id} />}
+                </div>
+              )}
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <EmptyState
+              icon={<Briefcase className="h-6 w-6" />}
+              title={`Aún no hay trabajos registrados${fromParam || toParam ? " en este período" : ""}`}
+              description={
+                !isDoctor && !fromParam && !toParam
+                  ? "Usa el botón “Registrar trabajo” de arriba para anotar el primero."
+                  : undefined
+              }
+            />
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-slate-200 sm:block">
           <div className="min-w-[60rem]">
             <div className={`${GRID(isAdmin)} px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}>
               <span>Fecha</span>
