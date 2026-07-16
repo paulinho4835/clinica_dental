@@ -312,8 +312,10 @@ export function buildAgentTools(
   async function fetchDayUnavailability(
     dayISO: string,
     dentistName?: string,
+    dentistId?: string,
   ): Promise<{ start: Date; end: Date; reason: string | null }[]> {
-    if (!availEnabled || !dentistName?.trim()) return [];
+    if (!availEnabled) return [];
+    if (!dentistId && !dentistName?.trim()) return [];
     const { data } = await admin
       .from("doctor_availability")
       .select(
@@ -323,7 +325,9 @@ export function buildAgentTools(
       .or(`weekday.not.is.null,and(date_from.lte.${dayISO},date_to.gte.${dayISO})`);
     const blocks = (data ?? []).map(mapAvailabilityRow);
     return blocksForDay(dayISO, blocks)
-      .filter((b) => doctorNamesMatch(b.dentist_name, dentistName))
+      .filter((b) =>
+        dentistId ? b.dentist_id === dentistId : doctorNamesMatch(b.dentist_name, dentistName as string),
+      )
       .map((b) => ({ ...blockRange(dayISO, b), reason: b.reason }));
   }
 
@@ -552,7 +556,7 @@ export function buildAgentTools(
         // rechazar con ERROR en vez de agendar a ciegas. Solo aplica si hay un
         // doctor real asignado (no para citas sin doctor específico).
         if (assignedDoctorId) {
-          const unavail = await fetchDayUnavailability(nDate, assignedDoctor);
+          const unavail = await fetchDayUnavailability(nDate, assignedDoctor, assignedDoctorId ?? undefined);
           const blocked = unavail.find(
             (u) => start.getTime() < u.end.getTime() && new Date(endsAt).getTime() > u.start.getTime(),
           );
@@ -758,7 +762,7 @@ export function buildAgentTools(
               // en book_appointment: rechaza si el nuevo horario cae en un
               // bloque de no disponibilidad de ESE doctor.
               if (appt.dentist_id && appt.dentist_name) {
-                const unavail = await fetchDayUnavailability(nDate, appt.dentist_name);
+                const unavail = await fetchDayUnavailability(nDate, appt.dentist_name, appt.dentist_id ?? undefined);
                 const blocked = unavail.find(
                   (u) => newStart.getTime() < u.end.getTime() && newEnd.getTime() > u.start.getTime(),
                 );
