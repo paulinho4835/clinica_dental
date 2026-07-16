@@ -17,8 +17,8 @@ export function isReceptionistLike(role: Role | undefined): boolean {
 
 // Módulos del menú lateral visibles por rol.
 const NAV_WHITELIST: Record<Role, FeatureKey[]> = {
-  admin:              ["inicio", "agenda", "pacientes", "mis_trabajos", "tratamientos", "inventario", "caja", "cuentas", "pagos", "ajustes", "auditoria", "calificaciones", "wa_masivo", "campanas"],
-  recepcionista:      ["inicio", "agenda", "pacientes", "mis_trabajos", "wa_masivo", "campanas"],
+  admin:              ["inicio", "agenda", "pacientes", "mis_trabajos", "tratamientos", "inventario", "caja", "cuentas", "pagos", "ajustes", "auditoria", "calificaciones", "wa_masivo", "campanas", "disponibilidad"],
+  recepcionista:      ["inicio", "agenda", "pacientes", "mis_trabajos", "wa_masivo", "campanas", "disponibilidad"],
   colega:             ["inicio", "agenda", "pacientes", "mis_trabajos", "calificaciones", "wa_masivo", "campanas"],
   odontologo_general: ["inicio", "agenda", "pacientes", "mis_trabajos", "calificaciones"],
   especialista:       ["inicio", "agenda", "pacientes", "mis_trabajos", "calificaciones"],
