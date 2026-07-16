@@ -593,6 +593,7 @@ export function AgendaShell({
           dentist={modal.dentist}
           prefill={modal.prefill}
           onClose={() => setModal(null)}
+          availability={availability ?? []}
         />
       )}
       {linkAppt && (

@@ -7,6 +7,7 @@ import { createAppointment, type ActionState } from "@/app/(dashboard)/agenda/ac
 import { PatientPicker, type PatientOption } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 import { mins } from "@/lib/agenda";
+import { findAvailabilityConflict, type AvailabilityBlock } from "@/lib/availability";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmmInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -37,6 +38,7 @@ export function QuickCreatePopover({
   anchor,
   onMoreOptions,
   onClose,
+  availability,
 }: {
   patients: PatientOption[];
   doctors: DoctorOption[];
@@ -47,6 +49,7 @@ export function QuickCreatePopover({
   anchor: DOMRect;
   onMoreOptions: (draft: QuickDraft) => void;
   onClose: () => void;
+  availability?: AvailabilityBlock[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -74,6 +77,9 @@ export function QuickCreatePopover({
   const startsAt = `${dateKey}T${startTime}:00-04:00`;
   const endsAt = `${dateKey}T${endTime}:00-04:00`;
   const duration = validRange ? mins(new Date(startsAt), new Date(endsAt)) : 0;
+  const conflict = dentistName
+    ? findAvailabilityConflict(dateKey, new Date(startsAt), new Date(endsAt), dentistName, availability ?? [])
+    : null;
 
   useEffect(() => {
     if (state.ok) {
@@ -254,6 +260,14 @@ export function QuickCreatePopover({
             />
           )}
         </label>
+
+        {conflict && (
+          <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10">
+            ⚠ {conflict.dentist_name} no está disponible en este horario
+            {conflict.reason ? ` (${conflict.reason})` : ""}. Puedes agendar igual
+            si es una excepción.
+          </p>
+        )}
 
         <label className="block text-sm">
           <span className="mb-1 block text-slate-600">Motivo</span>

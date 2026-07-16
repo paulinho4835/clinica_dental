@@ -570,6 +570,7 @@ export function DayView({
             setDraft(null);
           }}
           onClose={() => setDraft(null)}
+          availability={availability ?? []}
         />
       )}
     </div>

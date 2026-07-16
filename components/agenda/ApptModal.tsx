@@ -19,6 +19,7 @@ import {
   apptName,
   isQuickConsult,
 } from "./apptHelpers";
+import { findAvailabilityConflict, type AvailabilityBlock } from "@/lib/availability";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmmInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -36,6 +37,7 @@ export function ApptModal({
   dentist, // odontólogo precargado (al agendar desde una columna)
   prefill, // lo ya escrito en el popover rápido ("Más opciones")
   onClose,
+  availability,
 }: {
   patients: PatientOption[];
   doctors: DoctorOption[];
@@ -49,6 +51,7 @@ export function ApptModal({
     reason: string;
   };
   onClose: () => void;
+  availability?: AvailabilityBlock[];
 }) {
   const router = useRouter();
   const isEditing = !!appt;
@@ -114,6 +117,9 @@ export function ApptModal({
   const endsAt = `${dateKey}T${endTime}:00-04:00`;
   const validRange = endTime > startTime;
   const duration = validRange ? mins(new Date(startsAt), new Date(endsAt)) : 0;
+  const conflict = dentistName
+    ? findAvailabilityConflict(dateKey, new Date(startsAt), new Date(endsAt), dentistName, availability ?? [])
+    : null;
 
   const header = start.toLocaleDateString("es-BO", {
     weekday: "long",
@@ -261,6 +267,14 @@ export function ApptModal({
             />
           )}
         </label>
+
+        {conflict && (
+          <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10">
+            ⚠ {conflict.dentist_name} no está disponible en este horario
+            {conflict.reason ? ` (${conflict.reason})` : ""}. Puedes agendar igual
+            si es una excepción.
+          </p>
+        )}
 
         <label className="block text-sm">
           <span className="mb-1 block text-slate-600">Motivo / notas</span>

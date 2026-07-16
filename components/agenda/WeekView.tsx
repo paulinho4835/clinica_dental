@@ -391,6 +391,7 @@ export function WeekView({
             setDraft(null);
           }}
           onClose={() => setDraft(null)}
+          availability={availability ?? []}
         />
       )}
     </div>
