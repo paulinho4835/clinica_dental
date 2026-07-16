@@ -20,11 +20,11 @@ export function sumPaymentsForSelection(
   selectedIds: Set<string> | null,
 ): number {
   if (selectedIds === null) {
-    return payments.reduce((s, p) => s + p.amount, 0);
+    return payments.reduce((s, p) => s + Number(p.amount), 0);
   }
   return payments.reduce((s, p) => {
     if (p.treatment_item_id && selectedIds.has(p.treatment_item_id)) {
-      return s + p.amount;
+      return s + Number(p.amount);
     }
     return s;
   }, 0);
