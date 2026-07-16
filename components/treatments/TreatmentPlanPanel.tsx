@@ -7,6 +7,7 @@ import {
   deleteWork,
   type ActionState,
 } from "@/app/(dashboard)/pacientes/treatment-actions";
+import { PrintSelectModal } from "./PrintSelectModal";
 import { bs, fmtBoliviaDateTime } from "@/lib/format";
 
 export type Dentist = { id: string; full_name: string };
@@ -55,19 +56,7 @@ export function TreatmentPlanPanel({
 
       {recetasEnabled && (
         <div className="flex items-center justify-end">
-          <a
-            href={`/pacientes/${patientId}/imprimir`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9"/>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect x="6" y="14" width="12" height="8"/>
-            </svg>
-            Presupuesto
-          </a>
+          <PrintSelectModal patientId={patientId} works={works} />
         </div>
       )}
 
