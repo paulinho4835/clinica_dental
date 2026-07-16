@@ -4,6 +4,11 @@ import { bs } from "@/lib/format";
 import { getClinicLogoUrl } from "@/lib/clinicLogo";
 import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "./AutoPrint";
+import {
+  parseSelectedIds,
+  filterBySelection,
+  sumPaymentsForSelection,
+} from "@/lib/print/budgetSelection";
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-BO", {
@@ -28,10 +33,14 @@ const now = () =>
 
 export default async function ImprimirPlanPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ items?: string }>;
 }) {
   const { id } = await params;
+  const { items } = await searchParams;
+  const selectedIds = parseSelectedIds(items);
   const supabase = await createClient();
 
   const { data: patient } = await supabase
@@ -58,11 +67,11 @@ export default async function ImprimirPlanPage({
         .order("created_at", { ascending: false }),
       supabase
         .from("payments")
-        .select("amount")
+        .select("amount, treatment_item_id")
         .eq("patient_id", id),
     ]);
 
-  const works = (rawPlans ?? [])
+  const allWorks = (rawPlans ?? [])
     .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
     .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
     .map((it) => ({
@@ -78,10 +87,12 @@ export default async function ImprimirPlanPage({
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
+  const works = filterBySelection(allWorks, selectedIds);
+
   const logoUrl = await getClinicLogoUrl(patient.clinic_id);
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
-  const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+  const totalPaid = sumPaymentsForSelection(payments ?? [], selectedIds);
   const saldo = totalQuoted - totalPaid;
 
   return (
