@@ -8,6 +8,7 @@ import { getClinicFeatures } from "@/lib/superadmin";
 import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
+import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,22 @@ export default async function AgendaPage({
     ? [{ id: profile.userId, full_name: profile.fullName }]
     : [];
 
+  // Bloques de no disponibilidad (addon "disponibilidad"): TODOS los semanales
+  // (aplican a cualquier semana) + los por fecha que tocan el rango visible.
+  let availability: AvailabilityBlock[] = [];
+  if (features.disponibilidad && profile) {
+    const startISO = start.toISOString().slice(0, 10);
+    const endISO = end.toISOString().slice(0, 10);
+    const { data: availRows } = await supabase
+      .from("doctor_availability")
+      .select(
+        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles(full_name)",
+      )
+      .eq("clinic_id", profile.clinicId)
+      .or(`weekday.not.is.null,and(date_from.lte.${endISO},date_to.gte.${startISO})`);
+    availability = (availRows ?? []).map(mapAvailabilityRow);
+  }
+
   return (
     <div className="space-y-6">
       <RealtimeAppointments />
@@ -151,6 +168,7 @@ export default async function AgendaPage({
         recordatoriosEnabled={features.recordatorios}
         whatsappManualEnabled={features.whatsapp_manual}
         avisoDoctoresEnabled={features.aviso_doctores}
+        availability={availability}
       />
     </div>
   );

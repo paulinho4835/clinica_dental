@@ -49,6 +49,25 @@ export function blockRange(
   };
 }
 
+// Mapea una fila cruda de `doctor_availability` (select con embed
+// `profiles(full_name)`) a un AvailabilityBlock. Compartido por la página de
+// administración (/disponibilidad) y el fetch de la agenda, para no repetir
+// la misma lógica de coalescing/trim en dos lugares.
+export function mapAvailabilityRow(r: Record<string, unknown>): AvailabilityBlock {
+  return {
+    id: r.id as string,
+    dentist_id: r.dentist_id as string,
+    dentist_name:
+      ((r.profiles as { full_name?: string } | null)?.full_name ?? "").trim(),
+    weekday: (r.weekday as number | null) ?? null,
+    date_from: (r.date_from as string | null) ?? null,
+    date_to: (r.date_to as string | null) ?? null,
+    start_time: r.start_time as string,
+    end_time: r.end_time as string,
+    reason: (r.reason as string | null) ?? null,
+  };
+}
+
 // Primer bloque del doctor que se solapa con [start, end). Bordes exactos no
 // chocan (cita 13:00 con bloque hasta 13:00 = ok). Sin doctor no es atribuible.
 export function findAvailabilityConflict(

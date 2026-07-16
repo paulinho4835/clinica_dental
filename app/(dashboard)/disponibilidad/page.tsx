@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
-import type { AvailabilityBlock } from "@/lib/availability";
+import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
 import { AvailabilityPanel } from "@/components/disponibilidad/AvailabilityPanel";
 
 export const dynamic = "force-dynamic";
@@ -38,18 +38,7 @@ export default async function DisponibilidadPage() {
       .order("date_from", { ascending: true }),
   ]);
 
-  const blocks: AvailabilityBlock[] = (rows ?? []).map((r) => ({
-    id: r.id as string,
-    dentist_id: r.dentist_id as string,
-    dentist_name:
-      ((r.profiles as { full_name?: string } | null)?.full_name ?? "").trim(),
-    weekday: (r.weekday as number | null) ?? null,
-    date_from: (r.date_from as string | null) ?? null,
-    date_to: (r.date_to as string | null) ?? null,
-    start_time: r.start_time as string,
-    end_time: r.end_time as string,
-    reason: (r.reason as string | null) ?? null,
-  }));
+  const blocks: AvailabilityBlock[] = (rows ?? []).map(mapAvailabilityRow);
 
   return (
     <div className="space-y-6">

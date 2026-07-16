@@ -33,6 +33,8 @@ import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
 import { useEdgeSwipeNav } from "./useEdgeSwipeNav";
 import { X, Pencil, Link } from "lucide-react";
+import { UnavailableOverlay } from "./UnavailableOverlay";
+import { type AvailabilityBlock } from "@/lib/availability";
 
 const PX_PER_HOUR = 56;
 const AXIS_H = (CLOSE_HOUR - OPEN_HOUR) * PX_PER_HOUR;
@@ -78,6 +80,7 @@ export function DayView({
   onLink,
   forcedColumns,
   onSwipeDay,
+  availability,
 }: {
   day: string;
   appts: MonthAppt[];
@@ -93,6 +96,8 @@ export function DayView({
   forcedColumns?: string[];
   /** Swipe horizontal (móvil): -1 día anterior, +1 día siguiente. */
   onSwipeDay?: (delta: 1 | -1) => void;
+  /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
+  availability?: AvailabilityBlock[];
 }) {
   const getDoctorColor = useDoctorColor();
   const [y, m, d] = day.split("-").map(Number);
@@ -336,6 +341,13 @@ export function DayView({
                         style={{ top: ((i + 1) / (CLOSE_HOUR - OPEN_HOUR)) * AXIS_H }}
                       />
                     ))}
+
+                    <UnavailableOverlay
+                      day={day}
+                      dentistName={col ?? (doctors.length === 1 ? doctors[0].full_name : null)}
+                      blocks={availability ?? []}
+                      axisH={AXIS_H}
+                    />
 
                     {/* Slots clicables: marcan la franja tentativa (no abren el
                         formulario completo de una; ver popover rápido abajo). */}

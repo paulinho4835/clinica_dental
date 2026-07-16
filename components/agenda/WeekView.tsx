@@ -26,6 +26,8 @@ import { type DoctorOption } from "./apptHelpers";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
 import { useEdgeSwipeNav } from "./useEdgeSwipeNav";
+import { UnavailableOverlay } from "./UnavailableOverlay";
+import { type AvailabilityBlock } from "@/lib/availability";
 
 // Franja elegida que aún no es una cita (ver DayView).
 type DraftSlot = { start: Date; end: Date; day: string; anchor: DOMRect };
@@ -59,6 +61,8 @@ export function WeekView({
   onEdit,
   onLink,
   onSwipeWeek,
+  availability,
+  selectedDoctor,
 }: {
   date: string;
   byDay: Map<string, MonthAppt[]>;
@@ -72,6 +76,11 @@ export function WeekView({
   onLink: (a: MonthAppt) => void;
   /** Swipe horizontal (móvil): -1 semana anterior, +1 semana siguiente. */
   onSwipeWeek?: (delta: 1 | -1) => void;
+  /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
+  availability?: AvailabilityBlock[];
+  /** Doctor filtrado en el dropdown de la agenda (null = "Todos"/"Mi Agenda" sin
+      un único doctor atribuible); solo con un doctor se pinta el gris. */
+  selectedDoctor: string | null;
 }) {
   const getDoctorColor = useDoctorColor();
   const days = useMemo(() => weekDays(new Date(date + "T00:00:00")), [date]);
@@ -241,6 +250,13 @@ export function WeekView({
                       <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400" />
                     </div>
                   )}
+
+                  <UnavailableOverlay
+                    day={k}
+                    dentistName={selectedDoctor}
+                    blocks={availability ?? []}
+                    axisH={AXIS_H}
+                  />
 
                   {canWrite &&
                     slots.map((s) => {

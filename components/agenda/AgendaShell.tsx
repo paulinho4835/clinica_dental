@@ -27,6 +27,7 @@ import {
   DoctorColorContext,
 } from "@/lib/agenda/doctorColor";
 import { toast } from "@/lib/toast";
+import { type AvailabilityBlock } from "@/lib/availability";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
 
@@ -71,6 +72,7 @@ export function AgendaShell({
   recordatoriosEnabled,
   whatsappManualEnabled,
   avisoDoctoresEnabled,
+  availability = [],
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -85,6 +87,8 @@ export function AgendaShell({
   recordatoriosEnabled: boolean;
   whatsappManualEnabled: boolean;
   avisoDoctoresEnabled: boolean;
+  /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
+  availability?: AvailabilityBlock[];
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -528,6 +532,7 @@ export function AgendaShell({
                 patients={patients}
                 doctors={doctors}
                 forcedColumns={forcedCols}
+                availability={availability}
                 {...dayViewHandlers}
               />
             </div>
@@ -545,6 +550,7 @@ export function AgendaShell({
           patients={patients}
           doctors={doctors}
           forcedColumns={forcedCols}
+          availability={availability}
           onSwipeDay={shift}
           {...dayViewHandlers}
         />
@@ -558,6 +564,8 @@ export function AgendaShell({
           canWrite={canWrite}
           patients={patients}
           doctors={doctors}
+          availability={availability}
+          selectedDoctor={activeDoctor === ALL_DOCTORS ? null : activeDoctor}
           onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
           onPick={openFullModal}
           onEdit={(a) =>
