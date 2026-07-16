@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BOLIVIA_TZ } from "@/lib/format";
 import { buildSlots, normalizeTime, normalizeDate } from "@/lib/vapi-helpers";
+import { mapAvailabilityRow, blocksForDay, blockRange } from "@/lib/availability";
 
 // Contexto mutable de una corrida del agente: la tool handoff_to_human lo marca
 // y el endpoint lo lee después de correr el modelo para poner la conversación
@@ -256,9 +257,14 @@ export function buildAgentTools(
   patientPhone?: string,
   canManage?: boolean,
   canCheckAvailability?: boolean,
+  availabilityEnabled?: boolean,
 ) {
   const admin = createAdminClient();
   const hasAvailability = canCheckAvailability ?? false;
+  // Addon "disponibilidad" (DISTINTO de T3/hasAvailability: T3 es "puede el
+  // agente consultar horarios libres/ocupados"; este flag es "debe además
+  // tratar los bloques de doctor_availability como no disponibles").
+  const availEnabled = availabilityEnabled ?? false;
   // Texto que se agrega a los errores de choque de horario: solo tiene sentido
   // mencionar check_availability si esa tool existe en este tier.
   const availabilityHint = hasAvailability
@@ -295,6 +301,30 @@ export function buildAgentTools(
       if (data && data.length > 0) return data as ApptRow[];
     }
     return [];
+  }
+
+  // Bloques de no disponibilidad del doctor para un día (addon "disponibilidad").
+  // [] si el addon está apagado. Atribuible solo si se pasa un nombre de doctor:
+  // sin doctor (cita del bot / "Asistente Virtual") no hay a quién restarle
+  // horas. Reusa las funciones puras de lib/availability.ts (mismas que la
+  // agenda humana) y doctorNamesMatch (mismo criterio de nombre en todo el
+  // archivo) para no duplicar lógica.
+  async function fetchDayUnavailability(
+    dayISO: string,
+    dentistName?: string,
+  ): Promise<{ start: Date; end: Date; reason: string | null }[]> {
+    if (!availEnabled || !dentistName?.trim()) return [];
+    const { data } = await admin
+      .from("doctor_availability")
+      .select(
+        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles(full_name)",
+      )
+      .eq("clinic_id", clinicId)
+      .or(`weekday.not.is.null,and(date_from.lte.${dayISO},date_to.gte.${dayISO})`);
+    const blocks = (data ?? []).map(mapAvailabilityRow);
+    return blocksForDay(dayISO, blocks)
+      .filter((b) => doctorNamesMatch(b.dentist_name, dentistName))
+      .map((b) => ({ ...blockRange(dayISO, b), reason: b.reason }));
   }
 
   return {
@@ -388,6 +418,14 @@ export function buildAgentTools(
                 start: new Date(a.starts_at).getTime(),
                 end: new Date(a.ends_at).getTime(),
               }));
+              // Bloques de no disponibilidad del doctor (addon "disponibilidad").
+              // Solo se restan si el paciente pidió un doctor específico: sin
+              // doctor, la cita podría terminar con cualquier odontólogo activo
+              // y no hay a quién atribuirle el bloque sin ambigüedad.
+              const unavail = await fetchDayUnavailability(d, doctor_name);
+              for (const u of unavail) {
+                intervals.push({ start: u.start.getTime(), end: u.end.getTime() });
+              }
               const available = allSlots.filter((s) => {
                 const slotStart = new Date(`${d}T${s}:00-04:00`).getTime();
                 const slotEnd = slotStart + 60 * 60 * 1000;
@@ -506,6 +544,20 @@ export function buildAgentTools(
             // El paciente pidió un doctor que no existe: mejor avisar que
             // agendarlo en silencio con otro (o con la IA) — sería engañarlo.
             return `ERROR: no encontré a un doctor llamado "${doctor_name.trim()}" en la clínica. Pide al paciente que confirme o corrija el nombre del doctor. NO le muestres la lista de doctores.`;
+          }
+        }
+
+        // Disponibilidad del doctor (addon "disponibilidad"): si el horario
+        // pedido cae dentro de un bloque de no disponibilidad de ESE doctor,
+        // rechazar con ERROR en vez de agendar a ciegas. Solo aplica si hay un
+        // doctor real asignado (no para citas sin doctor específico).
+        if (assignedDoctorId) {
+          const unavail = await fetchDayUnavailability(nDate, assignedDoctor);
+          const blocked = unavail.find(
+            (u) => start.getTime() < u.end.getTime() && new Date(endsAt).getTime() > u.start.getTime(),
+          );
+          if (blocked) {
+            return `ERROR: la cita NO fue agendada. ${assignedDoctor} no está disponible el ${nDate} de ${blocked.start.toLocaleTimeString("es-BO", { timeZone: BOLIVIA_TZ, hour: "2-digit", minute: "2-digit", hour12: false })} a ${blocked.end.toLocaleTimeString("es-BO", { timeZone: BOLIVIA_TZ, hour: "2-digit", minute: "2-digit", hour12: false })}${blocked.reason ? ` (${blocked.reason})` : ""}.${availabilityHint}`;
           }
         }
 
@@ -702,6 +754,18 @@ export function buildAgentTools(
 
               const appt = appts[0];
               const newEnd = new Date(newStart.getTime() + 60 * 60 * 1000);
+              // Disponibilidad del doctor (addon "disponibilidad"), igual que
+              // en book_appointment: rechaza si el nuevo horario cae en un
+              // bloque de no disponibilidad de ESE doctor.
+              if (appt.dentist_id && appt.dentist_name) {
+                const unavail = await fetchDayUnavailability(nDate, appt.dentist_name);
+                const blocked = unavail.find(
+                  (u) => newStart.getTime() < u.end.getTime() && newEnd.getTime() > u.start.getTime(),
+                );
+                if (blocked) {
+                  return `ERROR: la cita NO fue reprogramada. ${appt.dentist_name} no está disponible el ${nDate} de ${blocked.start.toLocaleTimeString("es-BO", { timeZone: BOLIVIA_TZ, hour: "2-digit", minute: "2-digit", hour12: false })} a ${blocked.end.toLocaleTimeString("es-BO", { timeZone: BOLIVIA_TZ, hour: "2-digit", minute: "2-digit", hour12: false })}${blocked.reason ? ` (${blocked.reason})` : ""}.${availabilityHint}`;
+                }
+              }
               // Choque por solapamiento excluyendo la propia cita. Con doctor
               // real asignado se mide contra ese doctor; sin doctor, la clínica
               // entera es el recurso (igual que book_appointment).

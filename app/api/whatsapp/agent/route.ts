@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
   // agendar y reprogramar. Sin T3 el agente agenda/reprograma con la hora que
   // pida el paciente y solo avisa si choca.
   const canCheckAvailability = features.agente_ia_t3;
+  // Addon "disponibilidad": el agente no ofrece ni agenda en horarios donde el
+  // doctor no está disponible (mismos bloques que la agenda humana).
+  const availabilityEnabled = features.disponibilidad;
 
   // Conversación existente (historial + estado) y ficha ya registrada con este
   // número (si el teléfono es verificado): con ficha conocida el agente saluda
@@ -111,6 +114,7 @@ export async function POST(req: NextRequest) {
       patientPhone: phoneVerified ? phone : undefined,
       canManage,
       canCheckAvailability,
+      availabilityEnabled,
       knownPatientName: knownPatient?.full_name ?? undefined,
       clinicInfo,
     });

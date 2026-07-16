@@ -211,6 +211,9 @@ export async function runAgent(opts: {
   // agenda) al agendar Y al reprogramar. Sin T3 el agente agenda/reprograma
   // "a ciegas" con la hora que pida el paciente y solo avisa si choca.
   canCheckAvailability?: boolean;
+  // Addon "disponibilidad": el agente no ofrece ni agenda en horarios donde el
+  // doctor no está disponible.
+  availabilityEnabled?: boolean;
   // Nombre de la ficha ya registrada con este número de WhatsApp (si existe).
   // Con ficha conocida el agente NO pide carnet; sin ella, lo exige para
   // dejar la solicitud de registro pendiente de aprobación.
@@ -224,12 +227,14 @@ export async function runAgent(opts: {
   const ctx: AgentContext = { handoffRequested: false };
   const canManage = opts.canManage ?? false;
   const canCheckAvailability = opts.canCheckAvailability ?? false;
+  const availabilityEnabled = opts.availabilityEnabled ?? false;
   const tools = buildAgentTools(
     opts.clinicId,
     ctx,
     opts.patientPhone,
     canManage,
     canCheckAvailability,
+    availabilityEnabled,
   );
 
   const messages: ModelMessage[] = [
