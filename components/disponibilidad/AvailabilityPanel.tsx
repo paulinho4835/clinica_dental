@@ -128,7 +128,7 @@ export function AvailabilityPanel({
           <select
             value={filterDoctor}
             onChange={(e) => setFilterDoctor(e.target.value)}
-            className={`${fieldInputClass} w-auto`}
+            className={cn(fieldInputClass, "w-auto")}
           >
             <option value="">Todos los doctores</option>
             {doctors.map((d) => (
@@ -138,7 +138,7 @@ export function AvailabilityPanel({
           <select
             value={filterDay}
             onChange={(e) => setFilterDay(e.target.value)}
-            className={`${fieldInputClass} w-auto`}
+            className={cn(fieldInputClass, "w-auto")}
           >
             <option value="">Todos los días</option>
             {WEEKDAYS.map((d, i) => (
@@ -249,7 +249,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
           <select
             value={dentistId}
             onChange={(e) => setDentistId(e.target.value)}
-            className={`${fieldInputClass} mt-1 block w-auto`}
+            className={cn(fieldInputClass, "mt-1 block w-auto")}
           >
             {doctors.map((d) => (
               <option key={d.id} value={d.id}>{d.full_name}</option>
@@ -262,7 +262,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as "weekly" | "dated")}
-            className={`${fieldInputClass} mt-1 block w-auto`}
+            className={cn(fieldInputClass, "mt-1 block w-auto")}
           >
             <option value="weekly">Todas las semanas</option>
             <option value="dated">Fecha concreta / rango</option>
@@ -275,7 +275,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
             <select
               value={weekday}
               onChange={(e) => setWeekday(Number(e.target.value))}
-              className={`${fieldInputClass} mt-1 block w-auto`}
+              className={cn(fieldInputClass, "mt-1 block w-auto")}
             >
               {WEEKDAYS.map((d, i) => (
                 <option key={d} value={i}>{d}</option>
@@ -290,7 +290,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className={`${fieldInputClass} mt-1 block w-auto`}
+                className={cn(fieldInputClass, "mt-1 block w-auto")}
               />
             </label>
             <label className="text-xs text-slate-500">
@@ -300,7 +300,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
                 value={dateTo}
                 min={dateFrom}
                 onChange={(e) => setDateTo(e.target.value)}
-                className={`${fieldInputClass} mt-1 block w-auto`}
+                className={cn(fieldInputClass, "mt-1 block w-auto")}
               />
             </label>
           </>
@@ -324,7 +324,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className={`${fieldInputClass} mt-1 block w-auto`}
+                className={cn(fieldInputClass, "mt-1 block w-auto")}
               />
             </label>
             <label className="text-xs text-slate-500">
@@ -333,7 +333,7 @@ function AddBlockForm({ doctors }: { doctors: Doctor[] }) {
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className={`${fieldInputClass} mt-1 block w-auto`}
+                className={cn(fieldInputClass, "mt-1 block w-auto")}
               />
             </label>
           </>
