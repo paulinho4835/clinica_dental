@@ -81,7 +81,7 @@ export const FEATURES: FeatureMeta[] = [
   // Addon: disponibilidad de doctores. Registra cuándo NO atiende cada doctor
   // (semanal o por fechas); se pinta gris en la agenda, avisa al agendar encima
   // y el Agente de IA no ofrece esos horarios.
-  { key: "disponibilidad", label: "Disponibilidad de doctores", href: "/disponibilidad", optIn: true },
+  { key: "disponibilidad", label: "Disponibilidad Doctores", href: "/disponibilidad", optIn: true },
   // Addon: agente de IA que responde por WhatsApp (Baileys) y agenda citas. La
   // recepción virtual atiende, consulta disponibilidad y crea citas; deriva a
   // un humano (pausa) para todo lo demás. Opt-in.

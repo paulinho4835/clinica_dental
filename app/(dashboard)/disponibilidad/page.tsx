@@ -42,7 +42,7 @@ export default async function DisponibilidadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Disponibilidad de doctores</h1>
+      <h1 className="text-2xl font-bold">Disponibilidad Doctores</h1>
       <p className="max-w-2xl text-sm text-slate-500">
         Registra los horarios en los que un doctor NO atiende (un día de la
         semana de forma recurrente, o fechas concretas como vacaciones). Esos
