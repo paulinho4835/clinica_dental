@@ -7,6 +7,10 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { normalizeFeatures } from "@/lib/features";
 import { buildReminderRows, cancelPendingReminders } from "@/lib/reminders";
+import { getClinicFeatures } from "@/lib/superadmin";
+import { boliviaTodayISO, boliviaDateISO, BOLIVIA_TZ } from "@/lib/format";
+import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
+import { freeSlotsForDay, formatFreeSlotsMessage } from "@/lib/freeSlots";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -514,4 +518,92 @@ async function migrateAppointmentFinance(appointmentId: string, profile: Profile
   await supabase.from("appointments").update({ finance_migrated: true }).eq("id", appointmentId);
 
   revalidatePath(`/pacientes/${appt.patient_id}`);
+
+}
+
+const FREE_SLOTS_ROLES = new Set(["admin", "recepcionista"]);
+
+// Próximos N días (fecha ISO + etiqueta "Lunes 13" en español), anclados a
+// las 12:00 hora Bolivia para no cruzar de día por redondeo/DST (mismo
+// patrón que upcomingDays() en lib/agent/runAgent.ts). El día del mes se
+// toma del propio dateISO (no de Date.getDate(), que usaría el huso del
+// servidor) para que la etiqueta nunca se corra un día.
+function upcomingDaysWithLabel(count: number): { dateISO: string; label: string }[] {
+  const todayISO = boliviaTodayISO();
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(`${todayISO}T12:00:00-04:00`);
+    d.setDate(d.getDate() + i);
+    const dateISO = d.toLocaleDateString("en-CA", { timeZone: BOLIVIA_TZ });
+    const weekday = d.toLocaleDateString("es-BO", { timeZone: BOLIVIA_TZ, weekday: "long" });
+    const dayNum = Number(dateISO.split("-")[2]);
+    const label = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${dayNum}`;
+    return { dateISO, label };
+  });
+}
+
+// Texto de horarios libres de un doctor en los próximos N días, listo para
+// copiar y pegar en WhatsApp (feature "Horarios libres", addon
+// "disponibilidad"). Mismo cálculo que check_availability del agente de IA
+// (lib/agent/tools.ts), expuesto para admin/recepción vía un botón en la
+// Agenda en vez de tener que copiar horarios a mano de la grilla.
+export async function getFreeSlotsText(
+  dentistId: string,
+  days: 3 | 5 | 7,
+): Promise<{ text: string } | { error: string }> {
+  const [profile, features] = await Promise.all([getProfile(), getClinicFeatures()]);
+  if (!profile || !FREE_SLOTS_ROLES.has(profile.role)) return { error: "Sin permisos." };
+  if (!features.disponibilidad)
+    return { error: "El módulo de disponibilidad no está habilitado." };
+
+  const supabase = await createClient();
+  const { data: doc } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", dentistId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (!doc) return { error: "Doctor no encontrado." };
+  const dentistName = doc.full_name;
+
+  const daySpec = upcomingDaysWithLabel(days);
+  const startISO = daySpec[0].dateISO;
+  const endISO = daySpec[daySpec.length - 1].dateISO;
+
+  const [{ data: appts }, { data: availRows }] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("starts_at, ends_at")
+      .eq("clinic_id", profile.clinicId)
+      .eq("dentist_name", dentistName)
+      .gte("starts_at", `${startISO}T00:00:00-04:00`)
+      .lte("starts_at", `${endISO}T23:59:59-04:00`)
+      .not("status", "in", "(cancelled,no_show)"),
+    supabase
+      .from("doctor_availability")
+      .select(
+        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles!doctor_availability_dentist_id_fkey(full_name)",
+      )
+      .eq("clinic_id", profile.clinicId)
+      .or(`weekday.not.is.null,and(date_from.lte.${endISO},date_to.gte.${startISO})`),
+  ]);
+
+  const bookedByDay = new Map<string, { start: number; end: number }[]>();
+  for (const a of appts ?? []) {
+    const dayISO = boliviaDateISO(new Date(a.starts_at));
+    const start = new Date(a.starts_at).getTime();
+    const end = a.ends_at ? new Date(a.ends_at).getTime() : start + 60 * 60 * 1000;
+    const list = bookedByDay.get(dayISO) ?? [];
+    list.push({ start, end });
+    bookedByDay.set(dayISO, list);
+  }
+
+  const availability: AvailabilityBlock[] = (availRows ?? []).map(mapAvailabilityRow);
+
+  const dayResults = daySpec.map(({ dateISO, label }) => ({
+    dateISO,
+    label,
+    slots: freeSlotsForDay(dateISO, bookedByDay.get(dateISO) ?? [], availability, dentistName),
+  }));
+
+  return { text: formatFreeSlotsMessage(dayResults) };
 }
