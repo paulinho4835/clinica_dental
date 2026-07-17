@@ -142,13 +142,14 @@ export default async function AgendaPage({
   if (features.disponibilidad && profile) {
     const startISO = start.toISOString().slice(0, 10);
     const endISO = end.toISOString().slice(0, 10);
-    const { data: availRows } = await supabase
+    const { data: availRows, error: availError } = await supabase
       .from("doctor_availability")
       .select(
-        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles(full_name)",
+        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles!doctor_availability_dentist_id_fkey(full_name)",
       )
       .eq("clinic_id", profile.clinicId)
       .or(`weekday.not.is.null,and(date_from.lte.${endISO},date_to.gte.${startISO})`);
+    if (availError) console.error("[agenda] doctor_availability fetch error:", availError);
     availability = (availRows ?? []).map(mapAvailabilityRow);
   }
 

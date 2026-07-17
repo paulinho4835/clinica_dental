@@ -316,13 +316,14 @@ export function buildAgentTools(
   ): Promise<{ start: Date; end: Date; reason: string | null }[]> {
     if (!availEnabled) return [];
     if (!dentistId && !dentistName?.trim()) return [];
-    const { data } = await admin
+    const { data, error } = await admin
       .from("doctor_availability")
       .select(
-        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles(full_name)",
+        "id, dentist_id, weekday, date_from, date_to, start_time, end_time, reason, profiles!doctor_availability_dentist_id_fkey(full_name)",
       )
       .eq("clinic_id", clinicId)
       .or(`weekday.not.is.null,and(date_from.lte.${dayISO},date_to.gte.${dayISO})`);
+    if (error) console.error("[agent] doctor_availability fetch error:", error);
     const blocks = (data ?? []).map(mapAvailabilityRow);
     return blocksForDay(dayISO, blocks)
       .filter((b) =>
