@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus, CalendarClock } from "lucide-react";
 import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR, boliviaMinutesOfDay } from "@/lib/agenda";
 import { boliviaTodayISO, boliviaDateISO } from "@/lib/format";
 import { type PatientOption } from "./PatientPicker";
@@ -21,6 +21,7 @@ import {
 } from "./apptHelpers";
 import { WhatsAppManualModal } from "./WhatsAppManualModal";
 import { DoctorAgendaWhatsAppModal } from "./DoctorAgendaWhatsAppModal";
+import { FreeSlotsModal } from "./FreeSlotsModal";
 import { StatusLegend } from "./StatusLegend";
 import {
   buildDoctorColorResolver,
@@ -72,6 +73,7 @@ export function AgendaShell({
   recordatoriosEnabled,
   whatsappManualEnabled,
   avisoDoctoresEnabled,
+  disponibilidadEnabled = false,
   availability = [],
 }: {
   patients: PatientOption[];
@@ -87,6 +89,8 @@ export function AgendaShell({
   recordatoriosEnabled: boolean;
   whatsappManualEnabled: boolean;
   avisoDoctoresEnabled: boolean;
+  /** Addon "Disponibilidad Doctores": habilita el botón "Horarios libres". */
+  disponibilidadEnabled?: boolean;
   /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
   availability?: AvailabilityBlock[];
 }) {
@@ -101,6 +105,7 @@ export function AgendaShell({
   const [sending, setSending] = useState(false);
   const [showWaManual, setShowWaManual] = useState(false);
   const [showDoctorAviso, setShowDoctorAviso] = useState(false);
+  const [showFreeSlots, setShowFreeSlots] = useState(false);
   // Filtro de doctor: nombre del doctor, ALL_DOCTORS para todos, o myName por defecto.
   // Solo el admin puede cambiar esto; el resto siempre ve solo sus citas (filtradas en servidor).
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
@@ -495,6 +500,17 @@ export function AgendaShell({
             Avisar a doctores
           </button>
         )}
+
+        {isAdmin && disponibilidadEnabled && (
+          <button
+            onClick={() => setShowFreeSlots(true)}
+            title="Generar texto de horarios libres para copiar y pegar"
+            className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Horarios libres</span>
+          </button>
+        )}
       </div>
 
       {/* Leyenda + filtro por estado */}
@@ -611,6 +627,10 @@ export function AgendaShell({
       )}
       {showDoctorAviso && (
         <DoctorAgendaWhatsAppModal onClose={() => setShowDoctorAviso(false)} />
+      )}
+
+      {showFreeSlots && (
+        <FreeSlotsModal doctors={doctors} onClose={() => setShowFreeSlots(false)} />
       )}
 
       {/* Botón flotante "+" (solo móvil), como Google Calendar: en el teléfono

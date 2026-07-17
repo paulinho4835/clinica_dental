@@ -169,6 +169,7 @@ export default async function AgendaPage({
         recordatoriosEnabled={features.recordatorios}
         whatsappManualEnabled={features.whatsapp_manual}
         avisoDoctoresEnabled={features.aviso_doctores}
+        disponibilidadEnabled={features.disponibilidad}
         availability={availability}
       />
     </div>
