@@ -4,6 +4,11 @@ import { useMemo, useRef, useState } from "react";
 import { type MonthAppt } from "./apptHelpers";
 import { useDoctorColor } from "@/lib/agenda/doctorColor";
 import { boliviaTodayISO } from "@/lib/format";
+import { blocksForDay, type AvailabilityBlock } from "@/lib/availability";
+
+const hhmm = (t: string) => t.slice(0, 5);
+const isFullDayBlock = (b: AvailabilityBlock) =>
+  hhmm(b.start_time) <= "08:00" && hhmm(b.end_time) >= "20:00";
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,6 +26,9 @@ export function MonthView({
   selectedDay,
   onSelectDay,
   onSwipeMonth,
+  availability,
+  selectedDoctor,
+  allDoctors,
 }: {
   month: string;
   byDay: Map<string, MonthAppt[]>;
@@ -28,6 +36,12 @@ export function MonthView({
   onSelectDay: (day: string) => void;
   /** Swipe horizontal (móvil): -1 mes anterior, +1 mes siguiente. */
   onSwipeMonth?: (delta: 1 | -1) => void;
+  /** Addon "Disponibilidad": bloques de no disponibilidad para pintar como chip. */
+  availability?: AvailabilityBlock[];
+  /** Doctor filtrado en el dropdown de la agenda (null = "Todos"). */
+  selectedDoctor?: string | null;
+  /** Con "Todos" (selectedDoctor=null): nombres de doctores a considerar. */
+  allDoctors?: string[];
 }) {
   const getDoctorColor = useDoctorColor();
   const base = new Date(month + "T00:00:00");
@@ -119,6 +133,22 @@ export function MonthView({
           const dayAppts = byDay.get(k) ?? [];
           const isSelected = selectedDay === k;
           const isToday = k === todayKey;
+
+          // Bloques de no disponibilidad ese día: del doctor filtrado, o de
+          // todos los doctores (admin/odontólogo/colega/especialista) con
+          // "Todos" seleccionado. Array pequeño (bloques del mes) — no vale la
+          // pena memoizar por celda.
+          const dayBlocks: AvailabilityBlock[] =
+            inMonth && availability && availability.length > 0
+              ? blocksForDay(k, availability).filter((b) =>
+                  selectedDoctor
+                    ? b.dentist_name.trim() === selectedDoctor.trim()
+                    : allDoctors && allDoctors.length > 0
+                      ? allDoctors.some((n) => n.trim() === b.dentist_name.trim())
+                      : false,
+                )
+              : [];
+
           return (
             <button
               key={k}
@@ -160,6 +190,33 @@ export function MonthView({
                   )}
                 </div>
               )}
+              {dayBlocks.length > 0 && (() => {
+                const detail = dayBlocks
+                  .map(
+                    (b) =>
+                      `${selectedDoctor ? "" : b.dentist_name + " "}${
+                        isFullDayBlock(b)
+                          ? "todo el día"
+                          : `${hhmm(b.start_time)}–${hhmm(b.end_time)}`
+                      }${b.reason ? ` (${b.reason})` : ""}`,
+                  )
+                  .join(" · ");
+                const label = selectedDoctor
+                  ? isFullDayBlock(dayBlocks[0]) && dayBlocks.length === 1
+                    ? "No disp. todo el día"
+                    : `No disp. ${dayBlocks
+                        .map((b) => hhmm(b.start_time) + "–" + hhmm(b.end_time))
+                        .join(", ")}`
+                  : `${dayBlocks.length} no disp.`;
+                return (
+                  <div
+                    title={detail}
+                    className="flex w-full items-center gap-1 truncate rounded bg-slate-200/70 px-1 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-600/40"
+                  >
+                    <span className="truncate">{label}</span>
+                  </div>
+                );
+              })()}
             </button>
           );
         })}

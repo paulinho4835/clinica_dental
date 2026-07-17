@@ -256,6 +256,7 @@ export function WeekView({
                     dentistName={selectedDoctor}
                     blocks={availability ?? []}
                     axisH={AXIS_H}
+                    allDoctors={doctors.map((d) => d.full_name)}
                   />
 
                   {canWrite &&

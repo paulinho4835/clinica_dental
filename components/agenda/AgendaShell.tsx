@@ -514,6 +514,9 @@ export function AgendaShell({
             selectedDay={selectedDay}
             onSelectDay={handleSelectDay}
             onSwipeMonth={shift}
+            availability={availability}
+            selectedDoctor={activeDoctor === ALL_DOCTORS ? null : activeDoctor}
+            allDoctors={doctors.map((d) => d.full_name)}
           />
           {selectedDay && (
             // scroll-mt compensa el banner fijo de vista previa del superadmin;
