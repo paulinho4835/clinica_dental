@@ -88,7 +88,7 @@ export default function LoginPage() {
       </div>
 
       {error && (
-        <p key={error} className="animate-shake text-sm text-red-600">
+        <p key={error} role="alert" className="animate-shake text-sm text-red-600">
           {error}
         </p>
       )}

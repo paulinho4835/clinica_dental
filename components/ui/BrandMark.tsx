@@ -22,17 +22,19 @@ export function BrandMark({ size = "sm", tone = "dark", className }: Props) {
         tone === "light" ? "text-[#f8fafc]" : "text-slate-900",
         className,
       )}
-      aria-label="Dentia"
     >
-      dent
-      <span className="relative" aria-hidden="true">
-        ı
-        <span
-          className="absolute left-1/2 -translate-x-1/2 rounded-full bg-clinic"
-          style={{ width: "0.16em", height: "0.16em", top: "0.08em" }}
-        />
+      <span className="sr-only">Dentia</span>
+      <span aria-hidden="true" className="inline-flex items-baseline">
+        dent
+        <span className="relative">
+          ı
+          <span
+            className="absolute left-1/2 -translate-x-1/2 rounded-full bg-clinic"
+            style={{ width: "0.16em", height: "0.16em", top: "0.08em" }}
+          />
+        </span>
+        a
       </span>
-      a
     </span>
   );
 }
