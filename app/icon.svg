@@ -1,4 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0ea5a4"/>
-  <path fill="#ffffff" d="M256 104c-44 0-66 22-110 22-38 0-58-18-58 40 0 52 18 88 34 140 12 39 18 78 34 96 14 16 30 6 36-22 7-32 12-68 30-68s23 36 30 68c6 28 22 38 36 22 16-18 22-57 34-96 16-52 34-88 34-140 0-58-20-40-58-40-44 0-66-22-110-22z"/>
+  <defs>
+    <linearGradient id="dentiaBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#134e4a"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#dentiaBg)"/>
+  <g stroke="#5eead4" stroke-opacity="0.55" stroke-width="22">
+    <line x1="205" y1="175" x2="110" y2="305"/>
+    <line x1="110" y1="305" x2="205" y2="410"/>
+    <line x1="205" y1="175" x2="335" y2="240"/>
+    <line x1="335" y1="240" x2="335" y2="100"/>
+  </g>
+  <circle cx="205" cy="175" r="40" fill="#2dd4bf"/>
+  <rect x="70" y="265" width="80" height="80" rx="24" fill="#5eead4"/>
+  <circle cx="205" cy="410" r="38" fill="#2dd4bf"/>
+  <circle cx="335" cy="100" r="46" fill="#14b8a6"/>
 </svg>
