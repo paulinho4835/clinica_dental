@@ -28,57 +28,49 @@ export default function RecuperarPage() {
     setSent(true);
   }
 
-  return (
-    <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow ring-1 ring-slate-200">
-        {sent ? (
-          <div className="space-y-3 text-center">
-            <h1 className="text-2xl font-bold text-clinic-fg">Revisa tu correo</h1>
-            <p className="text-sm text-slate-500">
-              Si <strong>{email}</strong> está registrado, te enviamos un enlace
-              para restablecer tu contraseña. Revisa también la carpeta de spam.
-            </p>
-            <Link
-              href="/login"
-              className="inline-block pt-2 text-sm font-medium text-clinic hover:text-clinic-fg"
-            >
-              Volver al inicio de sesión
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-clinic-fg">
-                Recuperar contraseña
-              </h1>
-              <p className="text-sm text-slate-500">
-                Ingresa tu correo y te enviaremos un enlace para crear una nueva
-                contraseña.
-              </p>
-            </div>
-
-            <Field
-              label="Correo"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Enviando…" : "Enviar enlace"}
-            </Button>
-
-            <Link
-              href="/login"
-              className="block pt-1 text-center text-sm font-medium text-clinic hover:text-clinic-fg"
-            >
-              Volver al inicio de sesión
-            </Link>
-          </form>
-        )}
+  return sent ? (
+    <div className="space-y-3 text-center">
+      <h1 className="text-2xl font-bold text-slate-900">Revisa tu correo</h1>
+      <p className="text-sm text-slate-500">
+        Si <strong>{email}</strong> está registrado, te enviamos un enlace
+        para restablecer tu contraseña. Revisa también la carpeta de spam.
+      </p>
+      <Link
+        href="/login"
+        className="inline-block pt-2 text-sm font-medium text-clinic hover:text-clinic-fg"
+      >
+        Volver al inicio de sesión
+      </Link>
+    </div>
+  ) : (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="space-y-1.5">
+        <h1 className="text-2xl font-bold text-slate-900">Recuperar contraseña</h1>
+        <p className="text-sm text-slate-500">
+          Ingresa tu correo y te enviaremos un enlace para crear una nueva
+          contraseña.
+        </p>
       </div>
-    </main>
+
+      <Field
+        label="Correo"
+        type="email"
+        autoComplete="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+
+      <Button type="submit" disabled={loading} className="w-full">
+        {loading ? "Enviando…" : "Enviar enlace"}
+      </Button>
+
+      <Link
+        href="/login"
+        className="block pt-1 text-center text-sm font-medium text-clinic hover:text-clinic-fg"
+      >
+        Volver al inicio de sesión
+      </Link>
+    </form>
   );
 }

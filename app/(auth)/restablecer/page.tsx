@@ -56,64 +56,64 @@ export default function RestablecerPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow ring-1 ring-slate-200">
-        {status === "checking" && (
-          <p className="text-center text-sm text-slate-500">Verificando enlace…</p>
-        )}
+    <>
+      {status === "checking" && (
+        <p className="text-center text-sm text-slate-500">Verificando enlace…</p>
+      )}
 
-        {status === "invalid" && (
-          <div className="space-y-3 text-center">
-            <h1 className="text-2xl font-bold text-clinic-fg">Enlace no válido</h1>
+      {status === "invalid" && (
+        <div className="space-y-3 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">Enlace no válido</h1>
+          <p className="text-sm text-slate-500">
+            El enlace para restablecer tu contraseña expiró o ya fue usado.
+            Solicita uno nuevo.
+          </p>
+          <Link
+            href="/recuperar"
+            className="inline-block pt-2 text-sm font-medium text-clinic hover:text-clinic-fg"
+          >
+            Solicitar enlace nuevo
+          </Link>
+        </div>
+      )}
+
+      {status === "ready" && (
+        <form onSubmit={onSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-bold text-slate-900">Nueva contraseña</h1>
             <p className="text-sm text-slate-500">
-              El enlace para restablecer tu contraseña expiró o ya fue usado.
-              Solicita uno nuevo.
+              Define una contraseña nueva para tu cuenta.
             </p>
-            <Link
-              href="/recuperar"
-              className="inline-block pt-2 text-sm font-medium text-clinic hover:text-clinic-fg"
-            >
-              Solicitar enlace nuevo
-            </Link>
           </div>
-        )}
 
-        {status === "ready" && (
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-clinic-fg">
-                Nueva contraseña
-              </h1>
-              <p className="text-sm text-slate-500">
-                Define una contraseña nueva para tu cuenta.
-              </p>
-            </div>
+          <Field
+            label="Nueva contraseña"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Field
+            label="Repetir contraseña"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
 
-            <Field
-              label="Nueva contraseña"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Field
-              label="Repetir contraseña"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
+          {error && (
+            <p key={error} className="animate-shake text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Guardando…" : "Guardar contraseña"}
-            </Button>
-          </form>
-        )}
-      </div>
-    </main>
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Guardando…" : "Guardar contraseña"}
+          </Button>
+        </form>
+      )}
+    </>
   );
 }

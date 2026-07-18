@@ -13,12 +13,12 @@ const inter = Inter({
 const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  title: "DentalSaaS — Gestión de Clínicas Dentales",
+  title: "Dentia — Gestión de clínicas dentales",
   description: "Gestión integral multi-clínica. Sin imágenes: odontograma vectorial y datos estructurados.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "DentalSaaS",
+    title: "Dentia",
   },
 };
 
