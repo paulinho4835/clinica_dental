@@ -8,6 +8,13 @@ const ICON_SVG_DETAILED = `<svg xmlns="http://www.w3.org/2000/svg" width="512" h
 
 const DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(ICON_SVG_DETAILED)}`;
 
+// Se agrega como ?v= en las URLs de /icons en el manifest. La ruta se cachea
+// como immutable por 1 año (bueno para rendimiento), así que si el ícono
+// cambia de nuevo, SUBIR este número es la única forma de forzar que
+// Chrome/Android y el servidor de Google que genera el WebAPK dejen de servir
+// el PNG viejo cacheado — cambiar el contenido sin cambiar la URL no alcanza.
+export const ICON_VERSION = 2;
+
 // Genera un PNG cuadrado del logo en el tamaño pedido. Lo usan las rutas
 // /icons/192 y /icons/512 referenciadas por el manifest.
 export function renderIconPng(size: number): ImageResponse {
