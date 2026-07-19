@@ -61,7 +61,7 @@ export default function RecuperarPage() {
         onChange={(e) => setEmail(e.target.value)}
       />
 
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" loading={loading} className="w-full">
         {loading ? "Enviando…" : "Enviar enlace"}
       </Button>
 

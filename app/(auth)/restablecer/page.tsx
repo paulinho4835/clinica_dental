@@ -109,7 +109,7 @@ export default function RestablecerPage() {
             </p>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" loading={loading} className="w-full">
             {loading ? "Guardando…" : "Guardar contraseña"}
           </Button>
         </form>

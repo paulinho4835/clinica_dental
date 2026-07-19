@@ -131,7 +131,7 @@ export default function BienvenidaPage() {
             </p>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" loading={loading} className="w-full">
             {loading ? "Guardando…" : "Crear mi cuenta"}
           </Button>
         </form>

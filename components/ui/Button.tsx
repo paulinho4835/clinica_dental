@@ -37,13 +37,26 @@ export function Button({
   variant,
   size,
   className,
+  loading,
+  children,
+  disabled,
   ...props
-}: ButtonBaseProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonBaseProps &
+  Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+    loading?: boolean;
+    children?: React.ReactNode;
+  }) {
   return (
     <button
       className={cn(buttonVariants({ variant, size }), className)}
+      disabled={disabled || loading}
       {...props}
-    />
+    >
+      {loading && (
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      )}
+      {children}
+    </button>
   );
 }
 
