@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 // abrirla en modo standalone (sin barra del navegador).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "DentalSaaS — Gestión de Clínicas Dentales",
-    short_name: "DentalSaaS",
+    name: "Dentia — Gestión de Clínicas Dentales",
+    short_name: "Dentia",
     description: "Gestión integral multi-clínica para clínicas dentales.",
     start_url: "/agenda",
     display: "standalone",
