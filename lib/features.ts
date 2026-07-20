@@ -188,6 +188,22 @@ export const MODULE_PRESETS: Record<ModulePreset, FeatureKey[]> = {
   clinica: [...MODULE_KEYS],
 };
 
+// Construye el objeto `features` inicial de una clínica nueva según su preset
+// de módulos. Define EXPLÍCITAMENTE cada MODULE_KEY (true/false) para no
+// depender de que normalizeFeatures asuma "encendido por ausencia" — así una
+// clínica "consultorio" nace realmente sin inventario/caja/cuentas/auditoría.
+// Los add-ons opt-in no se incluyen: nacen apagados por su propia lógica.
+export function initialFeaturesForPreset(
+  preset: ModulePreset,
+  opts: { whatsapp: boolean },
+): Record<string, boolean> {
+  const on = new Set(MODULE_PRESETS[preset]);
+  const features: Record<string, boolean> = {};
+  for (const key of MODULE_KEYS) features[key] = on.has(key);
+  features.whatsapp = opts.whatsapp;
+  return features;
+}
+
 // Si el conjunto actual de módulos ON coincide exactamente con un preset,
 // devuelve su nombre; si no, null (plan "personalizado" armado a mano).
 export function detectModulePreset(features: Features): ModulePreset | null {

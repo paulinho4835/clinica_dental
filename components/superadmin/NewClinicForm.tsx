@@ -37,6 +37,17 @@ export function NewClinicForm() {
         </label>
         <Field name="adminName" label="Nombre del admin *" required />
         <Field name="adminEmail" label="Email del admin *" type="email" required />
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-600">Tipo de clínica</span>
+          <select
+            name="preset"
+            defaultValue="consultorio"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
+          >
+            <option value="consultorio">Consultorio (solo lo esencial)</option>
+            <option value="clinica">Clínica completa (todos los módulos)</option>
+          </select>
+        </label>
       </div>
 
       <p className="rounded-lg bg-clinic/5 px-3 py-2 text-xs text-slate-500">

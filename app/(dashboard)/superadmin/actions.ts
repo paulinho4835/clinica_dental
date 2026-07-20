@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/superadmin";
-import { FEATURES, MODULE_KEYS, MODULE_PRESETS, type FeatureKey, type ModulePreset } from "@/lib/features";
+import { FEATURES, MODULE_KEYS, MODULE_PRESETS, initialFeaturesForPreset, type FeatureKey, type ModulePreset } from "@/lib/features";
 import { inviteClinicUser } from "@/lib/inviteUser";
 import type { VapiClinicConfig } from "@/lib/vapi";
 
@@ -35,6 +35,9 @@ export async function createClinic(_prev: unknown, formData: FormData) {
 
   const whatsappAddon = formData.get("whatsapp_addon") === "true";
 
+  const presetRaw = String(formData.get("preset") ?? "consultorio");
+  const preset: ModulePreset = presetRaw in MODULE_PRESETS ? (presetRaw as ModulePreset) : "consultorio";
+
   const admin = createAdminClient();
 
   const { data: clinic, error: clinicErr } = await admin
@@ -42,7 +45,12 @@ export async function createClinic(_prev: unknown, formData: FormData) {
     // Tope de pacientes por defecto para clínicas nuevas (editable después
     // desde el badge de MaxPatientsInput). Las clínicas existentes no se
     // tocan — esto solo aplica hacia adelante, al momento de creación.
-    .insert({ name: clinicName, plan, features: { whatsapp: whatsappAddon }, max_patients: 500 })
+    .insert({
+      name: clinicName,
+      plan,
+      features: initialFeaturesForPreset(preset, { whatsapp: whatsappAddon }),
+      max_patients: 500,
+    })
     .select("id")
     .single();
   if (clinicErr || !clinic) {
