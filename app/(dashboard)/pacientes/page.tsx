@@ -14,6 +14,8 @@ import { parseIntake } from "@/lib/schemas/patient-intake";
 import { requireFeature } from "@/lib/guard";
 import { getInitials, normalizeSearch } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AlertTriangle } from "lucide-react";
+import { usageLevel } from "@/lib/storageLimits";
 
 const AVATAR_COLORS = [
   "bg-violet-100 text-violet-700",
@@ -40,6 +42,22 @@ export default async function PatientsPage({
   // Los doctores no ven el teléfono del paciente (dato de contacto reservado).
   const isDoctor =
     profile?.role === "odontologo_general" || profile?.role === "especialista";
+
+  // Aviso de upsell: solo el admin decide sobre el plan. Se calcula aparte
+  // del listado (que puede estar filtrado por búsqueda `q`) para reflejar
+  // siempre el conteo TOTAL de pacientes de la clínica, no el filtrado.
+  let patientLimitAlert: { count: number; max: number; level: "warn" | "danger" } | null = null;
+  if (profile?.role === "admin" && profile.clinicId) {
+    const [{ count: totalPatients }, { data: clinicRow }] = await Promise.all([
+      supabase.from("patients").select("id", { count: "exact", head: true }),
+      supabase.from("clinics").select("max_patients").eq("id", profile.clinicId).single(),
+    ]);
+    const maxPatients = (clinicRow as { max_patients: number | null } | null)?.max_patients ?? null;
+    if (maxPatients !== null && totalPatients !== null) {
+      const level = usageLevel(totalPatients, maxPatients);
+      if (level !== "ok") patientLimitAlert = { count: totalPatients, max: maxPatients, level };
+    }
+  }
 
   const q = (await searchParams).q?.trim() ?? "";
 
@@ -113,6 +131,24 @@ export default async function PatientsPage({
             : undefined
         }
       />
+      {patientLimitAlert && (
+        <div
+          className={`flex items-center gap-2 rounded-xl p-4 text-sm font-medium ring-1 ${
+            patientLimitAlert.level === "danger"
+              ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-300"
+              : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300"
+          }`}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            Estás usando{" "}
+            <strong>
+              {patientLimitAlert.count} de {patientLimitAlert.max}
+            </strong>{" "}
+            pacientes de tu plan. Contáctanos para subir de plan.
+          </span>
+        </div>
+      )}
       {canRegister && <NewPatientForm />}
 
       {canIntake && (
