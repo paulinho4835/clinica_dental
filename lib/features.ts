@@ -112,6 +112,18 @@ export const FEATURES: FeatureMeta[] = [
   { key: "odontograma_pediatrico", label: "Odontograma Pediátrico", href: "/pacientes", optIn: true },
 ];
 
+// Agrupación temática de la sección ADD-ONS del panel de superadmin (solo
+// presentación: no cambia ninguna lógica de features). Cubre exactamente los
+// FeatureKey con optIn:true. Si se agrega un add-on nuevo a FEATURES hay que
+// sumarlo a algún grupo aquí, o no se mostrará en el panel (ver console.warn
+// en ClinicList).
+export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
+  { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
+  { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
+  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "logo"] },
+  { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones"] },
+];
+
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el
 // módulo; el número se configura por clínica desde Superadmin y vive en el mismo
 // jsonb `features` bajo la clave `fotos_max` (así no requiere migración). Si el

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search, Users, Download } from "lucide-react";
-import { detectModulePreset, type Features, type FeatureKey } from "@/lib/features";
+import { detectModulePreset, ADDON_GROUPS, type Features, type FeatureKey } from "@/lib/features";
 import { FeatureToggle } from "@/components/superadmin/FeatureToggle";
 import { AddonToggle } from "@/components/superadmin/AddonToggle";
 import { ModulePresetButtons } from "@/components/superadmin/ModulePresetButtons";
@@ -229,27 +229,53 @@ function ClinicCard({
 
           {/* Add-ons opcionales */}
           <div className="border-t border-slate-100 pt-4">
-            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Add-ons
             </h3>
-            <div className="flex flex-wrap items-center gap-2">
-              {addons.map((f) => (
-                <AddonToggle
-                  key={f.key}
-                  clinicId={c.id}
-                  featureKey={f.key}
-                  label={f.label}
-                  enabled={c.features[f.key]}
-                />
-              ))}
-              {/* Tope de fotos (solo si el addon de fotos está encendido). */}
-              {c.features.fotos && (
-                <PhotoQuotaInput
-                  clinicId={c.id}
-                  quota={c.photoQuota}
-                  used={c.photoUsed}
-                />
-              )}
+            <div className="space-y-3">
+              {/* Add-ons agrupados por categoría */}
+              {(() => {
+                const labelByKey = new Map(addons.map((a) => [a.key, a.label]));
+                // Aviso en desarrollo si algún add-on quedó fuera de ADDON_GROUPS
+                // (se agregó a FEATURES pero no a un grupo → invisible en el panel).
+                if (process.env.NODE_ENV !== "production") {
+                  const grouped = new Set(ADDON_GROUPS.flatMap((g) => g.keys));
+                  const missing = addons.filter((a) => !grouped.has(a.key));
+                  if (missing.length > 0) {
+                    console.warn("Add-ons sin grupo en ADDON_GROUPS:", missing.map((a) => a.key));
+                  }
+                }
+                return ADDON_GROUPS.map((group) => (
+                  <div key={group.label} className="space-y-1.5">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {group.label}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {group.keys.map((key) => {
+                        const label = labelByKey.get(key);
+                        if (!label) return null;
+                        return (
+                          <AddonToggle
+                            key={key}
+                            clinicId={c.id}
+                            featureKey={key}
+                            label={label}
+                            enabled={c.features[key]}
+                          />
+                        );
+                      })}
+                      {/* Tope de fotos (solo si el addon de fotos está encendido). */}
+                      {group.keys.includes("fotos") && c.features.fotos && (
+                        <PhotoQuotaInput
+                          clinicId={c.id}
+                          quota={c.photoQuota}
+                          used={c.photoUsed}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
           </div>
 
