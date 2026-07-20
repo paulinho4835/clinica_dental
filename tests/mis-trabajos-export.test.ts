@@ -10,8 +10,8 @@ function cell(v: string | number): string {
     : s;
 }
 
-function bsPdf(n: number): string {
-  return `Bs ${n.toFixed(2)}`;
+function moneyPdf(n: number, currency: string): string {
+  return `${currency} ${n.toFixed(2)}`;
 }
 
 function fmtDate(d: string): string {
@@ -92,17 +92,21 @@ describe("cell() — escape CSV", () => {
   });
 });
 
-// ─── PDF local bs() ───────────────────────────────────────────────────────────
+// ─── PDF local moneyPdf() ──────────────────────────────────────────────────────
 
-describe("bsPdf() — formato local del PDF", () => {
-  it("dos decimales", () => {
-    expect(bsPdf(150)).toBe("Bs 150.00");
-    expect(bsPdf(0)).toBe("Bs 0.00");
-    expect(bsPdf(1234.5)).toBe("Bs 1234.50");
+describe("moneyPdf() — formato local del PDF", () => {
+  it("dos decimales, moneda por defecto Bs", () => {
+    expect(moneyPdf(150, "Bs")).toBe("Bs 150.00");
+    expect(moneyPdf(0, "Bs")).toBe("Bs 0.00");
+    expect(moneyPdf(1234.5, "Bs")).toBe("Bs 1234.50");
   });
 
   it("negativo (descuento o ajuste)", () => {
-    expect(bsPdf(-50)).toBe("Bs -50.00");
+    expect(moneyPdf(-50, "Bs")).toBe("Bs -50.00");
+  });
+
+  it("usa el simbolo de moneda dado, no un valor fijo", () => {
+    expect(moneyPdf(150, "S/")).toBe("S/ 150.00");
   });
 });
 
