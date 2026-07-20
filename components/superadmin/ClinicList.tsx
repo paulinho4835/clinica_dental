@@ -14,6 +14,7 @@ import { EditClinicName } from "@/components/superadmin/EditClinicName";
 import { DeleteClinicButton } from "@/components/superadmin/DeleteClinicButton";
 import { SuspendClinicButton } from "@/components/superadmin/SuspendClinicButton";
 import { MaxUsersInput } from "@/components/superadmin/MaxUsersInput";
+import { MaxPatientsInput } from "@/components/superadmin/MaxPatientsInput";
 import { PhotoQuotaInput } from "@/components/superadmin/PhotoQuotaInput";
 import { EnterClinicButton } from "@/components/superadmin/EnterClinicButton";
 import { RestoreBackupButton } from "@/components/superadmin/RestoreBackupButton";
@@ -32,6 +33,8 @@ export type ClinicRow = {
   photoUsed: number;
   active: boolean;
   max_users: number;
+  max_patients: number | null;
+  patientCount: number;
   created_at: string;
   users: ClinicUser[];
   settings: Record<string, unknown>;
@@ -174,6 +177,14 @@ function ClinicCard({
                   clinicId={c.id}
                   maxUsers={c.max_users ?? 10}
                   currentCount={c.users.filter((u) => u.active).length}
+                />
+              </span>
+              <span className="text-slate-300">·</span>
+              <span className="inline-flex items-center gap-1">
+                <MaxPatientsInput
+                  clinicId={c.id}
+                  maxPatients={c.max_patients}
+                  currentCount={c.patientCount}
                 />
               </span>
               <span className="text-slate-300">·</span>

@@ -41,7 +41,7 @@ export default async function SuperadminPage({
 
   let clinicsQuery = admin
     .from("clinics")
-    .select("id, name, plan, features, active, max_users, created_at, settings");
+    .select("id, name, plan, features, active, max_users, max_patients, created_at, settings");
   if (sort === "antiguas") clinicsQuery = clinicsQuery.order("created_at", { ascending: true });
   else if (sort === "nombre") clinicsQuery = clinicsQuery.order("name", { ascending: true });
   else clinicsQuery = clinicsQuery.order("created_at", { ascending: false }); // recientes
@@ -56,6 +56,7 @@ export default async function SuperadminPage({
     { data: authList },
     { data: platformAdmins },
     { data: allPhotos },
+    { data: allPatients },
     supaStats,
     { data: backupRows },
   ] = await Promise.all([
@@ -64,6 +65,7 @@ export default async function SuperadminPage({
     admin.auth.admin.listUsers({ perPage: 1000 }),
     admin.from("platform_admins").select("user_id"),
     admin.from("patient_photos").select("clinic_id, size_bytes"),
+    admin.from("patients").select("clinic_id"),
     getSupabaseStorageStats(),
     admin
       .from("backup_runs")
@@ -118,6 +120,13 @@ export default async function SuperadminPage({
   }
   const totalPhotoGB = totalPhotoBytes / 1024 ** 3;
 
+  // Conteo real de pacientes por clínica, para el tope de upsell.
+  const patientCounts = new Map<string, number>();
+  for (const p of allPatients ?? []) {
+    const cid = p.clinic_id as string;
+    patientCounts.set(cid, (patientCounts.get(cid) ?? 0) + 1);
+  }
+
   // Alertas de almacenamiento: recursos que cruzaron el 80% de su límite gratuito.
   // Se muestran como banner arriba del todo (canal de aviso "en-app").
   const usageItems: { label: string; used: number; limit: number }[] = [
@@ -165,6 +174,8 @@ export default async function SuperadminPage({
     photoUsed: photoCounts.get(c.id) ?? 0,
     active: c.active !== false,
     max_users: c.max_users ?? 10,
+    max_patients: (c as { max_patients: number | null }).max_patients ?? null,
+    patientCount: patientCounts.get(c.id) ?? 0,
     created_at: c.created_at,
     users: usersByClinic.get(c.id) ?? [],
     settings: (c.settings as Record<string, unknown>) ?? {},
