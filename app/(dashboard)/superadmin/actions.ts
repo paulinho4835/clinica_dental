@@ -39,7 +39,10 @@ export async function createClinic(_prev: unknown, formData: FormData) {
 
   const { data: clinic, error: clinicErr } = await admin
     .from("clinics")
-    .insert({ name: clinicName, plan, features: { whatsapp: whatsappAddon } })
+    // Tope de pacientes por defecto para clínicas nuevas (editable después
+    // desde el badge de MaxPatientsInput). Las clínicas existentes no se
+    // tocan — esto solo aplica hacia adelante, al momento de creación.
+    .insert({ name: clinicName, plan, features: { whatsapp: whatsappAddon }, max_patients: 500 })
     .select("id")
     .single();
   if (clinicErr || !clinic) {
