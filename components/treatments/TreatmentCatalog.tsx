@@ -11,6 +11,7 @@ import {
 } from "@/app/(dashboard)/tratamientos/actions";
 import { bs } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { confirm } from "@/lib/confirm";
 import { Button } from "@/components/ui/Button";
 
 export type CatalogItem = {
@@ -134,9 +135,15 @@ function Row({ item, onEdit }: { item: CatalogItem; onEdit: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  function handleDeactivate() {
-    if (!confirm(`¿Desactivar "${item.name}"? Dejará de aparecer en el catálogo y al agregar trabajos.`))
-      return;
+  async function handleDeactivate() {
+    const ok = await confirm({
+      title: "Desactivar tratamiento",
+      message: `¿Desactivar "${item.name}"? Dejará de aparecer en el catálogo y al agregar trabajos.`,
+      confirmText: "Desactivar",
+      cancelText: "Cancelar",
+      tone: "danger",
+    });
+    if (!ok) return;
     start(async () => {
       const res = await deactivateTreatment(item.id);
       if (res.error) toast(res.error, "error");

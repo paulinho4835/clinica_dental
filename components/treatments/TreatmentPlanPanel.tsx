@@ -9,6 +9,8 @@ import {
 } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { PrintSelectModal } from "./PrintSelectModal";
 import { bs, fmtBoliviaDateTime } from "@/lib/format";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 
 export type Dentist = { id: string; full_name: string };
 
@@ -115,14 +117,21 @@ function WorkRow({
         {canDelete && (
           <button
             disabled={pending}
-            onClick={() =>
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Eliminar trabajo",
+                message: "¿Eliminar este trabajo?",
+                confirmText: "Eliminar",
+                cancelText: "Cancelar",
+                tone: "danger",
+              });
+              if (!ok) return;
               start(async () => {
-                if (!confirm("¿Eliminar este trabajo?")) return;
                 const res = await deleteWork(work.id, patientId);
-                if (res.error) alert(res.error);
+                if (res.error) toast(res.error, "error");
                 else router.refresh();
-              })
-            }
+              });
+            }}
             className="text-slate-300 hover:text-red-500"
             title="Eliminar"
           >

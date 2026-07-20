@@ -13,6 +13,7 @@ import {
 } from "@/app/(dashboard)/pacientes/actions";
 import type { ApptRow } from "@/components/history/PatientHistoryPanel";
 import { toast } from "@/lib/toast";
+import { confirm } from "@/lib/confirm";
 import { Button } from "@/components/ui/Button";
 
 function fmt(iso: string) {
@@ -67,8 +68,15 @@ export function EvolutionPanel({
   const [showHistory, setShowHistory] = useState(false);
   const [, start] = useTransition();
 
-  function handleDelete(noteId: string) {
-    if (!confirm("¿Borrar esta nota de evolución? No se puede deshacer.")) return;
+  async function handleDelete(noteId: string) {
+    const ok = await confirm({
+      title: "Borrar nota",
+      message: "¿Borrar esta nota de evolución? No se puede deshacer.",
+      confirmText: "Borrar",
+      cancelText: "Cancelar",
+      tone: "danger",
+    });
+    if (!ok) return;
     start(async () => {
       const res = await deleteEvolutionNote(noteId, patientId);
       if (res.error) toast(res.error, "error");
