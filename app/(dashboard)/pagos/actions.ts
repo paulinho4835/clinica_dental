@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { money } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -32,6 +34,7 @@ export async function createStaffPayment(
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
   if (profile.role !== "admin") return { error: "Sin permiso." };
+  const currency = await getClinicCurrency();
 
   const parsed = StaffPaymentSchema.safeParse({
     employee_id: formData.get("employee_id") || null,
@@ -81,7 +84,7 @@ export async function createStaffPayment(
       const remaining = total - Number(w.commission_paid_amount);
       if (workAmounts[i] > remaining + EPSILON)
         return {
-          error: `Un abono excede el restante de la comisión (restan Bs ${remaining.toFixed(2)}). Recarga la página: puede que ya se haya registrado otro pago.`,
+          error: `Un abono excede el restante de la comisión (restan ${money(remaining, currency)}). Recarga la página: puede que ya se haya registrado otro pago.`,
         };
     }
 

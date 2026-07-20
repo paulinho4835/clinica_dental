@@ -351,9 +351,9 @@ export default async function FinanceDashboardPage() {
       <h2 className="mt-10 mb-4 text-lg font-semibold">Volumen y Operativa Médica</h2>
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <KpiCard label="Pacientes hoy" value={patientsToday.size} isCurrency={false} />
-          <KpiCard label="Pacientes esta semana" value={patientsThisWeek.size} isCurrency={false} />
-          <KpiCard label="Pacientes este mes" value={patientsThisMonth.size} isCurrency={false} />
+          <KpiCard label="Pacientes hoy" value={patientsToday.size} isCurrency={false} currency={currency} />
+          <KpiCard label="Pacientes esta semana" value={patientsThisWeek.size} isCurrency={false} currency={currency} />
+          <KpiCard label="Pacientes este mes" value={patientsThisMonth.size} isCurrency={false} currency={currency} />
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <PatientsChart daily={patDaily} monthly={patMonthly} peakMonth={patPeakMonth} />
@@ -377,7 +377,7 @@ function KpiCard({
   prev?: number;
   prevLabel?: string;
   isCurrency?: boolean;
-  currency?: string;
+  currency: string;
 }) {
   let delta: number | null = null;
   if (prev !== undefined && prev > 0) delta = ((value - prev) / prev) * 100;
@@ -387,7 +387,7 @@ function KpiCard({
     <div className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums text-slate-800">
-        {isCurrency ? money(value, currency ?? "Bs") : value}
+        {isCurrency ? money(value, currency) : value}
       </p>
       {delta !== null ? (
         <p className={`mt-1 text-xs font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
