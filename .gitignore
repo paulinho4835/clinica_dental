@@ -30,3 +30,7 @@ graphify-out/
 .vercel
 
 .worktrees/
+
+# Scratch de superpowers (ledgers de subagent-driven-development, sesiones
+# de brainstorming visual) — no es código fuente.
+.superpowers/
