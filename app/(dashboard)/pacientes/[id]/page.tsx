@@ -21,7 +21,8 @@ import {
 import type { TeethMap } from "@/lib/odontogram/types";
 import { PEDIATRIC_QUADRANTS, PEDIATRIC_QUADRANT_NUMBERS } from "@/lib/odontogram/pediatricTypes";
 import { savePediatricOdontogram } from "@/app/(dashboard)/pacientes/pediatric-odontogram-actions";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 import Link from "next/link";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
 import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
@@ -62,6 +63,7 @@ export default async function PatientPage({
   if (!patient) notFound();
 
   const profile = await getProfile();
+  const currency = await getClinicCurrency();
 
   const { data: odo } = await supabase
     .from("odontograms")
@@ -444,7 +446,7 @@ export default async function PatientPage({
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
-          {canBilling && <span>Saldo: {bs(totalQuoted - totalPaid)}</span>}
+          {canBilling && <span>Saldo: {money(totalQuoted - totalPaid, currency)}</span>}
         </div>
         {patient.medical_alerts?.length > 0 && (
           <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -545,7 +547,7 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} currency={currency} />
       </section>
 
       <section>
@@ -608,16 +610,16 @@ export default async function PatientPage({
             <div className="flex gap-8 text-sm">
               <div>
                 <div className="text-xs text-slate-500">Total tratamiento</div>
-                <div className="mt-0.5 font-semibold tabular-nums">{bs(totalQuoted)}</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{money(totalQuoted, currency)}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500">Total pagado</div>
-                <div className="mt-0.5 font-semibold tabular-nums text-emerald-600">{bs(totalPaid)}</div>
+                <div className="mt-0.5 font-semibold tabular-nums text-emerald-600">{money(totalPaid, currency)}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500">Saldo pendiente</div>
                 <div className={`mt-0.5 font-semibold tabular-nums ${totalQuoted - totalPaid > 0 ? "text-red-600" : "text-slate-800"}`}>
-                  {bs(totalQuoted - totalPaid)}
+                  {money(totalQuoted - totalPaid, currency)}
                 </div>
               </div>
             </div>

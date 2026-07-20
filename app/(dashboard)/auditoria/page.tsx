@@ -4,9 +4,9 @@ import { getProfile } from "@/lib/auth";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { BOLIVIA_TZ } from "@/lib/format";
+import { BOLIVIA_TZ, money } from "@/lib/format";
 import { ShieldCheck, Pencil, Trash2 } from "lucide-react";
-import { bs } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 // Auditoría: historial inmutable de acciones sensibles.
 // - Pagos: cada edición o eliminación (solo admin) queda en audit_log con la
@@ -74,6 +74,7 @@ export default async function AuditoriaPage() {
     getPlatformAdminIds(),
   ]);
   const platformAdminIdSet = new Set(platformAdminIds);
+  const currency = await getClinicCurrency();
 
   // RLS ya restringe por clínica; el filtro explícito es defensa en profundidad.
   // El historial es un log inmutable SIN foreign key a patients (para no perder
@@ -179,7 +180,7 @@ export default async function AuditoriaPage() {
                         <td className="px-4 py-3 text-slate-600">
                           {r.action === "payment_deleted" ? (
                             <span>
-                              {bs(before?.amount ?? 0)}
+                              {money(before?.amount ?? 0, currency)}
                               {before?.method && (
                                 <span className="text-slate-400"> · {METHOD_LABEL[before.method] ?? before.method}</span>
                               )}
@@ -191,8 +192,8 @@ export default async function AuditoriaPage() {
                             <div className="space-y-0.5">
                               {before?.amount !== after?.amount && (
                                 <p>
-                                  Monto: <span className="text-slate-400 line-through">{bs(before?.amount ?? 0)}</span>{" "}
-                                  → <span className="font-medium text-slate-800">{bs(after?.amount ?? 0)}</span>
+                                  Monto: <span className="text-slate-400 line-through">{money(before?.amount ?? 0, currency)}</span>{" "}
+                                  → <span className="font-medium text-slate-800">{money(after?.amount ?? 0, currency)}</span>
                                 </p>
                               )}
                               {before?.method !== after?.method && (

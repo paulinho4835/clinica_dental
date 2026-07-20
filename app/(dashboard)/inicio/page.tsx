@@ -12,7 +12,8 @@ import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isReceptionistLike } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
-import { boliviaTodayISO, BOLIVIA_TZ, bs, fmtBoliviaTime } from "@/lib/format";
+import { boliviaTodayISO, BOLIVIA_TZ, money, fmtBoliviaTime } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function InicioPage() {
 
   const profile = await getProfile();
   if (!profile) return null;
+  const currency = await getClinicCurrency();
 
   const canViewAll =
     profile.role === "admin" || isReceptionistLike(profile.role);
@@ -166,7 +168,7 @@ export default async function InicioPage() {
               <Wallet className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <div className="text-2xl font-bold leading-none">{bs(income)}</div>
+              <div className="text-2xl font-bold leading-none">{money(income, currency)}</div>
               <div className="mt-1 truncate text-xs text-slate-500">Ingresos de hoy</div>
             </div>
           </div>

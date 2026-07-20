@@ -13,6 +13,7 @@ import {
   type WorkDebtRow,
 } from "@/components/history/PatientHistoryPanel";
 import { fetchPatientPlanItems, type PlanItemRow } from "@/lib/treatments/planItems";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 export default async function CuentasPacientesPage({
   searchParams,
@@ -24,6 +25,7 @@ export default async function CuentasPacientesPage({
 
   const supabase = await createClient();
   const profile = await getProfile();
+  const currency = await getClinicCurrency();
   const canBilling = can(profile?.role, "billing:write");
   // Editar/eliminar pagos: acciones sensibles reservadas a administradores.
   const canManagePayments = profile?.role === "admin";
@@ -258,6 +260,7 @@ export default async function CuentasPacientesPage({
                 recepcionistas={recepcionistas ?? []}
                 totalQuoted={totalQuoted}
                 totalPaid={totalPaid}
+                currency={currency}
               />
             </div>
           )}

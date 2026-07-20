@@ -2,7 +2,7 @@ import { Briefcase, Banknote, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { requireNavAccess } from "@/lib/guard";
-import { bs, boliviaTodayISO, fmtBoliviaTime } from "@/lib/format";
+import { money, boliviaTodayISO, fmtBoliviaTime } from "@/lib/format";
 import { Stat } from "@/components/ui/Stat";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,7 +16,7 @@ import { DateRangeFilter } from "@/components/mis-trabajos/DateRangeFilter";
 import { ExportCsvButton, type CsvWorkRow } from "@/components/mis-trabajos/ExportCsvButton";
 import { PrintPdfButton } from "@/components/mis-trabajos/PrintPdfButton";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
-import { getClinicFeatures } from "@/lib/superadmin";
+import { getClinicFeatures, getClinicCurrency } from "@/lib/superadmin";
 import { isReceptionistLike } from "@/lib/rbac";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -73,6 +73,7 @@ export default async function MisTrabajosPage({
   // Botón "Pedir calificación": solo admin/recepción (ven el teléfono) y solo si
   // el addon de calificaciones está activo para la clínica.
   const features = await getClinicFeatures();
+  const currency = await getClinicCurrency();
   const canSendFeedback = (isAdmin || isRecepcionista) && features.calificaciones;
   const today = boliviaTodayISO();
 
@@ -330,6 +331,7 @@ export default async function MisTrabajosPage({
           today={today}
           doctors={canPickDoctor ? sortedDoctors : undefined}
           recepcionistas={canPickDoctor ? (recepData ?? []) : undefined}
+          currency={currency}
         />
       )}
 
@@ -344,14 +346,14 @@ export default async function MisTrabajosPage({
         {isAdmin && (
           <Stat
             label="Trabajos facturados"
-            value={bs(totalCost)}
+            value={money(totalCost, currency)}
             icon={<Briefcase className="h-5 w-5" />}
           />
         )}
         {!isDoctor && (
           <Stat
             label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
-            value={bs(isRecepcionista ? todayPaid : totalPaid)}
+            value={money(isRecepcionista ? todayPaid : totalPaid, currency)}
             icon={<Banknote className="h-5 w-5" />}
             valueClassName="text-emerald-600"
           />
@@ -359,7 +361,7 @@ export default async function MisTrabajosPage({
         {!isRecepcionista && (
           <Stat
             label="Comisión pendiente"
-            value={bs(totalPendingCommission)}
+            value={money(totalPendingCommission, currency)}
             icon={<Clock className="h-5 w-5" />}
             valueClassName={totalPendingCommission > 0 ? "text-amber-600" : "text-emerald-600"}
           />
@@ -388,7 +390,7 @@ export default async function MisTrabajosPage({
                     d.pendingComm > 0 ? "text-amber-600" : "text-emerald-600"
                   }`}
                 >
-                  {d.pendingComm > 0 ? bs(d.pendingComm) : "Al día ✓"}
+                  {d.pendingComm > 0 ? money(d.pendingComm, currency) : "Al día ✓"}
                 </span>
               </div>
             ))}
@@ -410,6 +412,7 @@ export default async function MisTrabajosPage({
                 doctorName={doctorNameForPrint}
                 from={fromParam}
                 to={toParam}
+                currency={currency}
               />
             </div>
           )}
@@ -431,7 +434,7 @@ export default async function MisTrabajosPage({
                   <p className="truncate text-sm text-slate-500">{w.description}</p>
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
-                  <p className="font-medium text-slate-800">{bs(Number(w.amount_paid))}</p>
+                  <p className="font-medium text-slate-800">{money(Number(w.amount_paid), currency)}</p>
                   <p className="text-xs text-slate-400">cobrado</p>
                 </div>
               </div>
@@ -462,10 +465,10 @@ export default async function MisTrabajosPage({
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-400">Costo</p>
                   <p className="tabular-nums">
-                    {bs(Number(w.cost))}
+                    {money(Number(w.cost), currency)}
                     {Number(w.lab_cost) > 0 && (
                       <span className="ml-1 text-xs text-amber-600">
-                        +{bs(Number(w.lab_cost))} lab
+                        +{money(Number(w.lab_cost), currency)} lab
                       </span>
                     )}
                   </p>
@@ -473,7 +476,7 @@ export default async function MisTrabajosPage({
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-400">Comisión</p>
                   <p className="tabular-nums font-medium text-clinic">
-                    {bs(Number(w.commission_amount))}
+                    {money(Number(w.commission_amount), currency)}
                     <span className="ml-1 text-xs font-normal text-slate-400">
                       ({Number(w.commission_pct)}%)
                     </span>
@@ -483,7 +486,7 @@ export default async function MisTrabajosPage({
                   )}
                   {!w.commission_paid && Number(w.commission_paid_amount ?? 0) > 0 && (
                     <p className="text-xs font-medium text-amber-600">
-                      Abono {bs(Number(w.commission_paid_amount))}
+                      Abono {money(Number(w.commission_paid_amount), currency)}
                     </p>
                   )}
                 </div>
@@ -512,7 +515,7 @@ export default async function MisTrabajosPage({
               {(canSendFeedback || isAdmin) && (
                 <div className="mt-2 flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
                   {canSendFeedback && <RequestFeedbackButton workId={w.id} />}
-                  {isAdmin && <EditWorkButton work={w} />}
+                  {isAdmin && <EditWorkButton work={w} currency={currency} />}
                   {isAdmin && <DeleteWorkButton id={w.id} />}
                 </div>
               )}
@@ -584,14 +587,14 @@ export default async function MisTrabajosPage({
                   )}
                 </span>
                 <div className="text-right tabular-nums leading-tight">
-                  <span>{bs(Number(w.cost))}</span>
+                  <span>{money(Number(w.cost), currency)}</span>
                   {Number(w.lab_cost) > 0 && (
-                    <span className="block text-xs text-amber-600">+{bs(Number(w.lab_cost))} lab</span>
+                    <span className="block text-xs text-amber-600">+{money(Number(w.lab_cost), currency)} lab</span>
                   )}
                 </div>
                 <div className="text-right tabular-nums leading-tight">
                   <span className="font-medium text-clinic">
-                    {bs(Number(w.commission_amount))}
+                    {money(Number(w.commission_amount), currency)}
                   </span>
                   <span className="block text-xs text-slate-400">
                     {Number(w.commission_pct)}%{Number(w.lab_cost) > 0 && " s/neto"}
@@ -601,11 +604,11 @@ export default async function MisTrabajosPage({
                   )}
                   {!w.commission_paid && Number(w.commission_paid_amount ?? 0) > 0 && (
                     <span className="block text-xs font-medium text-amber-600">
-                      Abono {bs(Number(w.commission_paid_amount))}
+                      Abono {money(Number(w.commission_paid_amount), currency)}
                     </span>
                   )}
                 </div>
-                <span className="text-right tabular-nums">{bs(Number(w.amount_paid))}</span>
+                <span className="text-right tabular-nums">{money(Number(w.amount_paid), currency)}</span>
                 <span className="text-sm text-slate-500">
                   {w.payment_method
                     ? (METHOD_LABEL[w.payment_method] ?? w.payment_method)
@@ -620,7 +623,7 @@ export default async function MisTrabajosPage({
                 </span>
                 <div className="flex items-center justify-end gap-1">
                   {canSendFeedback && <RequestFeedbackButton workId={w.id} />}
-                  {isAdmin && <EditWorkButton work={w} />}
+                  {isAdmin && <EditWorkButton work={w} currency={currency} />}
                   {isAdmin && <DeleteWorkButton id={w.id} />}
                 </div>
               </div>

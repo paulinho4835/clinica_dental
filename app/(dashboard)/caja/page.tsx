@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireNavAccess } from "@/lib/guard";
 import { getProfile } from "@/lib/auth";
-import { getClinicFeatures } from "@/lib/superadmin";
-import { bs, boliviaTodayISO } from "@/lib/format";
+import { getClinicFeatures, getClinicCurrency } from "@/lib/superadmin";
+import { money, boliviaTodayISO } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AgentPerformance } from "@/components/dashboard/AgentPerformance";
 import {
@@ -21,9 +21,10 @@ const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.
 export default async function FinanceDashboardPage() {
   await requireNavAccess("caja");
   const supabase = await createClient();
-  const [features, profile] = await Promise.all([
+  const [features, profile, currency] = await Promise.all([
     getClinicFeatures(),
     getProfile(),
+    getClinicCurrency(),
   ]);
 
   const [by, bm, bd] = boliviaTodayISO().split("-").map(Number);
@@ -310,7 +311,7 @@ export default async function FinanceDashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <InsightCard
           title="Cuentas por Cobrar"
-          value={bs(totalDebt)}
+          value={money(totalDebt, currency)}
           subtitle={`${debtPatients} pacientes con deuda pendiente`}
           alert={totalDebt > 0}
           icon="💸"
@@ -335,14 +336,14 @@ export default async function FinanceDashboardPage() {
       <h2 className="mt-8 mb-4 text-lg font-semibold">Flujo de Caja y Finanzas</h2>
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <KpiCard label="Ganancias de hoy" value={today} />
-          <KpiCard label="Esta semana" value={thisWeek} prev={lastWeek} prevLabel="sem. anterior" />
-          <KpiCard label="Este mes" value={thisMonth} prev={lastMonth} prevLabel="mes anterior" />
-          <KpiCard label="Comisiones este mes" value={totalMonthCommissions} />
+          <KpiCard label="Ganancias de hoy" value={today} currency={currency} />
+          <KpiCard label="Esta semana" value={thisWeek} prev={lastWeek} prevLabel="sem. anterior" currency={currency} />
+          <KpiCard label="Este mes" value={thisMonth} prev={lastMonth} prevLabel="mes anterior" currency={currency} />
+          <KpiCard label="Comisiones este mes" value={totalMonthCommissions} currency={currency} />
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <RevenueChart daily={daily} monthly={monthly} peakMonth={peakMonth} />
-          <TopTreatmentsChart data={top} />
+          <RevenueChart daily={daily} monthly={monthly} peakMonth={peakMonth} currency={currency} />
+          <TopTreatmentsChart data={top} currency={currency} />
         </div>
       </div>
 
@@ -356,7 +357,7 @@ export default async function FinanceDashboardPage() {
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <PatientsChart daily={patDaily} monthly={patMonthly} peakMonth={patPeakMonth} />
-          <TopDoctorsChart data={topDoctors} />
+          <TopDoctorsChart data={topDoctors} currency={currency} />
         </div>
       </div>
     </div>
@@ -369,12 +370,14 @@ function KpiCard({
   prev,
   prevLabel,
   isCurrency = true,
+  currency,
 }: {
   label: string;
   value: number;
   prev?: number;
   prevLabel?: string;
   isCurrency?: boolean;
+  currency?: string;
 }) {
   let delta: number | null = null;
   if (prev !== undefined && prev > 0) delta = ((value - prev) / prev) * 100;
@@ -384,7 +387,7 @@ function KpiCard({
     <div className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums text-slate-800">
-        {isCurrency ? bs(value) : value}
+        {isCurrency ? money(value, currency ?? "Bs") : value}
       </p>
       {delta !== null ? (
         <p className={`mt-1 text-xs font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>

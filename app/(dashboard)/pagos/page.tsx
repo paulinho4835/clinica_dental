@@ -3,7 +3,8 @@ import { requireNavAccess } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
-import { boliviaTodayISO, bs, fmtBoliviaTime } from "@/lib/format";
+import { boliviaTodayISO, money, fmtBoliviaTime } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 import {
   COMMISSION_ROLES,
   sumPendingCommissions,
@@ -97,6 +98,7 @@ export default async function PagosPage({
   await requireNavAccess("pagos");
   const supabase = await createClient();
   const profile = await getProfile();
+  const currency = await getClinicCurrency();
 
   const { q = "", p: selectedKey, month, view } = await searchParams;
   const showOverdueView = view === "pendientes";
@@ -407,7 +409,7 @@ export default async function PagosPage({
                         </div>
                         {pending > 0 && (
                           <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-500/10">
-                            {bs(pending)}
+                            {money(pending, currency)}
                           </span>
                         )}
                       </div>
@@ -461,7 +463,7 @@ export default async function PagosPage({
                           </div>
                         </div>
                         <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-500/10">
-                          {bs(amount)}
+                          {money(amount, currency)}
                         </span>
                       </Link>
                     ))}
@@ -494,21 +496,21 @@ export default async function PagosPage({
                 {pendingCommission !== null && (
                   <Stat
                     label="Comisión pendiente"
-                    value={bs(pendingCommission)}
+                    value={money(pendingCommission, currency)}
                     icon={<Receipt className="h-5 w-5" />}
                     valueClassName={pendingCommission > 0 ? "text-amber-600" : "text-emerald-600"}
                   />
                 )}
                 <Stat
                   label={`Pagado — ${monthLabel}`}
-                  value={bs(paidMonth)}
+                  value={money(paidMonth, currency)}
                   icon={<Banknote className="h-5 w-5" />}
                   valueClassName="text-emerald-600"
                 />
                 {pendingDisburse > 0 && (
                   <Stat
                     label="Pendiente de desembolso"
-                    value={bs(pendingDisburse)}
+                    value={money(pendingDisburse, currency)}
                     icon={<Receipt className="h-5 w-5" />}
                     valueClassName="text-amber-600"
                   />
@@ -517,13 +519,13 @@ export default async function PagosPage({
 
               {/* Formulario (incluye el panel de trabajos pendientes).
                   key={...} resetea el estado del form al cambiar de persona. */}
-              <StaffPaymentForm key={selectedPayee.key} payee={selectedPayee} today={today} />
+              <StaffPaymentForm key={selectedPayee.key} payee={selectedPayee} today={today} currency={currency} />
 
               {/* Historial de pagos de la persona */}
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <PagosFilter selectedMonth={selectedMonth} />
-                  <PrintPagosButton rows={printRows} monthLabel={monthLabel} />
+                  <PrintPagosButton rows={printRows} monthLabel={monthLabel} currency={currency} />
                 </div>
 
                 {/* ── Lista en tarjetas (solo móvil) ───────────────────── */}
@@ -538,7 +540,7 @@ export default async function PagosPage({
                           <p className="text-xs text-slate-400">{fmtDate(p.paid_at)}</p>
                         </div>
                         <span className="shrink-0 whitespace-nowrap text-right tabular-nums font-semibold text-emerald-600">
-                          {bs(p.amount)}
+                          {money(p.amount, currency)}
                         </span>
                       </div>
 
@@ -568,7 +570,7 @@ export default async function PagosPage({
                                 </span>
                               )}
                               <span className="shrink-0 whitespace-nowrap tabular-nums font-medium text-clinic">
-                                {bs(w.paid_amount)}
+                                {money(w.paid_amount, currency)}
                               </span>
                             </div>
                           ))}
@@ -618,7 +620,7 @@ export default async function PagosPage({
                               {METHOD_LABEL[p.method] ?? p.method}
                             </span>
                             <span className="text-right tabular-nums font-semibold text-emerald-600 whitespace-nowrap">
-                              {bs(p.amount)}
+                              {money(p.amount, currency)}
                             </span>
                             <div>
                               <DisbursedToggle id={p.id} disbursed={p.disbursed} />
@@ -654,7 +656,7 @@ export default async function PagosPage({
                                       </span>
                                     )}
                                     <span className="tabular-nums font-medium text-clinic whitespace-nowrap">
-                                      {bs(w.paid_amount)}
+                                      {money(w.paid_amount, currency)}
                                     </span>
                                   </div>
                                 ))}

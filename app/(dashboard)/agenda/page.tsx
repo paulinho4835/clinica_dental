@@ -4,7 +4,7 @@ import { can, isReceptionistLike } from "@/lib/rbac";
 import { AgendaShell, type AgendaView } from "@/components/agenda/AgendaShell";
 import { RealtimeAppointments } from "@/components/agenda/RealtimeAppointments";
 import { requireFeature } from "@/lib/guard";
-import { getClinicFeatures } from "@/lib/superadmin";
+import { getClinicFeatures, getClinicCurrency } from "@/lib/superadmin";
 import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
@@ -30,10 +30,11 @@ export default async function AgendaPage({
   const { start, end } = gridRange(new Date(date + "T00:00:00"));
 
   const supabase = await createClient();
-  const [profile, features, platformAdminIds] = await Promise.all([
+  const [profile, features, platformAdminIds, currency] = await Promise.all([
     getProfile(),
     getClinicFeatures(),
     getPlatformAdminIds(),
+    getClinicCurrency(),
   ]);
   const writable = can(profile?.role, "appointments:write");
   const isAdmin = profile?.role === "admin";
@@ -171,6 +172,7 @@ export default async function AgendaPage({
         avisoDoctoresEnabled={features.aviso_doctores}
         disponibilidadEnabled={features.disponibilidad}
         availability={availability}
+        currency={currency}
       />
     </div>
   );
