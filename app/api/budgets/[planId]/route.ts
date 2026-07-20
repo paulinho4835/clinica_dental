@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ export async function GET(
   const { data: plan } = await supabase
     .from("treatment_plans")
     .select(
-      "id, status, patient:patients(full_name), clinic:clinics(name), treatment_phases(title, phase_no, treatment_items(tooth_fdi, price, status, custom_name, procedure:procedure_catalog(name)))",
+      "id, status, patient:patients(full_name), clinic:clinics(name, currency), treatment_phases(title, phase_no, treatment_items(tooth_fdi, price, status, custom_name, procedure:procedure_catalog(name)))",
     )
     .eq("id", planId)
     .single();
@@ -31,6 +31,7 @@ export async function GET(
   if (!plan) return new NextResponse("Plan no encontrado", { status: 404 });
 
   const clinicName = (plan.clinic as { name?: string } | null)?.name ?? "Clínica";
+  const currency = (plan.clinic as { currency?: string } | null)?.currency ?? "Bs";
   const patientName = (plan.patient as { full_name?: string } | null)?.full_name ?? "Paciente";
 
   type Item = { tooth_fdi: string | null; price: number; status: string; custom_name: string | null; procedure: { name?: string } | null };
@@ -89,7 +90,7 @@ export async function GET(
       draw(it.procedure?.name ?? it.custom_name ?? "—", margin, 10);
       draw(it.tooth_fdi ?? "—", margin + 250, 10);
       draw(it.status, margin + 320, 10, font, gray);
-      draw(bs(price), width - margin - 60, 10);
+      draw(money(price, currency), width - margin - 60, 10);
       y -= 16;
     }
   }
@@ -98,7 +99,7 @@ export async function GET(
   page.drawLine({ start: { x: margin, y: y + 6 }, end: { x: width - margin, y: y + 6 }, thickness: 1, color: teal });
   y -= 12;
   draw("TOTAL", margin + 250, 12, bold);
-  draw(bs(total), width - margin - 60, 12, bold);
+  draw(money(total, currency), width - margin - 60, 12, bold);
   y -= 30;
   draw("Este presupuesto es informativo y puede variar según hallazgos clínicos.", margin, 8, font, gray);
 

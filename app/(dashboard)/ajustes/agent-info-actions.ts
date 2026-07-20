@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -134,6 +135,7 @@ export async function buildCatalogDraft(): Promise<
 > {
   const profile = await getProfile();
   if (!profile || profile.role !== "admin") return { error: "Sin permiso." };
+  const currency = await getClinicCurrency();
 
   const supabase = await createClient();
   const { data: procs, error } = await supabase
@@ -144,7 +146,7 @@ export async function buildCatalogDraft(): Promise<
   if (error) return { error: error.message };
   if (!procs?.length) return { error: "El catálogo de tratamientos está vacío." };
 
-  const lines = procs.map((p) => `- ${p.name}: ${bs(Number(p.base_price))}`);
+  const lines = procs.map((p) => `- ${p.name}: ${money(Number(p.base_price), currency)}`);
   const content = lines.join("\n").slice(0, CONTENT_MAX);
   return { ok: true, content };
 }

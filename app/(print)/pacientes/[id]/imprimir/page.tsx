@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { getClinicLogoUrl } from "@/lib/clinicLogo";
 import { PrintBrand } from "@/components/print/PrintBrand";
 import { AutoPrint, PrintButtons } from "./AutoPrint";
@@ -55,7 +55,7 @@ export default async function ImprimirPlanPage({
     await Promise.all([
       supabase
         .from("clinics")
-        .select("name")
+        .select("name, currency")
         .eq("id", patient.clinic_id)
         .single(),
       supabase
@@ -90,6 +90,7 @@ export default async function ImprimirPlanPage({
   const works = filterBySelection(allWorks, selectedIds);
 
   const logoUrl = await getClinicLogoUrl(patient.clinic_id);
+  const currency = (clinic?.currency as string | null) ?? "Bs";
 
   const totalQuoted = works.reduce((s, w) => s + w.price, 0);
   const totalPaid = sumPaymentsForSelection(payments ?? [], selectedIds);
@@ -194,7 +195,7 @@ export default async function ImprimirPlanPage({
                     </span>
                   )}
                 </td>
-                <td className="py-2 text-right tabular-nums">{bs(w.price)}</td>
+                <td className="py-2 text-right tabular-nums">{money(w.price, currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -206,12 +207,12 @@ export default async function ImprimirPlanPage({
             <div className="w-64 space-y-1 rounded-lg border border-slate-200 px-4 py-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Total cotizado</span>
-                <span className="tabular-nums font-medium">{bs(totalQuoted)}</span>
+                <span className="tabular-nums font-medium">{money(totalQuoted, currency)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Total pagado</span>
                 <span className="tabular-nums font-medium text-emerald-700">
-                  {bs(totalPaid)}
+                  {money(totalPaid, currency)}
                 </span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold">
@@ -219,7 +220,7 @@ export default async function ImprimirPlanPage({
                 <span
                   className={`tabular-nums ${saldo > 0 ? "text-red-600" : "text-emerald-700"}`}
                 >
-                  {bs(saldo)}
+                  {money(saldo, currency)}
                 </span>
               </div>
             </div>

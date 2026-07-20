@@ -11,7 +11,7 @@ import type { TeethMap } from "@/lib/odontogram/types";
 import { getClinicLogoUrl } from "@/lib/clinicLogo";
 import { PrintBrand } from "@/components/print/PrintBrand";
 import { Odontogram } from "@/components/odontogram/Odontogram";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { AutoPrint, PrintButtons } from "../imprimir/AutoPrint";
 
 const EMBARAZO_LABEL: Record<string, string> = {
@@ -55,7 +55,7 @@ export default async function ExpedientePage({
     await Promise.all([
       supabase
         .from("clinics")
-        .select("name, address, phone")
+        .select("name, address, phone, currency")
         .eq("id", patient.clinic_id)
         .single(),
       supabase
@@ -79,8 +79,9 @@ export default async function ExpedientePage({
         .order("created_at", { ascending: false }),
     ]);
 
-  const clinic = clinicRow as { name?: string; address?: string; phone?: string } | null;
+  const clinic = clinicRow as { name?: string; address?: string; phone?: string; currency?: string } | null;
   const logoUrl = await getClinicLogoUrl(patient.clinic_id);
+  const currency = clinic?.currency ?? "Bs";
   const a = parseAnamnesis((patient as { anamnesis_data?: unknown }).anamnesis_data);
   const teeth = ((odo?.teeth as TeethMap) ?? {}) as TeethMap;
 
@@ -248,7 +249,7 @@ export default async function ExpedientePage({
                     <td className="py-1.5 pr-2">
                       {w.done ? "Realizado" : "Pendiente"}
                     </td>
-                    <td className="py-1.5 text-right tabular-nums">{bs(w.price)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{money(w.price, currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -257,7 +258,7 @@ export default async function ExpedientePage({
                   <td className="py-1.5" colSpan={3}>
                     Total
                   </td>
-                  <td className="py-1.5 text-right tabular-nums">{bs(totalPlan)}</td>
+                  <td className="py-1.5 text-right tabular-nums">{money(totalPlan, currency)}</td>
                 </tr>
               </tfoot>
             </table>
