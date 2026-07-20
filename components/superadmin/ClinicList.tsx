@@ -139,7 +139,7 @@ function ClinicCard({
   return (
     <div
       className={`rounded-xl bg-white shadow-sm ring-1 transition ${
-        c.active ? "ring-slate-200" : "ring-amber-300"
+        c.active ? "ring-slate-200" : "ring-amber-300 dark:ring-amber-500/40"
       }`}
     >
       {/* Encabezado (siempre visible) — apila en móvil, fila en escritorio */}
@@ -165,7 +165,7 @@ function ClinicCard({
                   Activa
                 </span>
               ) : (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                   Suspendida
                 </span>
               )}

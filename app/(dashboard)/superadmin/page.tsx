@@ -200,7 +200,7 @@ export default async function SuperadminPage({
     { label: "Clínicas", value: total, icon: Building2, tone: "text-clinic-fg bg-clinic/10" },
     { label: "Activas", value: activeCount, icon: CheckCircle2, tone: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" },
     { label: "Suspendidas", value: suspendedCount, icon: PauseCircle, tone: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" },
-    { label: "Usuarios", value: totalUsers, icon: Users, tone: "text-slate-600 bg-slate-100" },
+    { label: "Usuarios", value: totalUsers, icon: Users, tone: "text-slate-600 bg-slate-100 dark:bg-slate-500/10" },
     {
       label: `Fotos · ${totalPhotoGB.toFixed(2)} GB / 10 GB`,
       value: totalPhotos,
@@ -227,8 +227,8 @@ export default async function SuperadminPage({
         <div
           className={`rounded-xl p-4 ring-1 ${
             worstLevel === "danger"
-              ? "bg-red-50 ring-red-200 dark:bg-red-500/10"
-              : "bg-amber-50 ring-amber-200 dark:bg-amber-500/10"
+              ? "bg-red-50 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/30"
+              : "bg-amber-50 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/30"
           }`}
         >
           <div
@@ -376,7 +376,7 @@ export default async function SuperadminPage({
 
       {/* Alerta de upsell: clínicas cerca de su tope de fotos */}
       {nearQuota.length > 0 && (
-        <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-500/10">
+        <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/30">
           <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
             <Camera className="h-4 w-4" />
             {nearQuota.length} clínica{nearQuota.length !== 1 ? "s" : ""} cerca de su tope de fotos
@@ -385,7 +385,7 @@ export default async function SuperadminPage({
             {nearQuota.map((c) => (
               <li
                 key={c.id}
-                className="rounded-full bg-white px-3 py-1 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-night/40 dark:text-amber-200"
+                className="rounded-full bg-white px-3 py-1 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-night/40 dark:text-amber-200 dark:ring-amber-500/40"
               >
                 {c.name}: {c.photoUsed.toLocaleString("es-BO")}/{c.photoQuota.toLocaleString("es-BO")}
               </li>
