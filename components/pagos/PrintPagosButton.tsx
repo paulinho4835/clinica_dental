@@ -2,10 +2,6 @@
 
 import { Printer } from "lucide-react";
 
-function bs(n: number) {
-  return `Bs ${n.toFixed(2)}`;
-}
-
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {
     day: "2-digit",
@@ -51,9 +47,11 @@ export type PrintPaymentRow = {
 export function PrintPagosButton({
   rows,
   monthLabel,
+  currency,
 }: {
   rows: PrintPaymentRow[];
   monthLabel: string;
+  currency: string;
 }) {
   function handlePrint() {
     const printDate = new Date().toLocaleDateString("es-BO", {
@@ -61,6 +59,7 @@ export function PrintPagosButton({
       month: "long",
       year: "numeric",
     });
+    const money = (n: number) => `${currency} ${n.toFixed(2)}`;
 
     const totalDisbursed = rows.filter((r) => r.disbursed).reduce((s, r) => s + r.amount, 0);
     const totalPending = rows.filter((r) => !r.disbursed).reduce((s, r) => s + r.amount, 0);
@@ -81,7 +80,7 @@ export function PrintPagosButton({
                     <td>${w.description || "—"}${w.is_partial ? ' <span style="color:#b45309;font-size:8px">(abono parcial)</span>' : ""}</td>
                     <td style="color:#64748b">${w.patient_name || "—"}</td>
                     <td class="num" style="color:#0e7490;font-weight:600">
-                      ${bs(w.paid_amount)}
+                      ${money(w.paid_amount)}
                     </td>
                   </tr>`,
                   )
@@ -98,7 +97,7 @@ export function PrintPagosButton({
               ${r.concept ? `<span class="payment-concept">${r.concept}</span>` : ""}
             </div>
             <div class="payment-right">
-              <div class="payment-amount">${bs(r.amount)}</div>
+              <div class="payment-amount">${money(r.amount)}</div>
               <div class="payment-detail">${fmtDate(r.paid_at)} · ${METHOD_LABEL[r.method] ?? r.method}</div>
               <div class="${r.disbursed ? "badge-paid" : "badge-pend"}">${r.disbursed ? "Desembolsado ✓" : "Pendiente"}</div>
             </div>
@@ -166,17 +165,17 @@ export function PrintPagosButton({
 <div class="meta">
   <div class="meta-item"><strong>Período</strong>${monthLabel}</div>
   <div class="meta-item"><strong>Total de registros</strong>${rows.length}</div>
-  ${totalDisbursed > 0 ? `<div class="meta-item"><strong>Total desembolsado</strong><span style="color:#16a34a;font-weight:bold">${bs(totalDisbursed)}</span></div>` : ""}
-  ${totalPending > 0 ? `<div class="meta-item"><strong>Pendiente de desembolso</strong><span style="color:#d97706;font-weight:bold">${bs(totalPending)}</span></div>` : ""}
+  ${totalDisbursed > 0 ? `<div class="meta-item"><strong>Total desembolsado</strong><span style="color:#16a34a;font-weight:bold">${money(totalDisbursed)}</span></div>` : ""}
+  ${totalPending > 0 ? `<div class="meta-item"><strong>Pendiente de desembolso</strong><span style="color:#d97706;font-weight:bold">${money(totalPending)}</span></div>` : ""}
 </div>
 
 ${rowsHtml}
 
 <div class="totals">
-  ${totalPending > 0 ? `<div class="total-card"><div class="total-label">Pendiente</div><div class="total-value" style="color:#d97706">${bs(totalPending)}</div></div>` : ""}
+  ${totalPending > 0 ? `<div class="total-card"><div class="total-label">Pendiente</div><div class="total-value" style="color:#d97706">${money(totalPending)}</div></div>` : ""}
   <div class="total-card">
     <div class="total-label">Total desembolsado</div>
-    <div class="total-value" style="color:#16a34a">${bs(totalDisbursed)}</div>
+    <div class="total-value" style="color:#16a34a">${money(totalDisbursed)}</div>
   </div>
 </div>
 

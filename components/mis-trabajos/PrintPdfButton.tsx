@@ -3,10 +3,6 @@
 import { Printer } from "lucide-react";
 import type { CsvWorkRow } from "./ExportCsvButton";
 
-function bs(n: number) {
-  return `Bs ${n.toFixed(2)}`;
-}
-
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {
     day: "2-digit",
@@ -20,13 +16,16 @@ export function PrintPdfButton({
   doctorName,
   from,
   to,
+  currency,
 }: {
   rows: CsvWorkRow[];
   doctorName: string;
   from: string;
   to: string;
+  currency: string;
 }) {
   function handlePrint() {
+    const money = (n: number) => `${currency} ${n.toFixed(2)}`;
     const totalCost = rows.reduce((s, r) => s + r.costo, 0);
     const totalComm = rows.reduce((s, r) => s + r.comision_bs, 0);
     const totalPaid = rows
@@ -60,8 +59,8 @@ export function PrintPdfButton({
           ${r.lab_trabajo ? `<br><span style="color:#92400e;font-size:9px">Lab: ${r.lab_trabajo}</span>` : ""}
           ${r.notas ? `<br><span style="color:#94a3b8;font-size:9px">${r.notas}</span>` : ""}
         </td>
-        <td class="num">${bs(r.costo)}</td>
-        <td class="num" style="color:#0e7490;font-weight:600">${bs(r.comision_bs)}<br><span style="font-size:9px;color:#94a3b8">${r.comision_pct}%</span></td>
+        <td class="num">${money(r.costo)}</td>
+        <td class="num" style="color:#0e7490;font-weight:600">${money(r.comision_bs)}<br><span style="font-size:9px;color:#94a3b8">${r.comision_pct}%</span></td>
         <td>
           <span class="${r.comision_pagada === "Sí" ? "badge-paid" : "badge-pend"}">
             ${r.comision_pagada === "Sí" ? "Pagada ✓" : "Pendiente"}
@@ -142,7 +141,7 @@ export function PrintPdfButton({
     totalPaid > 0
       ? `<div class="total-card">
            <div class="total-label">Comisiones pagadas</div>
-           <div class="total-value" style="color:#16a34a">${bs(totalPaid)}</div>
+           <div class="total-value" style="color:#16a34a">${money(totalPaid)}</div>
          </div>`
       : ""
   }
@@ -150,17 +149,17 @@ export function PrintPdfButton({
     totalPending > 0
       ? `<div class="total-card">
            <div class="total-label">Comisiones pendientes</div>
-           <div class="total-value" style="color:#d97706">${bs(totalPending)}</div>
+           <div class="total-value" style="color:#d97706">${money(totalPending)}</div>
          </div>`
       : ""
   }
   <div class="total-card">
     <div class="total-label">Costo total facturado</div>
-    <div class="total-value" style="color:#1e293b">${bs(totalCost)}</div>
+    <div class="total-value" style="color:#1e293b">${money(totalCost)}</div>
   </div>
   <div class="total-card">
     <div class="total-label">Comisión total</div>
-    <div class="total-value" style="color:#0e7490">${bs(totalComm)}</div>
+    <div class="total-value" style="color:#0e7490">${money(totalComm)}</div>
   </div>
 </div>
 
