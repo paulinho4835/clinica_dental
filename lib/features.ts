@@ -116,7 +116,7 @@ export const FEATURES: FeatureMeta[] = [
 export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
   { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
-  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "logo"] },
+  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico"] },
   { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones"] },
 ];
 
