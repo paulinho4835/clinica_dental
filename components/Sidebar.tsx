@@ -18,6 +18,9 @@ import {
   ShieldCheck,
   MessageSquareDashed,
   Star,
+  Layers,
+  Megaphone,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -41,6 +44,9 @@ const ICONS: Record<string, LucideIcon> = {
   "/auditoria": ShieldCheck,
   "/calificaciones": Star,
   "/wa-masivo": MessageSquareDashed,
+  "/tratamientos": Layers,
+  "/campanas": Megaphone,
+  "/disponibilidad": CalendarClock,
 };
 
 function navIcon(href: string) {
