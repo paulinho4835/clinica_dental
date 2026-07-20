@@ -3,6 +3,7 @@
 import { useOptimistic, useTransition } from "react";
 import { toggleFeature } from "@/app/(dashboard)/superadmin/actions";
 import { FOTOS_DEFAULT_QUOTA, type FeatureKey } from "@/lib/features";
+import { confirm } from "@/lib/confirm";
 
 const ICONS: Partial<Record<FeatureKey, string>> = {
   whatsapp: "💬",
@@ -24,11 +25,13 @@ export function AddonToggle({
   const [pending, startTransition] = useTransition();
   const [optimisticEnabled, setOptimistic] = useOptimistic(enabled);
 
-  function flip() {
+  async function flip() {
     const next = !optimisticEnabled;
 
     // Al activar el addon de fotos, se pregunta el cupo en el momento en vez
-    // de dejarlo en el default hasta que alguien lo edite aparte.
+    // de dejarlo en el default hasta que alguien lo edite aparte. Ese prompt
+    // ya cumple el rol de "¿estás seguro?" para fotos — no se le suma un
+    // segundo diálogo.
     let fotosMax: number | null = null;
     if (featureKey === "fotos" && next) {
       const input = window.prompt(
@@ -42,6 +45,18 @@ export function AddonToggle({
         return;
       }
       fotosMax = n;
+    } else if (next) {
+      // Resto de los add-ons: confirmación explícita al activar, para que
+      // no se "escape de las manos" un clic accidental. Desactivar sigue
+      // siendo instantáneo (reversible, bajo riesgo).
+      const ok = await confirm({
+        title: "Activar add-on",
+        message: `¿Activar "${label}" para esta clínica?`,
+        confirmText: "Activar",
+        cancelText: "Cancelar",
+        tone: "default",
+      });
+      if (!ok) return;
     }
 
     startTransition(async () => {
