@@ -37,15 +37,15 @@ export default async function SettingsPage() {
   if (isClinicAdmin && features.perfil && profile) {
     const { data } = await supabase
       .from("clinics")
-      .select("name, address, phone, nit, logo_url, currency")
+      .select("name, address, phone, nit, currency")
       .eq("id", profile.clinicId)
       .single();
     clinicProfile = data as ClinicProfile | null;
   }
 
-  // Logo de la clínica para documentos impresos (addon "logo").
+  // Logo de la clínica para documentos impresos (parte del perfil, sin addon aparte).
   let logoCurrentUrl: string | null = null;
-  if (isClinicAdmin && features.logo && profile) {
+  if (isClinicAdmin && features.perfil && profile) {
     const { data } = await supabase
       .from("clinics")
       .select("logo_storage_key")
@@ -202,7 +202,7 @@ export default async function SettingsPage() {
         </section>
       )}
 
-      {isClinicAdmin && features.logo && (
+      {isClinicAdmin && features.perfil && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">
             Logo de la clínica

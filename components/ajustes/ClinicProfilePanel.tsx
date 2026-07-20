@@ -9,7 +9,6 @@ export type ClinicProfile = {
   address: string | null;
   phone: string | null;
   nit: string | null;
-  logo_url: string | null;
   currency: string;
 };
 
@@ -105,34 +104,6 @@ export function ClinicProfilePanel({
             <option value="€">€ — Euro</option>
           </select>
         </label>
-
-        {/* Logo URL */}
-        <label className="sm:col-span-2 text-xs">
-          <span className="mb-1 block font-medium text-slate-600">URL del logo</span>
-          <input
-            name="logo_url"
-            type="url"
-            defaultValue={profile.logo_url ?? ""}
-            disabled={!canWrite}
-            placeholder="https://..."
-            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
-          />
-          <span className="mt-1 block text-[11px] text-slate-400">
-            Imagen pública accesible por URL. Se usará en documentos impresos.
-          </span>
-        </label>
-
-        {/* Preview del logo */}
-        {profile.logo_url && (
-          <div className="sm:col-span-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={profile.logo_url}
-              alt="Logo de la clínica"
-              className="h-16 w-auto rounded border border-slate-200 object-contain p-1"
-            />
-          </div>
-        )}
       </div>
 
       {canWrite && (

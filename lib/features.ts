@@ -32,7 +32,6 @@ export type FeatureKey =
   | "agente_ia_t2"
   | "agente_ia_t3"
   | "agente_ia_info"
-  | "logo"
   | "periodontograma"
   | "odontograma_pediatrico";
 
@@ -100,9 +99,6 @@ export const FEATURES: FeatureMeta[] = [
   // preguntas en vez de derivarlas a un humano. La clínica cura el contenido en
   // Ajustes; el bot SOLO sabe lo que está escrito ahí. Requiere agente_ia.
   { key: "agente_ia_info", label: "Agente de IA · Info de la clínica (precios/FAQ)", href: "/ajustes", optIn: true },
-  // Addon: subir el logo de la clínica para que aparezca en los documentos
-  // impresos (presupuesto, recetas, consentimientos, etc.). Opt-in.
-  { key: "logo", label: "Logo en documentos", href: "/ajustes", optIn: true },
   // Addon premium: carta periodontal (6 sitios por diente) con exámenes fechados
   // e índices automáticos. Vive en la ficha del paciente. Opt-in.
   { key: "periodontograma", label: "Periodontograma", href: "/pacientes", optIn: true },
