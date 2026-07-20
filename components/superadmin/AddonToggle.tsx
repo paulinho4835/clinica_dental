@@ -2,7 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import { toggleFeature } from "@/app/(dashboard)/superadmin/actions";
-import type { FeatureKey } from "@/lib/features";
+import { FOTOS_DEFAULT_QUOTA, type FeatureKey } from "@/lib/features";
 
 const ICONS: Partial<Record<FeatureKey, string>> = {
   whatsapp: "💬",
@@ -26,12 +26,31 @@ export function AddonToggle({
 
   function flip() {
     const next = !optimisticEnabled;
+
+    // Al activar el addon de fotos, se pregunta el cupo en el momento en vez
+    // de dejarlo en el default hasta que alguien lo edite aparte.
+    let fotosMax: number | null = null;
+    if (featureKey === "fotos" && next) {
+      const input = window.prompt(
+        "¿Cuántas fotos incluye este plan?",
+        String(FOTOS_DEFAULT_QUOTA),
+      );
+      if (input === null) return; // canceló: no se activa el addon
+      const n = Number(input);
+      if (!Number.isInteger(n) || n <= 0) {
+        window.alert("Número inválido. El addon no se activó.");
+        return;
+      }
+      fotosMax = n;
+    }
+
     startTransition(async () => {
       setOptimistic(next);
       const fd = new FormData();
       fd.set("clinicId", clinicId);
       fd.set("key", featureKey);
       fd.set("enabled", String(next));
+      if (fotosMax !== null) fd.set("fotosMax", String(fotosMax));
       await toggleFeature(fd);
     });
   }

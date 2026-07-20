@@ -197,8 +197,18 @@ export async function toggleFeature(formData: FormData) {
     .eq("id", clinicId)
     .single();
 
-  const features = { ...(clinic?.features as Record<string, boolean> | null) };
+  const features: Record<string, unknown> = { ...(clinic?.features as Record<string, unknown> | null) };
   features[key] = enabled;
+
+  // Al activar el addon de fotos, el superadmin elige el cupo en el mismo
+  // paso (prompt en el cliente, ver AddonToggle) — se guarda junto al toggle
+  // en vez de quedar en el default hasta que alguien lo edite aparte.
+  if (key === "fotos" && enabled) {
+    const fotosMax = Number(formData.get("fotosMax"));
+    if (Number.isInteger(fotosMax) && fotosMax > 0) {
+      features.fotos_max = fotosMax;
+    }
+  }
 
   await admin.from("clinics").update({ features }).eq("id", clinicId);
   revalidatePath("/superadmin");
