@@ -37,7 +37,7 @@ export default async function SettingsPage() {
   if (isClinicAdmin && features.perfil && profile) {
     const { data } = await supabase
       .from("clinics")
-      .select("name, address, phone, nit, logo_url")
+      .select("name, address, phone, nit, logo_url, currency")
       .eq("id", profile.clinicId)
       .single();
     clinicProfile = data as ClinicProfile | null;

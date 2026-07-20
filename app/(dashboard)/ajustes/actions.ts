@@ -252,6 +252,7 @@ const ClinicProfileSchema = z.object({
   phone:    z.string().trim().optional().nullable(),
   nit:      z.string().trim().optional().nullable(),
   logo_url: z.string().trim().url("URL de logo inválida").optional().nullable().or(z.literal("")),
+  currency: z.string().trim().min(1).max(5, "Máximo 5 caracteres"),
 });
 
 export async function updateClinicProfile(
@@ -268,6 +269,7 @@ export async function updateClinicProfile(
     phone:    formData.get("phone") || null,
     nit:      formData.get("nit") || null,
     logo_url: formData.get("logo_url") || null,
+    currency: formData.get("currency") || "Bs",
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -281,6 +283,7 @@ export async function updateClinicProfile(
       phone:    parsed.data.phone ?? null,
       nit:      parsed.data.nit ?? null,
       logo_url: parsed.data.logo_url || null,
+      currency: parsed.data.currency,
     })
     .eq("id", profile.clinicId);
   if (error) return { error: error.message };

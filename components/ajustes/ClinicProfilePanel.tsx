@@ -10,6 +10,7 @@ export type ClinicProfile = {
   phone: string | null;
   nit: string | null;
   logo_url: string | null;
+  currency: string;
 };
 
 const initial: ActionState = {};
@@ -86,6 +87,23 @@ export function ClinicProfilePanel({
             placeholder="ej. 1234567890"
             className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
           />
+        </label>
+
+        {/* Moneda */}
+        <label className="text-xs">
+          <span className="mb-1 block font-medium text-slate-600">Moneda</span>
+          <select
+            name="currency"
+            defaultValue={profile.currency}
+            disabled={!canWrite}
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="Bs">Bs — Boliviano</option>
+            <option value="S/">S/ — Sol peruano</option>
+            <option value="$">$ — Peso / genérico</option>
+            <option value="US$">US$ — Dólar</option>
+            <option value="€">€ — Euro</option>
+          </select>
         </label>
 
         {/* Logo URL */}
