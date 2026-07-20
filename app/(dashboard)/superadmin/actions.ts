@@ -270,6 +270,31 @@ export async function setPhotoQuota(_prev: unknown, formData: FormData) {
   return { ok: true };
 }
 
+// ── Tope de pacientes por clínica (upsell) ───────────────────────────────────
+// Campo vacío = sin tope (null, columna clinics.max_patients). El superadmin
+// lo usa como palanca comercial: activa el número cuando quiere que la
+// clínica vea el aviso de upgrade en /pacientes.
+export async function setMaxPatients(_prev: unknown, formData: FormData) {
+  await assertSuperadmin();
+  const clinicId = String(formData.get("clinicId") ?? "");
+  if (!clinicId) return { error: "Valor inválido" };
+
+  const raw = String(formData.get("maxPatients") ?? "").trim();
+  let maxPatients: number | null;
+  if (raw === "") {
+    maxPatients = null;
+  } else {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0) return { error: "Valor inválido" };
+    maxPatients = n;
+  }
+
+  const admin = createAdminClient();
+  await admin.from("clinics").update({ max_patients: maxPatients }).eq("id", clinicId);
+  revalidatePath("/superadmin");
+  return { ok: true };
+}
+
 // ── Cambiar plan ─────────────────────────────────────────────────────────────
 export async function setPlan(formData: FormData) {
   await assertSuperadmin();
