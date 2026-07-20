@@ -58,7 +58,6 @@ export const FEATURES: FeatureMeta[] = [
   { key: "inventario", label: "Inventario", href: "/inventario" },
   { key: "caja", label: "Dashboard", href: "/caja" },
   { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
-  { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
   { key: "auditoria", label: "Auditoría", href: "/auditoria" },
   { key: "bloqueo_horario", label: "Bloqueo por horario", href: "/ajustes", optIn: true },
   // "whatsapp" (Baileys) no aparece en superadmin: se deriva automáticamente
@@ -110,6 +109,7 @@ export const FEATURES: FeatureMeta[] = [
   // Addon opt-in: odontograma de dentición temporal (FDI 51-85), independiente
   // del odontograma de adultos. Vive en la ficha del paciente.
   { key: "odontograma_pediatrico", label: "Odontograma Pediátrico", href: "/pacientes", optIn: true },
+  { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 
 // Agrupación temática de la sección ADD-ONS del panel de superadmin (solo
