@@ -1,4 +1,4 @@
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 // Barra de progreso de pago de UN tratamiento (pagado del paciente vs. precio
 // del ítem del plan). Verde = saldado, ámbar = parcial, gris = sin iniciar.
@@ -10,10 +10,12 @@ export function TreatmentProgressBar({
   paid,
   total,
   size = "sm",
+  currency,
 }: {
   paid: number;
   total: number;
   size?: "sm" | "md";
+  currency: string;
 }) {
   const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
   const isPaid = pct >= 99.9;
@@ -33,7 +35,7 @@ export function TreatmentProgressBar({
           isPaid ? "font-medium text-emerald-600" : "text-slate-400"
         }`}
       >
-        {isPaid ? "Saldado ✓" : `${bs(paid)} / ${bs(total)}`}
+        {isPaid ? "Saldado ✓" : `${money(paid, currency)} / ${money(total, currency)}`}
       </span>
     </div>
   );

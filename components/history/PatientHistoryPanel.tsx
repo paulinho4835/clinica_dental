@@ -16,7 +16,7 @@ import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressB
 import { Badge } from "@/components/ui/Badge";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import type { PlanItemRow } from "@/lib/treatments/planItems";
 
 export type PaymentRow = {
@@ -113,16 +113,18 @@ export function WorkStatusPanel({
   patientId,
   canWrite,
   works,
+  currency,
 }: {
   patientId: string;
   canWrite: boolean;
   works: Work[];
+  currency: string;
 }) {
   return (
     <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
       <div className="divide-y divide-slate-100">
         {works.map((w) => (
-          <WorkStatusRow key={w.id} work={w} patientId={patientId} canWrite={canWrite} />
+          <WorkStatusRow key={w.id} work={w} patientId={patientId} canWrite={canWrite} currency={currency} />
         ))}
         {works.length === 0 && (
           <p className="px-4 py-3 text-sm text-slate-500">Sin trabajos registrados.</p>
@@ -150,6 +152,7 @@ export function PatientHistoryPanel({
   recepcionistas,
   totalQuoted,
   totalPaid,
+  currency,
 }: {
   patientId: string;
   canBilling: boolean;
@@ -163,6 +166,7 @@ export function PatientHistoryPanel({
   recepcionistas?: Recepcionista[];
   totalQuoted: number;
   totalPaid: number;
+  currency: string;
 }) {
   const saldo = totalQuoted - totalPaid;
   const [methodFilter, setMethodFilter] = useState<string>("");
@@ -176,9 +180,9 @@ export function PatientHistoryPanel({
     <div className="space-y-5">
       {/* Resumen financiero */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Total facturado" value={bs(totalQuoted)} />
-        <SummaryCard label="Total pagado" value={bs(totalPaid)} tone="green" />
-        <SummaryCard label="Saldo pendiente" value={bs(saldo)} tone={saldo > 0 ? "red" : "slate"} />
+        <SummaryCard label="Total facturado" value={money(totalQuoted, currency)} />
+        <SummaryCard label="Total pagado" value={money(totalPaid, currency)} tone="green" />
+        <SummaryCard label="Saldo pendiente" value={money(saldo, currency)} tone={saldo > 0 ? "red" : "slate"} />
       </div>
 
       {/* Tratamientos y progreso de pago — misma barra y mismos números que
@@ -199,7 +203,7 @@ export function PatientHistoryPanel({
                     </span>
                   )}
                 </div>
-                <TreatmentProgressBar paid={item.paidAmount} total={item.price} size="md" />
+                <TreatmentProgressBar paid={item.paidAmount} total={item.price} size="md" currency={currency} />
               </div>
             ))}
           </div>
@@ -229,13 +233,13 @@ export function PatientHistoryPanel({
                     {w.doctorName && (
                       <span className="hidden truncate text-xs text-slate-400 sm:block">{w.doctorName}</span>
                     )}
-                    <span className="shrink-0 tabular-nums font-medium text-slate-800">{bs(w.cost)}</span>
+                    <span className="shrink-0 tabular-nums font-medium text-slate-800">{money(w.cost, currency)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex justify-end border-t border-slate-100 px-4 py-2.5">
                 <span className="text-xs text-slate-500">
-                  Total facturado: <span className="font-semibold text-slate-800">{bs(totalQuoted)}</span>
+                  Total facturado: <span className="font-semibold text-slate-800">{money(totalQuoted, currency)}</span>
                 </span>
               </div>
             </div>
@@ -270,6 +274,7 @@ export function PatientHistoryPanel({
             doctors={doctors}
             recepcionistas={recepcionistas}
             planItems={planItems}
+            currency={currency}
           />
         )}
         <div className="mt-2 overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
@@ -292,11 +297,11 @@ export function PatientHistoryPanel({
                     <span className="truncate text-slate-500">{p.collectedByName ?? <span className="text-slate-400">—</span>}</span>
                     <span className="text-slate-500 whitespace-nowrap">{METHOD_LABEL[p.method] ?? p.method}</span>
                     <span className="flex items-center justify-end gap-1 whitespace-nowrap">
-                      <span className="tabular-nums font-medium text-emerald-600">{bs(p.amount)}</span>
+                      <span className="tabular-nums font-medium text-emerald-600">{money(p.amount, currency)}</span>
                       {canManagePayments && (
                         <>
                           <EditPaymentRowButton payment={p} />
-                          <DeletePaymentRowButton id={p.id} amount={p.amount} />
+                          <DeletePaymentRowButton id={p.id} amount={p.amount} currency={currency} />
                         </>
                       )}
                     </span>
@@ -455,14 +460,14 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
   );
 }
 
-function DeletePaymentRowButton({ id, amount }: { id: string; amount: number }) {
+function DeletePaymentRowButton({ id, amount, currency }: { id: string; amount: number; currency: string }) {
   const [pending, start] = useTransition();
   const router = useRouter();
 
   async function handle() {
     const ok = await confirm({
       title: "Eliminar pago",
-      message: `¿Eliminar el pago de ${bs(amount)}? Se descontará del total pagado del paciente. No se puede deshacer.`,
+      message: `¿Eliminar el pago de ${money(amount, currency)}? Se descontará del total pagado del paciente. No se puede deshacer.`,
       confirmText: "Sí, eliminar",
       cancelText: "Volver",
       tone: "danger",
@@ -517,10 +522,12 @@ function WorkStatusRow({
   work,
   patientId,
   canWrite,
+  currency,
 }: {
   work: Work;
   patientId: string;
   canWrite: boolean;
+  currency: string;
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -529,7 +536,7 @@ function WorkStatusRow({
     <div className="flex items-center justify-between px-4 py-2.5 text-sm">
       <div className="min-w-0">
         <span className="font-medium">{work.name}</span>
-        <span className="ml-2 text-xs text-slate-400">{bs(work.price)}</span>
+        <span className="ml-2 text-xs text-slate-400">{money(work.price, currency)}</span>
       </div>
       <div className="flex items-center gap-3">
         <span className={`text-xs ${work.done ? "text-green-600" : "text-slate-400"}`}>
@@ -556,6 +563,7 @@ function PaymentForm({
   doctors,
   recepcionistas,
   planItems,
+  currency,
 }: {
   patientId: string;
   doctors: Dentist[];
@@ -563,6 +571,7 @@ function PaymentForm({
   // Tratamientos del plan (precio/pagado), ya cargados por el Server Component
   // padre — evita un segundo fetch al mismo endpoint que usa /pagos.
   planItems: PlanItemRow[];
+  currency: string;
 }) {
   const [state, formAction, pending] = useActionState(addPatientPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -716,7 +725,7 @@ function PaymentForm({
                 const restante = Math.max(0, p.price - p.paidAmount);
                 return (
                   <option key={p.id} value={p.id}>
-                    {p.name} {restante > 0 ? `(debe ${bs(restante)})` : "(saldado)"}
+                    {p.name} {restante > 0 ? `(debe ${money(restante, currency)})` : "(saldado)"}
                   </option>
                 );
               })}
@@ -738,8 +747,8 @@ function PaymentForm({
       </div>
       {doctorId && pctN > 0 && amountN > 0 && (
         <div className="flex items-center gap-2 rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20">
-          <span className="text-slate-500">Comisión del doctor ({pctN}% de {bs(amountN)}):</span>
-          <span className="font-semibold text-clinic tabular-nums">{bs(commission)}</span>
+          <span className="text-slate-500">Comisión del doctor ({pctN}% de {money(amountN, currency)}):</span>
+          <span className="font-semibold text-clinic tabular-nums">{money(commission, currency)}</span>
           <span className="ml-auto text-xs text-slate-400">Se registrará en Mis trabajos</span>
         </div>
       )}

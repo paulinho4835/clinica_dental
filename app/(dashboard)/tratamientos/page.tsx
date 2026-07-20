@@ -3,10 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { requireFeature } from "@/lib/guard";
 import { TreatmentCatalog, type CatalogItem } from "@/components/treatments/TreatmentCatalog";
+import { getClinicCurrency } from "@/lib/superadmin";
 
 export default async function TreatmentsPage() {
   await requireFeature("tratamientos");
   const profile = await getProfile();
+  const currency = await getClinicCurrency();
   // El catálogo (precios y comisiones) lo gestiona solo el admin.
   if (profile?.role !== "admin") redirect("/agenda");
 
@@ -33,7 +35,7 @@ export default async function TreatmentsPage() {
           al plan de tratamiento de un paciente, autocompletando el precio.
         </p>
       </div>
-      <TreatmentCatalog items={items} />
+      <TreatmentCatalog items={items} currency={currency} />
     </div>
   );
 }

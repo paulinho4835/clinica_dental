@@ -15,14 +15,14 @@ describe("PrintSelectModal", () => {
   });
 
   it("el botón 'Presupuesto' abre el modal con una fila por tratamiento", () => {
-    render(<PrintSelectModal patientId="p1" works={works} />);
+    render(<PrintSelectModal patientId="p1" works={works} currency="Bs" />);
     fireEvent.click(screen.getByRole("button", { name: /presupuesto/i }));
     expect(screen.getByText("Limpieza")).toBeInTheDocument();
     expect(screen.getByText("Extracción")).toBeInTheDocument();
   });
 
   it("todos los checkboxes empiezan desmarcados y el botón Imprimir empieza deshabilitado", () => {
-    render(<PrintSelectModal patientId="p1" works={works} />);
+    render(<PrintSelectModal patientId="p1" works={works} currency="Bs" />);
     fireEvent.click(screen.getByRole("button", { name: /presupuesto/i }));
     const checkboxes = screen.getAllByRole("checkbox");
     expect(checkboxes).toHaveLength(2);
@@ -31,7 +31,7 @@ describe("PrintSelectModal", () => {
   });
 
   it("marcar un tratamiento habilita Imprimir y actualiza el total", () => {
-    render(<PrintSelectModal patientId="p1" works={works} />);
+    render(<PrintSelectModal patientId="p1" works={works} currency="Bs" />);
     fireEvent.click(screen.getByRole("button", { name: /presupuesto/i }));
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     expect(screen.getByRole("button", { name: "Imprimir" })).toBeEnabled();
@@ -39,7 +39,7 @@ describe("PrintSelectModal", () => {
   });
 
   it("'Marcar todos' selecciona todos los checkboxes y suma el total completo", () => {
-    render(<PrintSelectModal patientId="p1" works={works} />);
+    render(<PrintSelectModal patientId="p1" works={works} currency="Bs" />);
     fireEvent.click(screen.getByRole("button", { name: /presupuesto/i }));
     fireEvent.click(screen.getByText("Marcar todos"));
     screen.getAllByRole("checkbox").forEach((cb) => expect(cb).toBeChecked());
@@ -49,7 +49,7 @@ describe("PrintSelectModal", () => {
   it("Imprimir abre la URL con los IDs seleccionados separados por coma", () => {
     const openSpy = vi.fn();
     vi.stubGlobal("open", openSpy);
-    render(<PrintSelectModal patientId="p1" works={works} />);
+    render(<PrintSelectModal patientId="p1" works={works} currency="Bs" />);
     fireEvent.click(screen.getByRole("button", { name: /presupuesto/i }));
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     fireEvent.click(screen.getAllByRole("checkbox")[1]);

@@ -75,6 +75,7 @@ export function AgendaShell({
   avisoDoctoresEnabled,
   disponibilidadEnabled = false,
   availability = [],
+  currency,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -93,6 +94,7 @@ export function AgendaShell({
   disponibilidadEnabled?: boolean;
   /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
   availability?: AvailabilityBlock[];
+  currency: string;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -613,6 +615,7 @@ export function AgendaShell({
           prefill={modal.prefill}
           onClose={() => setModal(null)}
           availability={availability ?? []}
+          currency={currency}
         />
       )}
       {linkAppt && (

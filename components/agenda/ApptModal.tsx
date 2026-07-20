@@ -9,7 +9,7 @@ import {
   type ActionState,
 } from "@/app/(dashboard)/agenda/actions";
 import { PatientPicker, type PatientOption } from "./PatientPicker";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { Modal } from "@/components/ui/Modal";
 import { confirm } from "@/lib/confirm";
 import { mins } from "@/lib/agenda";
@@ -38,6 +38,7 @@ export function ApptModal({
   prefill, // lo ya escrito en el popover rápido ("Más opciones")
   onClose,
   availability,
+  currency,
 }: {
   patients: PatientOption[];
   doctors: DoctorOption[];
@@ -52,6 +53,7 @@ export function ApptModal({
   };
   onClose: () => void;
   availability?: AvailabilityBlock[];
+  currency: string;
 }) {
   const router = useRouter();
   const isEditing = !!appt;
@@ -344,7 +346,7 @@ export function ApptModal({
                   saldo > 0 ? "text-red-600" : "text-emerald-600"
                 }`}
               >
-                {bs(saldo)}
+                {money(saldo, currency)}
               </span>
             </div>
           )}

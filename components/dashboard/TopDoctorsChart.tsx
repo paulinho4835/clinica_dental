@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 export type DoctorStat = {
   name: string;
@@ -9,7 +9,7 @@ export type DoctorStat = {
   commission: number;
 };
 
-export function TopDoctorsChart({ data }: { data: DoctorStat[] }) {
+export function TopDoctorsChart({ data, currency }: { data: DoctorStat[]; currency: string }) {
   if (data.length === 0) {
     return (
       <Card className="flex h-80 flex-col p-6">
@@ -38,7 +38,7 @@ export function TopDoctorsChart({ data }: { data: DoctorStat[] }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-slate-700 truncate pr-2">{d.name}</span>
                 <span className="shrink-0 tabular-nums text-slate-500">
-                  {d.patientsCount} pctes <span className="mx-1 text-slate-300">|</span> <span className="text-clinic font-medium">{bs(d.commission)}</span> com.
+                  {d.patientsCount} pctes <span className="mx-1 text-slate-300">|</span> <span className="text-clinic font-medium">{money(d.commission, currency)}</span> com.
                 </span>
               </div>
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-100">

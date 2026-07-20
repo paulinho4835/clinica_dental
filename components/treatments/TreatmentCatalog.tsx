@@ -9,7 +9,7 @@ import {
   deactivateTreatment,
   type ActionState,
 } from "@/app/(dashboard)/tratamientos/actions";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { confirm } from "@/lib/confirm";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +25,7 @@ const initial: ActionState = {};
 const inputClass =
   "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic";
 
-export function TreatmentCatalog({ items }: { items: CatalogItem[] }) {
+export function TreatmentCatalog({ items, currency }: { items: CatalogItem[]; currency: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(createTreatment, initial);
   const [name, setName] = useState("");
@@ -117,6 +117,7 @@ export function TreatmentCatalog({ items }: { items: CatalogItem[] }) {
                 key={it.id}
                 item={it}
                 onEdit={() => setEditingId(it.id)}
+                currency={currency}
               />
             ),
           )}
@@ -131,7 +132,7 @@ export function TreatmentCatalog({ items }: { items: CatalogItem[] }) {
   );
 }
 
-function Row({ item, onEdit }: { item: CatalogItem; onEdit: () => void }) {
+function Row({ item, onEdit, currency }: { item: CatalogItem; onEdit: () => void; currency: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -157,7 +158,7 @@ function Row({ item, onEdit }: { item: CatalogItem; onEdit: () => void }) {
   return (
     <div className="grid grid-cols-2 items-center gap-3 px-4 py-2.5 text-sm sm:grid-cols-[1fr_8rem_7rem_6rem]">
       <span className="font-medium">{item.name}</span>
-      <span className="text-right tabular-nums text-slate-600">{bs(item.base_price)}</span>
+      <span className="text-right tabular-nums text-slate-600">{money(item.base_price, currency)}</span>
       <span className="text-right tabular-nums text-slate-600">{item.commission_pct}%</span>
       <div className="flex items-center justify-end gap-1">
         <button

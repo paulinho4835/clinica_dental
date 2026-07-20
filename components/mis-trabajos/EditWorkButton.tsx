@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import { updateDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { useDismissable } from "@/components/ui/useDismissable";
 
@@ -30,7 +30,7 @@ const PAYMENT_METHODS = [
 
 const initial: ActionState = {};
 
-export function EditWorkButton({ work }: { work: WorkData }) {
+export function EditWorkButton({ work, currency }: { work: WorkData; currency: string }) {
   const [open, setOpen] = useState(false);
   useDismissable(() => setOpen(false), open);
   const boundAction = updateDoctorWork.bind(null, work.id);
@@ -146,10 +146,10 @@ export function EditWorkButton({ work }: { work: WorkData }) {
                     <span className="text-xs text-slate-500">
                       Comisión calculada
                       {labCostN > 0 && (
-                        <span className="text-slate-400"> ({pctN}% de {bs(costN - labCostN)} neto)</span>
+                        <span className="text-slate-400"> ({pctN}% de {money(costN - labCostN, currency)} neto)</span>
                       )}
                     </span>
-                    <span className="tabular-nums font-semibold text-clinic">{bs(commission)}</span>
+                    <span className="tabular-nums font-semibold text-clinic">{money(commission, currency)}</span>
                   </div>
                 )}
 

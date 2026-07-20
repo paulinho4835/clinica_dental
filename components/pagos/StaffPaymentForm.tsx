@@ -6,7 +6,7 @@ import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/ac
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
 import { COMMISSION_ROLES, isOverdue } from "@/lib/pagos";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { confirm } from "@/lib/confirm";
 
@@ -63,9 +63,11 @@ function fmtShortDate(d: string) {
 export function StaffPaymentForm({
   payee,
   today,
+  currency,
 }: {
   payee: Payee;
   today: string;
+  currency: string;
 }) {
   const [state, formAction, pending] = useActionState(createStaffPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -252,7 +254,7 @@ export function StaffPaymentForm({
     e.preventDefault();
     const ok = await confirm({
       title: "Registrar pago",
-      message: `¿Confirmas registrar un pago de ${bs(Number(amount) || 0)} a ${payee.full_name}?`,
+      message: `¿Confirmas registrar un pago de ${money(Number(amount) || 0, currency)} a ${payee.full_name}?`,
       confirmText: "Sí, registrar",
       cancelText: "Cancelar",
     });
@@ -371,8 +373,8 @@ export function StaffPaymentForm({
                         {g.remaining <= 0
                           ? "Comisión saldada ✓"
                           : g.commissionPaid > 0
-                            ? bs(g.remaining)
-                            : bs(g.commission)}
+                            ? money(g.remaining, currency)
+                            : money(g.commission, currency)}
                       </span>
                       {commissionPct !== undefined && (
                         <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
@@ -388,7 +390,7 @@ export function StaffPaymentForm({
                     {/* Comisión con abono previo: mostrar el avance del doctor */}
                     {g.commissionPaid > 0 && g.remaining > 0 && (
                       <p className="ml-6 text-xs text-amber-600">
-                        Abonado {bs(g.commissionPaid)} de {bs(g.commission)} — restan {bs(g.remaining)}
+                        Abonado {money(g.commissionPaid, currency)} de {money(g.commission, currency)} — restan {money(g.remaining, currency)}
                       </p>
                     )}
                     {/* Barra del PACIENTE (pagos del tratamiento): informativa,
@@ -400,7 +402,7 @@ export function StaffPaymentForm({
                         <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
                           Pago del paciente
                         </span>
-                        <TreatmentProgressBar paid={g.planItemPaid} total={g.planItemPrice} />
+                        <TreatmentProgressBar paid={g.planItemPaid} total={g.planItemPrice} currency={currency} />
                       </div>
                     )}
                     {/* Detalle al seleccionar: una fila por sesión/cuota del grupo. */}
@@ -432,7 +434,7 @@ export function StaffPaymentForm({
                                 <td className="truncate px-3 py-2 text-slate-700">{g.patient_name ?? "—"}</td>
                                 <td className="truncate px-3 py-2 text-slate-700">{w.description || "—"}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
-                                  {bs(g.planItemPaid)}
+                                  {money(g.planItemPaid, currency)}
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
                                   {w.commission_pct}%
@@ -464,12 +466,12 @@ export function StaffPaymentForm({
                         </label>
                         {amountNum > 0 && amountNum < g.remaining - 0.005 && !amountInvalid && (
                           <span className="text-xs text-slate-400">
-                            adelanto parcial — quedarán {bs(Math.round((g.remaining - amountNum) * 100) / 100)} pendientes
+                            adelanto parcial — quedarán {money(Math.round((g.remaining - amountNum) * 100) / 100, currency)} pendientes
                           </span>
                         )}
                         {amountInvalid && (
                           <span className="text-xs text-red-600">
-                            máximo {bs(g.remaining)}
+                            máximo {money(g.remaining, currency)}
                           </span>
                         )}
                       </div>
@@ -485,7 +487,7 @@ export function StaffPaymentForm({
               <span className="text-xs text-slate-500">
                 {groupAmounts.size} tratamiento{groupAmounts.size !== 1 ? "s" : ""} seleccionado{groupAmounts.size !== 1 ? "s" : ""}
               </span>
-              <span className="tabular-nums font-semibold text-clinic">{bs(allocatedTotal)}</span>
+              <span className="tabular-nums font-semibold text-clinic">{money(allocatedTotal, currency)}</span>
             </div>
           )}
         </div>
@@ -564,7 +566,7 @@ export function StaffPaymentForm({
         </button>
         {invalidGroup && (
           <span className="text-xs text-red-600">
-            Corrige el abono de "{invalidGroup.name}" (máximo {bs(invalidGroup.remaining)}).
+            Corrige el abono de "{invalidGroup.name}" (máximo {money(invalidGroup.remaining, currency)}).
           </span>
         )}
       </div>

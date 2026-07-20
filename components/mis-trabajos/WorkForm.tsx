@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { createDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
 import { toast } from "@/lib/toast";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 import { computeCommission, netRate as netRateFn } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -29,11 +29,13 @@ export function WorkForm({
   today,
   doctors,
   recepcionistas,
+  currency,
 }: {
   patients: Patient[];
   today: string;
   doctors?: Doctor[];
   recepcionistas?: Recepcionista[];
+  currency: string;
 }) {
   const [open, setOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -287,11 +289,11 @@ export function WorkForm({
             return (
               <div className={`sm:col-span-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
                 <div className="flex gap-4">
-                  <span>Facturado: <strong className="tabular-nums">{bs(balance.totalWorked)}</strong></span>
-                  <span>Pagado: <strong className="tabular-nums">{bs(balance.totalPaid)}</strong></span>
+                  <span>Facturado: <strong className="tabular-nums">{money(balance.totalWorked, currency)}</strong></span>
+                  <span>Pagado: <strong className="tabular-nums">{money(balance.totalPaid, currency)}</strong></span>
                 </div>
                 <span className={`font-semibold tabular-nums ${alDia ? "text-emerald-700" : "text-amber-700"}`}>
-                  {alDia ? "Al día ✓" : `Debe: ${bs(deuda)}`}
+                  {alDia ? "Al día ✓" : `Debe: ${money(deuda, currency)}`}
                 </span>
               </div>
             );
@@ -331,10 +333,10 @@ export function WorkForm({
                             <span className="text-xs font-semibold text-emerald-700">Saldado ✓</span>
                           ) : parcial ? (
                             <span className="text-xs text-amber-700 tabular-nums">
-                              {bs(pagado)}<span className="text-slate-400"> / {bs(item.price)}</span>
+                              {money(pagado, currency)}<span className="text-slate-400"> / {money(item.price, currency)}</span>
                             </span>
                           ) : (
-                            <span className="tabular-nums text-slate-600">{bs(item.price)}</span>
+                            <span className="tabular-nums text-slate-600">{money(item.price, currency)}</span>
                           )}
                         </div>
                       </div>
@@ -459,7 +461,7 @@ export function WorkForm({
             <div className="block text-sm">
               <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
               <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
-                <span className="tabular-nums font-medium text-slate-700">{bs(planItemLabCostN)}</span>
+                <span className="tabular-nums font-medium text-slate-700">{money(planItemLabCostN, currency)}</span>
                 <span className="text-xs text-slate-400">(ya registrado)</span>
               </div>
               <input type="hidden" name="lab_cost" value="0" />
@@ -572,11 +574,11 @@ export function WorkForm({
                 {pctN > 0 && costN > 0 ? (
                   treatmentLabCostN > 0
                     ? <span>{pctN}% × {Math.round(netRate * 100)}% neto</span>
-                    : <span>{pctN}% de {bs(amountPaidN)}</span>
+                    : <span>{pctN}% de {money(amountPaidN, currency)}</span>
                 ) : "Comisión"}
               </span>
               <span className="tabular-nums text-base font-bold text-clinic">
-                {bs(commission)}
+                {money(commission, currency)}
               </span>
             </div>
           </div>
@@ -645,18 +647,18 @@ export function WorkForm({
             {costN > 0 && (
               <div className="flex justify-between gap-2 px-3 py-2">
                 <dt className="text-slate-500 dark:text-slate-400">Costo tratamiento</dt>
-                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{bs(costN)}</dd>
+                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{money(costN, currency)}</dd>
               </div>
             )}
             {treatmentLabCostN > 0 && (
               <div className="flex justify-between gap-2 px-3 py-2">
                 <dt className="text-slate-500 dark:text-slate-400">Costo laboratorio</dt>
-                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{bs(treatmentLabCostN)}</dd>
+                <dd className="tabular-nums font-medium text-slate-800 dark:text-white">{money(treatmentLabCostN, currency)}</dd>
               </div>
             )}
             <div className="flex justify-between gap-2 px-3 py-2">
               <dt className="text-slate-500 dark:text-slate-400">Cobrado hoy</dt>
-              <dd className="tabular-nums font-semibold text-slate-900 dark:text-white">{bs(amountPaidN)}</dd>
+              <dd className="tabular-nums font-semibold text-slate-900 dark:text-white">{money(amountPaidN, currency)}</dd>
             </div>
             <div className="flex justify-between gap-2 px-3 py-2">
               <dt className="text-slate-500 dark:text-slate-400">Comprobante</dt>
@@ -667,7 +669,7 @@ export function WorkForm({
             {pctN > 0 && (
               <div className="flex justify-between gap-2 px-3 py-2">
                 <dt className="text-slate-500 dark:text-slate-400">Comisión doctor</dt>
-                <dd className="tabular-nums font-semibold text-clinic">{pctN}% → {bs(commission)}</dd>
+                <dd className="tabular-nums font-semibold text-clinic">{pctN}% → {money(commission, currency)}</dd>
               </div>
             )}
           </dl>

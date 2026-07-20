@@ -552,7 +552,7 @@ export default async function PatientPage({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Seguimiento del tratamiento</h2>
-        <WorkStatusPanel patientId={patient.id} canWrite={canClinical} works={works} />
+        <WorkStatusPanel patientId={patient.id} canWrite={canClinical} works={works} currency={currency} />
       </section>
 
       <section>

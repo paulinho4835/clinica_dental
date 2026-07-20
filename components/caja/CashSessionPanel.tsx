@@ -7,7 +7,7 @@ import {
   openCashSession,
   type ActionState,
 } from "@/app/(dashboard)/caja/actions";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 const initial: ActionState = {};
 
@@ -17,7 +17,7 @@ export type OpenSession = {
   opening_float: number;
 } | null;
 
-export function CashSessionPanel({ session }: { session: OpenSession }) {
+export function CashSessionPanel({ session, currency }: { session: OpenSession; currency: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(openCashSession, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -38,7 +38,7 @@ export function CashSessionPanel({ session }: { session: OpenSession }) {
           <span className="font-semibold text-green-700">Caja abierta</span>
           <span className="ml-3 text-slate-500">
             Desde {new Date(session.opened_at).toLocaleString("es-BO", { timeZone: "America/La_Paz", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-            {" · "}Fondo {bs(Number(session.opening_float))}
+            {" · "}Fondo {money(Number(session.opening_float), currency)}
           </span>
         </div>
         <button

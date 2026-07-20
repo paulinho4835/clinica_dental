@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { bs, fmtBoliviaDateTime } from "@/lib/format";
+import { money, fmtBoliviaDateTime } from "@/lib/format";
 import type { Work } from "./TreatmentPlanPanel";
 
 export function PrintSelectModal({
   patientId,
   works,
+  currency,
 }: {
   patientId: string;
   works: Work[];
+  currency: string;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -74,7 +76,7 @@ export function PrintSelectModal({
           <span className="text-slate-500">
             Total seleccionado:{" "}
             <span data-testid="print-select-total" className="font-semibold text-slate-800">
-              {bs(total)}
+              {money(total, currency)}
             </span>
           </span>
         </div>
@@ -98,7 +100,7 @@ export function PrintSelectModal({
                 {fmtBoliviaDateTime(w.createdAt)}
               </span>
               <span className="flex-1 font-medium">{w.name}</span>
-              <span className="tabular-nums text-slate-600">{bs(w.price)}</span>
+              <span className="tabular-nums text-slate-600">{money(w.price, currency)}</span>
             </label>
           ))}
         </div>

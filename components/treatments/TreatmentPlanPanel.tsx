@@ -8,7 +8,7 @@ import {
   type ActionState,
 } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { PrintSelectModal } from "./PrintSelectModal";
-import { bs, fmtBoliviaDateTime } from "@/lib/format";
+import { money, fmtBoliviaDateTime } from "@/lib/format";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 
@@ -39,6 +39,7 @@ export function TreatmentPlanPanel({
   dentists,
   catalog,
   recetasEnabled,
+  currency,
 }: {
   patientId: string;
   canWrite: boolean;
@@ -49,6 +50,7 @@ export function TreatmentPlanPanel({
   /** Catálogo de tratamientos de la clínica (sugerencias + autollenado de precio). */
   catalog: CatalogOption[];
   recetasEnabled?: boolean;
+  currency: string;
 }) {
   const total = works.reduce((s, w) => s + w.price, 0);
 
@@ -58,7 +60,7 @@ export function TreatmentPlanPanel({
 
       {recetasEnabled && (
         <div className="flex items-center justify-end">
-          <PrintSelectModal patientId={patientId} works={works} />
+          <PrintSelectModal patientId={patientId} works={works} currency={currency} />
         </div>
       )}
 
@@ -72,7 +74,7 @@ export function TreatmentPlanPanel({
         </div>
         <div className="divide-y divide-slate-100">
           {works.map((w) => (
-            <WorkRow key={w.id} work={w} patientId={patientId} canDelete={canDelete} />
+            <WorkRow key={w.id} work={w} patientId={patientId} canDelete={canDelete} currency={currency} />
           ))}
           {works.length === 0 && (
             <p className="px-4 py-3 text-sm text-slate-500">Sin trabajos en el plan.</p>
@@ -81,7 +83,7 @@ export function TreatmentPlanPanel({
         {works.length > 0 && (
           <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold">
             <span>Total</span>
-            <span className="tabular-nums">{bs(total)}</span>
+            <span className="tabular-nums">{money(total, currency)}</span>
           </div>
         )}
       </div>
@@ -93,10 +95,12 @@ function WorkRow({
   work,
   patientId,
   canDelete,
+  currency,
 }: {
   work: Work;
   patientId: string;
   canDelete: boolean;
+  currency: string;
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -111,7 +115,7 @@ function WorkRow({
         {work.dentistName ?? <span className="text-slate-300">—</span>}
       </span>
       <span className="order-4 text-right tabular-nums text-slate-600 sm:order-none">
-        {bs(work.price)}
+        {money(work.price, currency)}
       </span>
       <div className="order-5 text-right sm:order-none">
         {canDelete && (

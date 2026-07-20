@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 export type DailyPoint = { label: string; total: number };
 export type MonthlyPoint = { name: string; total: number; patients: number };
@@ -28,11 +28,13 @@ function MoneyTooltip({
   payload,
   label,
   extra,
+  currency,
 }: {
   active?: boolean;
   payload?: { value: number; payload: Record<string, unknown> }[];
   label?: string;
   extra?: (p: Record<string, unknown>) => string | null;
+  currency: string;
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0];
@@ -40,7 +42,7 @@ function MoneyTooltip({
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
       <p className="font-medium text-slate-700">{label}</p>
-      <p className="tabular-nums text-clinic">{bs(Number(row.value))}</p>
+      <p className="tabular-nums text-clinic">{money(Number(row.value), currency)}</p>
       {more && <p className="text-slate-400">{more}</p>}
     </div>
   );
@@ -50,10 +52,12 @@ export function RevenueChart({
   daily,
   monthly,
   peakMonth,
+  currency,
 }: {
   daily: DailyPoint[];
   monthly: MonthlyPoint[];
   peakMonth: string | null; // nombre del mes pico, para resaltar
+  currency: string;
 }) {
   const [view, setView] = useState<"daily" | "monthly">("daily");
 
@@ -114,7 +118,7 @@ export function RevenueChart({
                 width={48}
                 tickFormatter={(v) => `${v}`}
               />
-              <Tooltip content={<MoneyTooltip />} />
+              <Tooltip content={<MoneyTooltip currency={currency} />} />
               <Area
                 type="monotone"
                 dataKey="total"
@@ -142,6 +146,7 @@ export function RevenueChart({
                 content={
                   <MoneyTooltip
                     extra={(p) => `${Number(p.patients ?? 0)} paciente(s)`}
+                    currency={currency}
                   />
                 }
                 cursor={{ fill: "#f8fafc" }}

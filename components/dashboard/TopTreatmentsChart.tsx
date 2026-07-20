@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { bs } from "@/lib/format";
+import { money } from "@/lib/format";
 
 export type Treatment = { label: string; cnt: number; revenue: number };
 
@@ -31,9 +31,11 @@ const PALETTE = [
 function TreatmentTooltip({
   active,
   payload,
+  currency,
 }: {
   active?: boolean;
   payload?: { payload: Treatment }[];
+  currency: string;
 }) {
   if (!active || !payload?.length) return null;
   const t = payload[0].payload;
@@ -41,12 +43,12 @@ function TreatmentTooltip({
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
       <p className="font-medium text-slate-700">{t.label}</p>
       <p className="text-slate-500">{t.cnt} realizados</p>
-      <p className="tabular-nums text-clinic">{bs(t.revenue)}</p>
+      <p className="tabular-nums text-clinic">{money(t.revenue, currency)}</p>
     </div>
   );
 }
 
-export function TopTreatmentsChart({ data }: { data: Treatment[] }) {
+export function TopTreatmentsChart({ data, currency }: { data: Treatment[]; currency: string }) {
   const [view, setView] = useState<"bar" | "donut">("bar");
   const total = data.reduce((s, d) => s + d.cnt, 0);
 
@@ -99,7 +101,7 @@ export function TopTreatmentsChart({ data }: { data: Treatment[] }) {
                   axisLine={false}
                   width={120}
                 />
-                <Tooltip content={<TreatmentTooltip />} cursor={{ fill: "#f8fafc" }} />
+                <Tooltip content={<TreatmentTooltip currency={currency} />} cursor={{ fill: "#f8fafc" }} />
                 <Bar dataKey="cnt" radius={[0, 4, 4, 0]} barSize={18}>
                   {data.map((_, i) => (
                     <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
@@ -108,7 +110,7 @@ export function TopTreatmentsChart({ data }: { data: Treatment[] }) {
               </BarChart>
             ) : (
               <PieChart>
-                <Tooltip content={<TreatmentTooltip />} />
+                <Tooltip content={<TreatmentTooltip currency={currency} />} />
                 <Pie
                   data={data}
                   dataKey="cnt"
