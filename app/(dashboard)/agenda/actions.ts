@@ -11,6 +11,7 @@ import { getClinicFeatures } from "@/lib/superadmin";
 import { boliviaTodayISO, boliviaDateISO, BOLIVIA_TZ } from "@/lib/format";
 import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
 import { freeSlotsForDay, formatFreeSlotsMessage } from "@/lib/freeSlots";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar/sync";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -164,6 +165,8 @@ export async function createAppointment(
     }
   }
 
+  await syncAppointmentToGoogle(appt.id, "create");
+
   revalidatePath("/agenda");
   return { ok: true };
 }
@@ -272,6 +275,8 @@ export async function updateAppointment(
     }
   }
 
+  await syncAppointmentToGoogle(appointmentId, "update");
+
   revalidatePath("/agenda");
   return { ok: true };
 }
@@ -291,6 +296,7 @@ export async function cancelAppointment(id: string): Promise<ActionState> {
   if (error) return { error: error.message };
 
   await cancelPendingReminders(supabase, id);
+  await syncAppointmentToGoogle(id, "cancel");
 
   revalidatePath("/agenda");
   return { ok: true };
@@ -318,6 +324,9 @@ export async function setAppointmentStatus(id: string, status: string): Promise<
   // Al marcar la cita como atendida, los datos financieros migran al historial.
   if (status === "finished") {
     await migrateAppointmentFinance(id, profile);
+  }
+  if (status === "cancelled") {
+    await syncAppointmentToGoogle(id, "cancel");
   }
 
   revalidatePath("/agenda");
@@ -374,6 +383,8 @@ export async function rescheduleAppointment(
     }
   }
 
+  await syncAppointmentToGoogle(id, "update");
+
   revalidatePath("/agenda");
   return { ok: true };
 }
@@ -385,6 +396,8 @@ export async function deleteAppointment(id: string): Promise<ActionState> {
   if (!can(profile.role, "appointments:write")) return { error: "Sin permiso." };
 
   const supabase = await createClient();
+  await syncAppointmentToGoogle(id, "delete"); // antes del delete: la lee por id
+
   const { error } = await supabase
     .from("appointments")
     .delete()
