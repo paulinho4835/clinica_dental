@@ -37,7 +37,7 @@ export default async function RecetaPage({
 
   const { data: clinic } = await supabase
     .from("clinics")
-    .select("name")
+    .select("name, address, phone, nit")
     .eq("id", patient.clinic_id)
     .single();
 
@@ -74,6 +74,13 @@ export default async function RecetaPage({
             </p>
             {doctorName && (
               <p className="mt-0.5 text-sm text-slate-600">{doctorName}</p>
+            )}
+            {(clinic?.address || clinic?.phone || clinic?.nit) && (
+              <p className="mt-0.5 text-xs text-slate-500">
+                {[clinic?.address, clinic?.phone && `Tel: ${clinic.phone}`, clinic?.nit && `NIT: ${clinic.nit}`]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             )}
           </PrintBrand>
           <div className="text-right text-sm text-slate-500">

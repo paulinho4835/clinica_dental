@@ -55,7 +55,7 @@ export default async function ImprimirPlanPage({
     await Promise.all([
       supabase
         .from("clinics")
-        .select("name, currency")
+        .select("name, currency, address, phone, nit")
         .eq("id", patient.clinic_id)
         .single(),
       supabase
@@ -120,6 +120,13 @@ export default async function ImprimirPlanPage({
             <p className="mt-1 text-sm font-semibold uppercase text-slate-500">
               Presupuesto de Tratamiento
             </p>
+            {(clinic?.address || clinic?.phone || clinic?.nit) && (
+              <p className="mt-0.5 text-xs text-slate-500">
+                {[clinic?.address, clinic?.phone && `Tel: ${clinic.phone}`, clinic?.nit && `NIT: ${clinic.nit}`]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
           </PrintBrand>
           <div className="text-right text-sm text-slate-500">
             <p>Fecha de emisión:</p>
@@ -159,14 +166,13 @@ export default async function ImprimirPlanPage({
               <th className="pb-2 pr-3">Fecha</th>
               <th className="pb-2 pr-3">Trabajo</th>
               <th className="pb-2 pr-3">Doctor</th>
-              <th className="pb-2 pr-3 text-center">Estado</th>
               <th className="pb-2 text-right">Precio</th>
             </tr>
           </thead>
           <tbody>
             {works.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 text-center text-slate-400">
+                <td colSpan={5} className="py-4 text-center text-slate-400">
                   Sin trabajos registrados en el plan.
                 </td>
               </tr>
@@ -183,17 +189,6 @@ export default async function ImprimirPlanPage({
                 <td className="py-2 pr-3 font-medium">{w.name}</td>
                 <td className="py-2 pr-3 text-slate-600">
                   {w.dentistName ?? <span className="text-slate-300">—</span>}
-                </td>
-                <td className="py-2 pr-3 text-center">
-                  {w.done ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                      Realizado
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      Pendiente
-                    </span>
-                  )}
                 </td>
                 <td className="py-2 text-right tabular-nums">{money(w.price, currency)}</td>
               </tr>
@@ -226,16 +221,6 @@ export default async function ImprimirPlanPage({
             </div>
           </div>
         )}
-
-        {/* Firmas */}
-        <div className="mt-16 grid grid-cols-2 gap-12 text-sm text-slate-500">
-          <div className="border-t border-slate-400 pt-2 text-center">
-            Firma del Odontólogo
-          </div>
-          <div className="border-t border-slate-400 pt-2 text-center">
-            Firma del Paciente
-          </div>
-        </div>
       </div>
     </>
   );
