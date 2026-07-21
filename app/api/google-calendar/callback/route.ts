@@ -20,12 +20,13 @@ export async function GET(req: Request) {
   const code = searchParams.get("code");
   const state = searchParams.get("state");
 
-  const profile = await getProfile();
-  if (!profile) return NextResponse.redirect(ajustesUrl("error"));
-
   const jar = await cookies();
   const expectedState = jar.get("gcal_oauth_state")?.value;
   jar.delete("gcal_oauth_state");
+
+  const profile = await getProfile();
+  if (!profile) return NextResponse.redirect(ajustesUrl("error"));
+
   if (!code || !state || !expectedState || state !== expectedState) {
     return NextResponse.redirect(ajustesUrl("error"));
   }
