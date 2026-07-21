@@ -24,13 +24,16 @@ export async function syncAppointmentToGoogle(
 
 async function run(appointmentId: string, action: SyncAction): Promise<void> {
   const admin = createAdminClient();
-  const { data: appt } = await admin
+  const { data: appt, error: selectError } = await admin
     .from("appointments")
     .select(
-      "id, dentist_id, patient_id, patient_name, reason, starts_at, ends_at, status, google_event_id, patients(full_name, phone)",
+      "id, dentist_id, patient_name, reason, starts_at, ends_at, status, google_event_id, patients(full_name, phone)",
     )
     .eq("id", appointmentId)
     .maybeSingle();
+  if (selectError) {
+    console.error(`google-calendar sync: error al leer cita ${appointmentId}:`, selectError);
+  }
   if (!appt || !appt.dentist_id) return; // sin doctor asignado, nada que sincronizar
 
   const accessToken = await ensureFreshAccessToken(appt.dentist_id);
@@ -59,19 +62,31 @@ async function run(appointmentId: string, action: SyncAction): Promise<void> {
   }
 
   const eventId = await createCalendarEvent(accessToken, event);
-  await admin.from("appointments").update({ google_event_id: eventId }).eq("id", appointmentId);
+  const { error: updateError } = await admin
+    .from("appointments")
+    .update({ google_event_id: eventId })
+    .eq("id", appointmentId);
+  if (updateError) {
+    console.error(
+      `google-calendar sync: se creó el evento ${eventId} en Google pero falló al guardar google_event_id en la cita ${appointmentId}:`,
+      updateError,
+    );
+  }
 }
 
 // Backfill: crea eventos para las citas futuras activas de un doctor recién
 // conectado. Se llama una sola vez, desde el callback de OAuth.
 export async function backfillDoctorAppointments(dentistId: string): Promise<void> {
   const admin = createAdminClient();
-  const { data: appts } = await admin
+  const { data: appts, error: selectError } = await admin
     .from("appointments")
     .select("id")
     .eq("dentist_id", dentistId)
     .in("status", ["scheduled", "confirmed"])
     .gte("starts_at", new Date().toISOString());
+  if (selectError) {
+    console.error(`google-calendar backfill: error al listar citas del doctor ${dentistId}:`, selectError);
+  }
 
   for (const a of appts ?? []) {
     await syncAppointmentToGoogle(a.id, "create");
