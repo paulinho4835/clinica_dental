@@ -146,3 +146,10 @@ desde su calendario.
 - Sync para recepcionistas / cuenta compartida de la clínica.
 - Sync inverso (Google → sistema).
 - Multi-calendario, invitados, recordatorios custom de Google.
+- **Reasignar el doctor de una cita ya sincronizada.** Si una cita creada bajo
+  el Dr. A (conectado, con evento en su calendar) se edita para pasar al Dr.
+  B, el sync intenta actualizar el `google_event_id` de A contra el calendar
+  de B (falla) o, si B no está conectado, no hace nada — en ambos casos el
+  evento de A queda huérfano (nunca se borra ni se recrea en el calendar
+  correcto). Conocido y aceptado para fase 1: reasignar doctor en una cita ya
+  agendada es un caso poco frecuente en el flujo actual de la clínica.
