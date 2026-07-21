@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
 import { MySignaturePanel } from "@/components/ajustes/MySignaturePanel";
+import { GoogleCalendarPanel } from "@/components/ajustes/GoogleCalendarPanel";
 import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
 import {
   ConsentTemplatesPanel,
@@ -34,15 +35,17 @@ export default async function SettingsPage() {
   const features = await getClinicFeatures();
   const canSignPrescriptions = can(profile?.role, "clinical:write");
 
-  // Firma personal del doctor (recetas médicas).
+  // Firma personal del doctor (recetas médicas) + estado de Google Calendar.
   let mySignature: string | null = null;
+  let googleCalendarConnected = false;
   if (canSignPrescriptions && profile) {
     const { data } = await supabase
       .from("profiles")
-      .select("signature")
+      .select("signature, google_calendar_connected")
       .eq("id", profile.userId)
       .single();
     mySignature = (data?.signature as string | null) ?? null;
+    googleCalendarConnected = data?.google_calendar_connected ?? false;
   }
 
   // Perfil público de la clínica (addon "perfil").
@@ -211,6 +214,16 @@ export default async function SettingsPage() {
             Se agrega automáticamente a las recetas médicas que emitas.
           </p>
           <MySignaturePanel currentSignature={mySignature} />
+        </section>
+      )}
+
+      {canSignPrescriptions && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Google Calendar</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Tus citas agendadas en el sistema se replican en tu calendario personal.
+          </p>
+          <GoogleCalendarPanel connected={googleCalendarConnected} />
         </section>
       )}
 
