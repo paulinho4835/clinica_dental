@@ -21,6 +21,8 @@ describe("PatientIntakeSchema", () => {
       email: "",
       address: "",
       phone: "",
+      referral_source: "",
+      referral_source_other: "",
     });
   });
 
