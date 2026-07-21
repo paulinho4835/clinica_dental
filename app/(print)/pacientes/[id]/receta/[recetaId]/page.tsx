@@ -22,7 +22,7 @@ export default async function RecetaPage({
 
   const { data: rx } = await supabase
     .from("prescriptions")
-    .select("id, medications, notes, issued_at, doctor:profiles(full_name)")
+    .select("id, medications, notes, issued_at, doctor:profiles(full_name, signature)")
     .eq("id", recetaId)
     .eq("patient_id", id)
     .single();
@@ -44,8 +44,9 @@ export default async function RecetaPage({
   const logoUrl = await getClinicLogoUrl(patient.clinic_id);
 
   const medications = rx.medications as Medication[];
-  const doctorName =
-    (rx.doctor as { full_name?: string } | null)?.full_name ?? null;
+  const doctor = rx.doctor as { full_name?: string; signature?: string | null } | null;
+  const doctorName = doctor?.full_name ?? null;
+  const doctorSignature = doctor?.signature ?? null;
 
   return (
     <>
@@ -71,9 +72,7 @@ export default async function RecetaPage({
               Receta Médica
             </p>
             {doctorName && (
-              <p className="mt-0.5 text-sm text-slate-600">
-                Dr./Dra. {doctorName}
-              </p>
+              <p className="mt-0.5 text-sm text-slate-600">{doctorName}</p>
             )}
           </PrintBrand>
           <div className="text-right text-sm text-slate-500">
@@ -136,13 +135,20 @@ export default async function RecetaPage({
           </div>
         )}
 
-        {/* Firmas */}
-        <div className="mt-16 grid grid-cols-2 gap-12 text-sm text-slate-500">
-          <div className="border-t border-slate-400 pt-2 text-center">
-            Firma del Odontólogo
-          </div>
-          <div className="border-t border-slate-400 pt-2 text-center">
-            Firma del Paciente
+        {/* Firma del odontólogo (el paciente no firma la receta) */}
+        <div className="mt-16 flex justify-center">
+          <div className="w-64 text-center text-sm text-slate-500">
+            {doctorSignature && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={doctorSignature}
+                alt="Firma del odontólogo"
+                className="mx-auto h-20 object-contain"
+              />
+            )}
+            <div className="border-t border-slate-400 pt-2">
+              Firma del Odontólogo
+            </div>
           </div>
         </div>
       </div>

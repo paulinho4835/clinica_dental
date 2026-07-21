@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
+import { MySignaturePanel } from "@/components/ajustes/MySignaturePanel";
 import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
 import {
   ConsentTemplatesPanel,
@@ -31,6 +32,18 @@ export default async function SettingsPage() {
   const isClinicAdmin = profile?.role === "admin";
 
   const features = await getClinicFeatures();
+  const canSignPrescriptions = can(profile?.role, "clinical:write");
+
+  // Firma personal del doctor (recetas médicas).
+  let mySignature: string | null = null;
+  if (canSignPrescriptions && profile) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("signature")
+      .eq("id", profile.userId)
+      .single();
+    mySignature = (data?.signature as string | null) ?? null;
+  }
 
   // Perfil público de la clínica (addon "perfil").
   let clinicProfile: ClinicProfile | null = null;
@@ -190,6 +203,16 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-10">
       <h1 className="text-2xl font-bold">Ajustes de la clínica</h1>
+
+      {canSignPrescriptions && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Mi firma</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Se agrega automáticamente a las recetas médicas que emitas.
+          </p>
+          <MySignaturePanel currentSignature={mySignature} />
+        </section>
+      )}
 
       {clinicProfile && (
         <section>
