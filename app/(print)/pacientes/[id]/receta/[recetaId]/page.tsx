@@ -55,6 +55,7 @@ export default async function RecetaPage({
         @media print {
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { size: A4; margin: 12mm; }
         }
         body { margin: 0; font-family: Arial, Helvetica, sans-serif; }
       `}</style>
