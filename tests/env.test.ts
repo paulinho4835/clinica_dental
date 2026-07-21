@@ -78,4 +78,9 @@ describe("validateEnv", () => {
     const none = validateEnv(validBase);
     expect(none.warnings.some((w) => w.includes("R2"))).toBe(false);
   });
+
+  it("advierte si falta GOOGLE_CLIENT_SECRET habiendo GOOGLE_CLIENT_ID", () => {
+    const { warnings } = validateEnv({ ...validBase, GOOGLE_CLIENT_ID: "abc" });
+    expect(warnings.some((w) => w.includes("Google Calendar") && w.includes("GOOGLE_CLIENT_SECRET"))).toBe(true);
+  });
 });

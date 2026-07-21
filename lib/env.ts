@@ -46,6 +46,8 @@ export function readEnv(src: Record<string, string | undefined> = process.env) {
     VAPI_CLINIC_ID: s(src.VAPI_CLINIC_ID),
     VAPI_PHONE_NUMBER_ID: s(src.VAPI_PHONE_NUMBER_ID),
     VAPI_REMINDER_ASSISTANT_ID: s(src.VAPI_REMINDER_ASSISTANT_ID),
+    GOOGLE_CLIENT_ID: s(src.GOOGLE_CLIENT_ID),
+    GOOGLE_CLIENT_SECRET: s(src.GOOGLE_CLIENT_SECRET),
     WA_SERVICE_URL: s(src.WA_SERVICE_URL),
     WHATSAPP_TOKEN: s(src.WHATSAPP_TOKEN),
     WHATSAPP_PHONE_NUMBER_ID: s(src.WHATSAPP_PHONE_NUMBER_ID),
@@ -84,6 +86,7 @@ const FEATURE_GROUPS: Record<string, (keyof Env)[]> = {
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
   ],
+  "Google Calendar (sync de citas)": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
 };
 
 export interface EnvCheck {
