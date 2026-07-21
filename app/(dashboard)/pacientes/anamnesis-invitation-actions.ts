@@ -278,6 +278,9 @@ export async function applyAnamnesisInvitation(
         phone: p.phone || null,
         email: p.email || null,
         address: p.address || null,
+        referral_source: p.referral_source || null,
+        referral_source_other:
+          p.referral_source === "otro" ? p.referral_source_other || null : null,
         anamnesis_data: anamnesis,
         allergies,
         medical_alerts: alerts,

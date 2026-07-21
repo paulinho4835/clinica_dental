@@ -8,7 +8,11 @@ import {
   HABITOS_FIELDS,
   type Anamnesis,
 } from "@/lib/schemas/anamnesis";
-import { EMPTY_INTAKE, type PatientIntake } from "@/lib/schemas/patient-intake";
+import {
+  EMPTY_INTAKE,
+  REFERRAL_SOURCE_OPTIONS,
+  type PatientIntake,
+} from "@/lib/schemas/patient-intake";
 import { FirmaField } from "@/components/patients/FirmaField";
 import { submitPublicAnamnesis, type SubmitState } from "./submit-action";
 
@@ -165,6 +169,42 @@ export function PublicAnamnesisForm({
                 onChange={(e) => setField("address", e.target.value)}
               />
             </label>
+          </div>
+
+          <div>
+            <p className="text-sm text-slate-600">¿Cómo nos conociste?</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {REFERRAL_SOURCE_OPTIONS.map((o) => {
+                const checked = person.referral_source === o.value;
+                return (
+                  <label
+                    key={o.value}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                      checked
+                        ? "border-clinic bg-clinic/5 text-slate-800"
+                        : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="referral_source"
+                      checked={checked}
+                      onChange={() => setField("referral_source", o.value)}
+                      className="h-4 w-4 border-slate-300 text-clinic focus:ring-clinic"
+                    />
+                    {o.label}
+                  </label>
+                );
+              })}
+            </div>
+            {person.referral_source === "otro" && (
+              <input
+                className={`${inputClass} mt-2`}
+                placeholder="Cuéntanos dónde (opcional)"
+                value={person.referral_source_other}
+                onChange={(e) => setField("referral_source_other", e.target.value)}
+              />
+            )}
           </div>
         </section>
       )}

@@ -41,6 +41,7 @@ import { AnamnesisPanel } from "@/components/patients/AnamnesisPanel";
 import { PhotosPanel, type PhotoItem } from "@/components/patients/PhotosPanel";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 import { parseAnamnesis } from "@/lib/schemas/anamnesis";
+import { REFERRAL_SOURCE_LABEL } from "@/lib/schemas/patient-intake";
 import type {
   ConsentTemplate,
   ConsentAppointment,
@@ -56,7 +57,7 @@ export default async function PatientPage({
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, allergies, medical_alerts, anamnesis, anamnesis_data, evolution")
+    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, referral_source, referral_source_other, allergies, medical_alerts, anamnesis, anamnesis_data, evolution")
     .eq("id", id)
     .single();
 
@@ -446,6 +447,15 @@ export default async function PatientPage({
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
+          {patient.referral_source && (
+            <span>
+              Nos conoció por:{" "}
+              {REFERRAL_SOURCE_LABEL[patient.referral_source] ?? patient.referral_source}
+              {patient.referral_source === "otro" &&
+                patient.referral_source_other &&
+                ` (${patient.referral_source_other})`}
+            </span>
+          )}
           {canBilling && <span>Saldo: {money(totalQuoted - totalPaid, currency)}</span>}
         </div>
         {patient.medical_alerts?.length > 0 && (

@@ -10,7 +10,12 @@ import {
   HABITOS_FIELDS,
   type Anamnesis,
 } from "@/lib/schemas/anamnesis";
-import { EMPTY_INTAKE, type PatientIntake } from "@/lib/schemas/patient-intake";
+import {
+  EMPTY_INTAKE,
+  REFERRAL_SOURCE_LABEL,
+  REFERRAL_SOURCE_OPTIONS,
+  type PatientIntake,
+} from "@/lib/schemas/patient-intake";
 import {
   applyAnamnesisInvitation,
   discardAnamnesisInvitation,
@@ -256,6 +261,33 @@ export function ReviewAnamnesisModal({
                   />
                 </label>
               </div>
+              <label className="block text-sm text-slate-600">
+                ¿Cómo nos conoció?
+                <select
+                  className={inputClass}
+                  value={draftPerson.referral_source}
+                  onChange={(e) => setPersonField("referral_source", e.target.value)}
+                >
+                  <option value="">—</option>
+                  {REFERRAL_SOURCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {draftPerson.referral_source === "otro" && (
+                <label className="block text-sm text-slate-600">
+                  Especificar
+                  <input
+                    className={inputClass}
+                    value={draftPerson.referral_source_other}
+                    onChange={(e) =>
+                      setPersonField("referral_source_other", e.target.value)
+                    }
+                  />
+                </label>
+              )}
             </div>
 
             <div className="mb-5 space-y-3 rounded-lg bg-slate-50 px-4 py-3">
@@ -452,6 +484,15 @@ export function ReviewAnamnesisModal({
                 <Row label="Teléfono">{viewPersonal.phone || "—"}</Row>
                 <Row label="Correo">{viewPersonal.email || "—"}</Row>
                 <Row label="Dirección">{viewPersonal.address || "—"}</Row>
+                <Row label="¿Cómo nos conoció?">
+                  {viewPersonal.referral_source
+                    ? REFERRAL_SOURCE_LABEL[viewPersonal.referral_source] ??
+                      viewPersonal.referral_source
+                    : "—"}
+                  {viewPersonal.referral_source === "otro" &&
+                    viewPersonal.referral_source_other &&
+                    ` — ${viewPersonal.referral_source_other}`}
+                </Row>
               </dl>
             )}
             <dl className="space-y-3 text-sm">
