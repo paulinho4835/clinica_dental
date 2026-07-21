@@ -33,7 +33,8 @@ export type FeatureKey =
   | "agente_ia_t3"
   | "agente_ia_info"
   | "periodontograma"
-  | "odontograma_pediatrico";
+  | "odontograma_pediatrico"
+  | "odontogram_dictado_voz";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -105,6 +106,7 @@ export const FEATURES: FeatureMeta[] = [
   // Addon opt-in: odontograma de dentición temporal (FDI 51-85), independiente
   // del odontograma de adultos. Vive en la ficha del paciente.
   { key: "odontograma_pediatrico", label: "Odontograma Pediátrico", href: "/pacientes", optIn: true },
+  { key: "odontogram_dictado_voz", label: "Dictado por voz en odontograma", href: "/pacientes", optIn: true },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 
@@ -116,7 +118,7 @@ export const FEATURES: FeatureMeta[] = [
 export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
   { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
-  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico"] },
+  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "odontogram_dictado_voz"] },
   { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones"] },
 ];
 

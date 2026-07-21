@@ -308,6 +308,7 @@ export default async function PatientPage({
   // temporal, independiente del odontograma de adultos. Mismo patrón que
   // perioExams: solo se consulta si el addon está encendido.
   const odontogramaPediatricoEnabled = features.odontograma_pediatrico;
+  const odontogramVoiceEnabled = features.odontogram_dictado_voz;
   let teethPediatric: TeethMap = {};
   let odoPedEvents: {
     id: string;
@@ -496,6 +497,7 @@ export default async function PatientPage({
                   patientId={patient.id}
                   initialTeeth={teeth}
                   canWrite={canEditClinical}
+                  voiceEnabled={odontogramVoiceEnabled}
                 />
                 <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
               </>
@@ -520,6 +522,7 @@ export default async function PatientPage({
               patientId={patient.id}
               initialTeeth={teeth}
               canWrite={canEditClinical}
+              voiceEnabled={odontogramVoiceEnabled}
             />
             <OdontogramHistory events={odoEvents} canSeeHistory={canSeeHistory} />
           </>

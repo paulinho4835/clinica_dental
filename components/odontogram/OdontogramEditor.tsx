@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Eraser } from "lucide-react";
 import { saveOdontogram } from "@/app/(dashboard)/pacientes/odontogram-actions";
 import { Odontogram } from "./Odontogram";
+import { VoiceDictationButton } from "./VoiceDictationButton";
+import { applyVoiceOperations, type VoiceOperation } from "@/lib/odontogram/voice";
 import {
   CONDITION_COLORS,
   CONDITION_LABELS,
@@ -44,6 +46,7 @@ export function OdontogramEditor({
   quadrants,
   quadrantNumbers,
   saveAction = saveOdontogram,
+  voiceEnabled = false,
 }: {
   patientId: string;
   initialTeeth: TeethMap;
@@ -55,6 +58,8 @@ export function OdontogramEditor({
   quadrantNumbers?: [number, number, number, number];
   /** Server action de guardado; por defecto saveOdontogram (adultos). */
   saveAction?: SaveAction;
+  /** Dictado solo para odontograma permanente mientras el MVP está en piloto. */
+  voiceEnabled?: boolean;
 }) {
   const router = useRouter();
   const [teeth, setTeeth] = useState<TeethMap>(initialTeeth);
@@ -112,6 +117,11 @@ export function OdontogramEditor({
     router.refresh();
   }
 
+  function applyVoice(operations: VoiceOperation[]) {
+    setTeeth((prev) => applyVoiceOperations(prev, operations));
+    setDirty(true);
+  }
+
   const isActive = (t: Tool): boolean => {
     if (t.kind !== tool.kind) return false;
     if (t.kind === "erase" || tool.kind === "erase") return true;
@@ -162,6 +172,8 @@ export function OdontogramEditor({
         condiciones de <strong>diente completo</strong> y <strong>marcas X</strong>, haz
         clic en el número o sobre el diente.
       </p>
+
+      {voiceEnabled && <VoiceDictationButton patientId={patientId} onApply={applyVoice} />}
 
       {/* ── Paleta ────────────────────────────────────────────────────────── */}
       <div className="space-y-2 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">

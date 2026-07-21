@@ -15,7 +15,8 @@ export type RateLimitBucket =
   | "login" // intentos de inicio de sesión
   | "vapi-webhook" // webhook de Vapi (defensa en profundidad; ver nota al aplicarlo)
   | "demo" // asistente de demo público (sin sesión, pega a la DB)
-  | "public-form"; // formularios públicos por token (anamnesis, calificación, confirmación)
+  | "public-form" // formularios públicos por token (anamnesis, calificación, confirmación)
+  | "odontogram-voice";
 
 interface Rule {
   limit: number;
@@ -30,6 +31,7 @@ const RULES: Record<RateLimitBucket, Rule> = {
   "vapi-webhook": { limit: 120, window: "1 m" },
   demo: { limit: 20, window: "5 m" },
   "public-form": { limit: 10, window: "10 m" },
+  "odontogram-voice": { limit: 10, window: "10 m" },
 };
 
 const limiters = new Map<RateLimitBucket, Ratelimit>();
