@@ -47,6 +47,7 @@ import type {
   ConsentAppointment,
 } from "@/components/consents/ConsentModal";
 import { CustomIntakeAnswers } from "@/components/patients/CustomIntakeAnswers";
+import { SettingsTabs, type SettingsTab } from "@/components/ui/SettingsTabs";
 import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
 export default async function PatientPage({
@@ -411,66 +412,8 @@ export default async function PatientPage({
       }
     : null;
 
-  return (
-    <div className="space-y-8">
-      <header>
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-          <div className="flex items-start gap-2">
-            {canEditClinical && (
-              <Link
-                href={`/pacientes/${patient.id}/expediente`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Imprimir expediente
-              </Link>
-            )}
-            {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón.
-                Para doctores se omiten teléfono/email/dirección incluso del payload. */}
-            {canEditClinical && (
-              <EditPatientForm
-                patient={
-                  isDoctor
-                    ? { ...patient, phone: null, email: null, address: null }
-                    : patient
-                }
-                restricted={isDoctor}
-              />
-            )}
-            {canDelete && (
-              <DeletePatientButton
-                patientId={patient.id}
-                patientName={patient.full_name}
-              />
-            )}
-          </div>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
-          {patient.dob && <span>Nac.: {patient.dob}</span>}
-          {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
-          {patient.referral_source && (
-            <span>
-              Nos conoció por:{" "}
-              {REFERRAL_SOURCE_LABEL[patient.referral_source] ?? patient.referral_source}
-              {patient.referral_source === "otro" &&
-                patient.referral_source_other &&
-                ` (${patient.referral_source_other})`}
-            </span>
-          )}
-          {canBilling && <span>Saldo: {money(totalQuoted - totalPaid, currency)}</span>}
-        </div>
-        {patient.medical_alerts?.length > 0 && (
-          <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-            ⚠ Alertas médicas: {patient.medical_alerts.join(", ")}
-          </div>
-        )}
-        {patient.allergies?.length > 0 && (
-          <div className="mt-2 text-sm text-amber-700">Alergias: {patient.allergies.join(", ")}</div>
-        )}
-      </header>
-
+  const historiaClinica = (
+    <>
       <section>
         <h2 className="mb-3 text-lg font-semibold">Antecedentes médicos</h2>
         <AnamnesisPanel
@@ -546,24 +489,11 @@ export default async function PatientPage({
           />
         </section>
       )}
+    </>
+  );
 
-      {fotosEnabled && (
-        <section>
-          <PhotosPanel
-            patientId={patient.id}
-            photos={photos}
-            canManage={canEditClinical}
-            configured={r2Ready}
-            atLimit={clinicPhotoCount >= fotosQuota}
-            clinicQuota={fotosQuota}
-            // El número de fotos solo se revela a la clínica si tiene el addon
-            // "Ver contador de fotos". El superadmin lo ve siempre desde su panel.
-            clinicUsed={features.fotos_contador ? clinicPhotoCount : undefined}
-            showCounter={features.fotos_contador}
-          />
-        </section>
-      )}
-
+  const tratamiento = (
+    <>
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
         <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} currency={currency} />
@@ -621,7 +551,11 @@ export default async function PatientPage({
         <h2 className="mb-3 text-lg font-semibold">Visitas</h2>
         <VisitasPanel appointments={apptRows} />
       </section>
+    </>
+  );
 
+  const cuenta = (
+    <>
       {canBilling && (
         <section>
           <h2 className="mb-3 text-lg font-semibold">Cuenta del paciente</h2>
@@ -653,6 +587,27 @@ export default async function PatientPage({
           </div>
         </section>
       )}
+    </>
+  );
+
+  const documentos = (
+    <>
+      {fotosEnabled && (
+        <section>
+          <PhotosPanel
+            patientId={patient.id}
+            photos={photos}
+            canManage={canEditClinical}
+            configured={r2Ready}
+            atLimit={clinicPhotoCount >= fotosQuota}
+            clinicQuota={fotosQuota}
+            // El número de fotos solo se revela a la clínica si tiene el addon
+            // "Ver contador de fotos". El superadmin lo ve siempre desde su panel.
+            clinicUsed={features.fotos_contador ? clinicPhotoCount : undefined}
+            showCounter={features.fotos_contador}
+          />
+        </section>
+      )}
 
       {recetasEnabled && (
         <section>
@@ -680,6 +635,77 @@ export default async function PatientPage({
           />
         </section>
       )}
+    </>
+  );
+
+  const tabs: SettingsTab[] = [
+    { id: "historia", label: "Historia clínica", content: historiaClinica },
+    { id: "tratamiento", label: "Tratamiento", content: tratamiento },
+    { id: "cuenta", label: "Cuenta", content: cuenta },
+    { id: "documentos", label: "Documentos", content: documentos },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+          <div className="flex items-start gap-2">
+            {canEditClinical && (
+              <Link
+                href={`/pacientes/${patient.id}/expediente`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Imprimir expediente
+              </Link>
+            )}
+            {/* Solo admin y doctores editan pacientes; recepcionista/asistente no ven el botón.
+                Para doctores se omiten teléfono/email/dirección incluso del payload. */}
+            {canEditClinical && (
+              <EditPatientForm
+                patient={
+                  isDoctor
+                    ? { ...patient, phone: null, email: null, address: null }
+                    : patient
+                }
+                restricted={isDoctor}
+              />
+            )}
+            {canDelete && (
+              <DeletePatientButton
+                patientId={patient.id}
+                patientName={patient.full_name}
+              />
+            )}
+          </div>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
+          {patient.dob && <span>Nac.: {patient.dob}</span>}
+          {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
+          {patient.referral_source && (
+            <span>
+              Nos conoció por:{" "}
+              {REFERRAL_SOURCE_LABEL[patient.referral_source] ?? patient.referral_source}
+              {patient.referral_source === "otro" &&
+                patient.referral_source_other &&
+                ` (${patient.referral_source_other})`}
+            </span>
+          )}
+          {canBilling && <span>Saldo: {money(totalQuoted - totalPaid, currency)}</span>}
+        </div>
+        {patient.medical_alerts?.length > 0 && (
+          <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+            ⚠ Alertas médicas: {patient.medical_alerts.join(", ")}
+          </div>
+        )}
+        {patient.allergies?.length > 0 && (
+          <div className="mt-2 text-sm text-amber-700">Alergias: {patient.allergies.join(", ")}</div>
+        )}
+      </header>
+
+      <SettingsTabs tabs={tabs} />
     </div>
   );
 }
