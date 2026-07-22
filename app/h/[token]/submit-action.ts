@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { AnamnesisSchema, parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { PatientIntakeSchema } from "@/lib/schemas/patient-intake";
 import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
+import { getActiveIntakeQuestions, validateCustomAnswers } from "@/lib/intakeQuestions";
 
 export type SubmitState = { error?: string; ok?: boolean };
 
@@ -67,6 +68,7 @@ export async function submitPublicAnamnesis(
 
   // En altas, validar y guardar también los datos personales.
   let submittedPersonal: Record<string, unknown> | null = null;
+  let customResultSnapshots: unknown[] | null = null;
   if (invite.kind === "new") {
     let personRaw: unknown;
     try {
@@ -80,6 +82,25 @@ export async function submitPublicAnamnesis(
         error: person.error.issues[0]?.message ?? "Datos personales inválidos.",
       };
     submittedPersonal = person.data;
+
+    const { data: clinicRow } = await admin
+      .from("clinics")
+      .select("settings")
+      .eq("id", invite.clinic_id)
+      .single();
+    const activeQuestions = getActiveIntakeQuestions(clinicRow?.settings);
+
+    let customRaw: unknown = {};
+    if (formData.get("custom")) {
+      try {
+        customRaw = JSON.parse(String(formData.get("custom")));
+      } catch {
+        return { error: "Respuestas adicionales inválidas." };
+      }
+    }
+    const customResult = validateCustomAnswers(activeQuestions, customRaw);
+    if (!customResult.ok) return { error: customResult.error };
+    customResultSnapshots = customResult.snapshots;
   }
 
   // Guardar la propuesta en la invitación + marcar como enviada (un solo uso).
@@ -89,6 +110,7 @@ export async function submitPublicAnamnesis(
     .update({
       submitted_data: data,
       submitted_personal: submittedPersonal,
+      submitted_custom: invite.kind === "new" ? customResultSnapshots : null,
       submitted_allergies: csvToArray(formData.get("allergies")),
       submitted_alerts: csvToArray(formData.get("medical_alerts")),
       completed_at: new Date().toISOString(),

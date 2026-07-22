@@ -15,6 +15,7 @@ import {
 } from "@/lib/schemas/patient-intake";
 import { FirmaField } from "@/components/patients/FirmaField";
 import { submitPublicAnamnesis, type SubmitState } from "./submit-action";
+import type { IntakeQuestion } from "@/lib/intakeQuestions";
 
 const initial: SubmitState = {};
 
@@ -29,6 +30,7 @@ export function PublicAnamnesisForm({
   initialData,
   initialAllergies,
   initialAlerts,
+  customQuestions = [],
 }: {
   token: string;
   kind?: "existing" | "new";
@@ -37,6 +39,7 @@ export function PublicAnamnesisForm({
   initialData: Anamnesis;
   initialAllergies: string;
   initialAlerts: string;
+  customQuestions?: IntakeQuestion[];
 }) {
   const isNew = kind === "new";
   const action = submitPublicAnamnesis.bind(null, token);
@@ -48,6 +51,7 @@ export function PublicAnamnesisForm({
     ...EMPTY_INTAKE,
     full_name: patientName,
   });
+  const [custom, setCustom] = useState<Record<string, string | boolean>>({});
   const [localError, setLocalError] = useState<string | null>(null);
 
   const setAntecedente = (key: string, val: boolean) =>
@@ -62,12 +66,26 @@ export function PublicAnamnesisForm({
       setLocalError("Por favor escriba su nombre completo.");
       return;
     }
+    if (isNew) {
+      const missing = customQuestions.find((q) => {
+        if (!q.required) return false;
+        const v = custom[q.key];
+        return q.type === "boolean" ? v === undefined : !String(v ?? "").trim();
+      });
+      if (missing) {
+        setLocalError(`Por favor responda: ${missing.label}`);
+        return;
+      }
+    }
     setLocalError(null);
     const fd = new FormData();
     fd.append("anamnesis", JSON.stringify(a));
     fd.append("allergies", allergies);
     fd.append("medical_alerts", alerts);
-    if (isNew) fd.append("personal", JSON.stringify(person));
+    if (isNew) {
+      fd.append("personal", JSON.stringify(person));
+      fd.append("custom", JSON.stringify(custom));
+    }
     startTransition(() => formAction(fd));
   }
 
@@ -206,6 +224,78 @@ export function PublicAnamnesisForm({
               />
             )}
           </div>
+        </section>
+      )}
+
+      {isNew && customQuestions.length > 0 && (
+        <section className="mb-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-semibold text-slate-800">Preguntas de {clinicName}</h2>
+          {customQuestions.map((q) => (
+            <div key={q.key}>
+              {q.type === "text" && (
+                <label className="block text-sm text-slate-600">
+                  {q.label}{q.required && " *"}
+                  <input
+                    className={inputClass}
+                    value={typeof custom[q.key] === "string" ? (custom[q.key] as string) : ""}
+                    onChange={(e) => setCustom((p) => ({ ...p, [q.key]: e.target.value }))}
+                  />
+                </label>
+              )}
+              {q.type === "boolean" && (
+                <div>
+                  <p className="text-sm text-slate-600">{q.label}{q.required && " *"}</p>
+                  <div className="mt-2 flex gap-2">
+                    {[["Sí", true], ["No", false]].map(([label, value]) => (
+                      <label
+                        key={label as string}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                          custom[q.key] === value
+                            ? "border-clinic bg-clinic/5 text-slate-800"
+                            : "border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={q.key}
+                          checked={custom[q.key] === value}
+                          onChange={() => setCustom((p) => ({ ...p, [q.key]: value as boolean }))}
+                          className="h-4 w-4 border-slate-300 text-clinic focus:ring-clinic"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {q.type === "select" && (
+                <div>
+                  <p className="text-sm text-slate-600">{q.label}{q.required && " *"}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(q.options ?? []).map((opt) => (
+                      <label
+                        key={opt}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                          custom[q.key] === opt
+                            ? "border-clinic bg-clinic/5 text-slate-800"
+                            : "border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={q.key}
+                          checked={custom[q.key] === opt}
+                          onChange={() => setCustom((p) => ({ ...p, [q.key]: opt }))}
+                          className="h-4 w-4 border-slate-300 text-clinic focus:ring-clinic"
+                        />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </section>
       )}
 
