@@ -20,6 +20,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Dentia",
   },
+  verification: {
+    google: "oiv7Ek1D1_r6-lPFdsKdQd59HlUr05QAWJKFQg53g0A",
+  },
 };
 
 export const viewport: Viewport = {
