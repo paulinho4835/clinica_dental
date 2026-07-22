@@ -8,6 +8,9 @@ import { slugifyQuestionKey, type IntakeQuestion, type IntakeQuestionType } from
 const inputClass =
   "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50";
 
+const selectClass =
+  "mt-1 w-44 shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic disabled:opacity-50";
+
 const TYPE_LABEL: Record<IntakeQuestionType, string> = {
   text: "Texto libre",
   boolean: "Sí / No",
@@ -116,14 +119,14 @@ export function IntakeQuestionsPanel({
         <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
           <div className="flex items-start gap-2">
             <input
-              className={`${inputClass} flex-1`}
+              className={`${inputClass} min-w-0 flex-1`}
               placeholder="Texto de la pregunta"
               value={q.label}
               disabled={!canWrite}
               onChange={(e) => updateQuestion(index, { label: e.target.value })}
             />
             <select
-              className={inputClass}
+              className={selectClass}
               value={q.type}
               disabled={!canWrite}
               onChange={(e) => updateQuestion(index, { type: e.target.value as IntakeQuestionType })}
