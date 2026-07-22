@@ -59,6 +59,27 @@ describe("IntakeQuestionsPanel", () => {
     await screen.findByText("Máximo 10 preguntas.");
   });
 
+  it("no regenera el key de una pregunta ya guardada aunque su label empiece con 'pregunta'", async () => {
+    render(<IntakeQuestionsPanel initialQuestions={[]} canWrite />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Agregar pregunta" }));
+    fireEvent.change(screen.getByPlaceholderText("Texto de la pregunta"), {
+      target: { value: "Pregunta médica" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText("Configuración guardada.");
+    const firstKey = saveIntakeQuestions.mock.calls[0][0][0].key;
+
+    fireEvent.change(screen.getByPlaceholderText("Texto de la pregunta"), {
+      target: { value: "Pregunta médica (actualizada)" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText("Configuración guardada.");
+    const secondKey = saveIntakeQuestions.mock.calls[1][0][0].key;
+
+    expect(secondKey).toBe(firstKey);
+  });
+
   it("sin permiso de escritura, no muestra controles de edición", () => {
     render(
       <IntakeQuestionsPanel

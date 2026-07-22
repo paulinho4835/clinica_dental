@@ -14,6 +14,13 @@ const TYPE_LABEL: Record<IntakeQuestionType, string> = {
   select: "Opción única",
 };
 
+// `isNew` es un flag interno del componente (nunca se persiste): marca si la
+// pregunta todavía no fue guardada, que es el único momento en que el key
+// puede derivarse del label. Una vez guardada, el key queda fijo para
+// siempre aunque el label cambie, porque respuestas de pacientes ya
+// existentes están atadas a ese key.
+type DraftQuestion = IntakeQuestion & { isNew: boolean };
+
 function optionsToText(options?: string[]) {
   return (options ?? []).join(", ");
 }
@@ -29,7 +36,9 @@ export function IntakeQuestionsPanel({
   initialQuestions: IntakeQuestion[];
   canWrite: boolean;
 }) {
-  const [questions, setQuestions] = useState<IntakeQuestion[]>(initialQuestions);
+  const [questions, setQuestions] = useState<DraftQuestion[]>(
+    initialQuestions.map((q) => ({ ...q, isNew: false })),
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -38,7 +47,7 @@ export function IntakeQuestionsPanel({
     const key = slugifyQuestionKey("pregunta", questions.map((q) => q.key));
     setQuestions((prev) => [
       ...prev,
-      { key, label: "", type: "text", required: false, active: true, position: prev.length },
+      { key, label: "", type: "text", required: false, active: true, position: prev.length, isNew: true },
     ]);
     setSaved(false);
   }
@@ -48,11 +57,12 @@ export function IntakeQuestionsPanel({
       const next = [...prev];
       const current = next[index];
       const updated = { ...current, ...patch };
-      // El key se deriva del label mientras la pregunta sea nueva y sin
-      // guardar (label vacío al crearla); una vez tiene texto propio, el
-      // usuario puede seguir editando el label sin que el key cambie de nuevo
-      // salvo que siga siendo el slug por defecto "pregunta".
-      if (patch.label !== undefined && (current.key === "pregunta" || current.key.startsWith("pregunta_"))) {
+      // El key solo se deriva del label mientras la pregunta sea nueva y
+      // nunca se haya guardado (flag `isNew`, no un match de texto sobre el
+      // key). Una vez guardada, el key queda fijo para siempre aunque el
+      // label cambie, porque respuestas de pacientes ya existentes están
+      // atadas a ese key.
+      if (patch.label !== undefined && current.isNew === true) {
         updated.key = slugifyQuestionKey(patch.label || "pregunta", next.filter((_, i) => i !== index).map((q) => q.key));
       }
       next[index] = updated;
@@ -81,12 +91,16 @@ export function IntakeQuestionsPanel({
     setPending(true);
     setError(null);
     setSaved(false);
-    const res = await saveIntakeQuestions(questions);
+    const payload: IntakeQuestion[] = questions.map(({ isNew: _isNew, ...q }) => q);
+    const res = await saveIntakeQuestions(payload);
     setPending(false);
     if (res.error) {
       setError(res.error);
       return;
     }
+    // Una vez persistida, ninguna pregunta debe volver a regenerar su key,
+    // ni siquiera dentro de la misma sesión sin recargar la página.
+    setQuestions((prev) => prev.map((q) => ({ ...q, isNew: false })));
     setSaved(true);
   }
 
