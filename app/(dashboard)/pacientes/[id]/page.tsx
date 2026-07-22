@@ -46,6 +46,8 @@ import type {
   ConsentTemplate,
   ConsentAppointment,
 } from "@/components/consents/ConsentModal";
+import { CustomIntakeAnswers } from "@/components/patients/CustomIntakeAnswers";
+import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
 export default async function PatientPage({
   params,
@@ -57,7 +59,7 @@ export default async function PatientPage({
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, referral_source, referral_source_other, allergies, medical_alerts, anamnesis, anamnesis_data, evolution")
+    .select("id, clinic_id, full_name, national_id, dob, sex, phone, email, address, referral_source, referral_source_other, allergies, medical_alerts, anamnesis, anamnesis_data, evolution, custom_intake_answers")
     .eq("id", id)
     .single();
 
@@ -484,6 +486,10 @@ export default async function PatientPage({
           canEdit={canEditAnamnesis(profile?.role)}
         />
       </section>
+
+      <CustomIntakeAnswers
+        answers={((patient as { custom_intake_answers?: unknown }).custom_intake_answers as IntakeAnswerSnapshot[] | null) ?? []}
+      />
 
       <section className="space-y-3">
         <h2 className="mb-3 text-lg font-semibold">Odontograma</h2>
