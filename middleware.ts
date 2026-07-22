@@ -15,6 +15,8 @@ export const config = {
     // los redirige a /login y Chrome no puede leerlos para "Instalar app".
     // /monitoring es el tunnelRoute de Sentry: debe ser público para que los
     // eventos del navegador no se rediretan a /login y se pierdan.
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|monitoring|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // .html se excluye para que los archivos de verificación de propiedad de
+    // Google Search Console (public/google*.html) se sirvan directo sin redirect.
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|monitoring|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html)$).*)",
   ],
 };
