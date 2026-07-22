@@ -24,6 +24,8 @@ import {
 import { LogoUploader } from "@/components/ajustes/LogoUploader";
 import { AgentInfoPanel, type AgentInfoRow } from "@/components/ajustes/AgentInfoPanel";
 import { isR2Configured, presignDownload } from "@/lib/r2";
+import { IntakeQuestionsPanel } from "@/components/ajustes/IntakeQuestionsPanel";
+import { getIntakeQuestions } from "@/lib/intakeQuestions";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -113,6 +115,17 @@ export default async function SettingsPage() {
       .eq("id", profile.clinicId)
       .single();
     clinicalHours = getClinicalHours(clinicData?.settings);
+  }
+
+  // Preguntas adicionales de registro (addon "preguntas_registro").
+  let intakeQuestions: ReturnType<typeof getIntakeQuestions> = [];
+  if (isClinicAdmin && features.preguntas_registro && profile) {
+    const { data: clinicData } = await supabase
+      .from("clinics")
+      .select("settings")
+      .eq("id", profile.clinicId)
+      .single();
+    intakeQuestions = getIntakeQuestions(clinicData?.settings);
   }
 
   let systemTemplates: TemplateRow[] = [];
@@ -295,6 +308,19 @@ export default async function SettingsPage() {
             El administrador siempre puede editar.
           </p>
           <ClinicalHoursPanel config={clinicalHours} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.preguntas_registro && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Preguntas adicionales de registro
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Se agregan al final del formulario de alta que el paciente completa
+            por WhatsApp. Máximo 10 preguntas.
+          </p>
+          <IntakeQuestionsPanel initialQuestions={intakeQuestions} canWrite={canWrite} />
         </section>
       )}
 

@@ -8,6 +8,10 @@ import { getProfile } from "@/lib/auth";
 import { can, type Role } from "@/lib/rbac";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { inviteClinicUser } from "@/lib/inviteUser";
+import {
+  validateIntakeQuestionsConfig,
+  type IntakeQuestion,
+} from "@/lib/intakeQuestions";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -388,6 +392,42 @@ export async function saveClinicalHours(
   const { error } = await admin
     .from("clinics")
     .update({ settings: { ...existing, clinical_hours: { enabled, from, to } } })
+    .eq("id", profile.clinicId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/ajustes");
+  return { ok: true };
+}
+
+// ============================================================================
+// Preguntas adicionales de registro (addon "preguntas_registro").
+// Lista de preguntas propias de la clínica que se agregan al final del
+// formulario público de alta de paciente nuevo. Se guarda en
+// clinics.settings.custom_intake_questions (mismo patrón que clinical_hours).
+// ============================================================================
+
+export async function saveIntakeQuestions(
+  questions: IntakeQuestion[],
+): Promise<ActionState> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const { profile } = auth;
+
+  const validation = validateIntakeQuestionsConfig(questions);
+  if (!validation.ok) return { error: validation.error };
+
+  const admin = createAdminClient();
+  const { data: clinic } = await admin
+    .from("clinics")
+    .select("settings")
+    .eq("id", profile.clinicId)
+    .single();
+
+  const existing = (clinic?.settings ?? {}) as Record<string, unknown>;
+  const { error } = await admin
+    .from("clinics")
+    .update({ settings: { ...existing, custom_intake_questions: questions } })
     .eq("id", profile.clinicId);
 
   if (error) return { error: error.message };
