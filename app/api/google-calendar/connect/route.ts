@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { getGoogleAuthUrl } from "@/lib/google-calendar/client";
+import { getClinicFeatures } from "@/lib/superadmin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,11 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export async function GET() {
   const profile = await getProfile();
   if (!profile || !can(profile.role, "clinical:write")) {
+    return NextResponse.redirect(new URL("/ajustes", SITE_URL));
+  }
+
+  const features = await getClinicFeatures();
+  if (!features.google_calendar) {
     return NextResponse.redirect(new URL("/ajustes", SITE_URL));
   }
 

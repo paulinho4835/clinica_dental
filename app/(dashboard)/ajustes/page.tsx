@@ -217,7 +217,7 @@ export default async function SettingsPage() {
         </section>
       )}
 
-      {canSignPrescriptions && (
+      {canSignPrescriptions && features.google_calendar && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">Google Calendar</h2>
           <p className="mb-3 text-sm text-slate-500">

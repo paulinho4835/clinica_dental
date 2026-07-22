@@ -119,7 +119,31 @@ export default function PrivacidadPage() {
         través de la Plataforma.
       </P>
 
-      <H2>10. Contacto</H2>
+      <H2>10. Uso de datos de Google (Google Calendar)</H2>
+      <P>
+        La Plataforma ofrece de forma opcional la sincronización de citas con
+        Google Calendar. Si un odontólogo conecta su cuenta de Google, la
+        Plataforma solicita acceso limitado a la creación, actualización y
+        eliminación de eventos en su calendario (scope <code>calendar.events</code>),
+        únicamente para reflejar en su Google Calendar las citas que él mismo
+        atiende dentro del sistema. La Plataforma no lee, comparte ni utiliza
+        esta información para ningún otro fin, y el odontólogo puede
+        desconectar su cuenta de Google en cualquier momento desde Ajustes,
+        lo que elimina de inmediato los tokens de acceso almacenados. El uso y
+        la transferencia de la información recibida de las APIs de Google se
+        ajustan a la{" "}
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-clinic hover:underline"
+        >
+          Política de Datos de Usuario de los Servicios de API de Google
+        </a>
+        , incluidos los requisitos de Uso Limitado (Limited Use).
+      </P>
+
+      <H2>11. Contacto</H2>
       <P>
         Para consultas sobre privacidad, puedes comunicarte con {OPERATOR_NAME} al
         correo{" "}

@@ -34,7 +34,8 @@ export type FeatureKey =
   | "agente_ia_info"
   | "periodontograma"
   | "odontograma_pediatrico"
-  | "odontogram_dictado_voz";
+  | "odontogram_dictado_voz"
+  | "google_calendar";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -107,6 +108,10 @@ export const FEATURES: FeatureMeta[] = [
   // del odontograma de adultos. Vive en la ficha del paciente.
   { key: "odontograma_pediatrico", label: "Odontograma Pediátrico", href: "/pacientes", optIn: true },
   { key: "odontogram_dictado_voz", label: "Dictado por voz en odontograma", href: "/pacientes", optIn: true },
+  // Addon opt-in: sync de citas del doctor con Google Calendar. Oculto/apagado
+  // por defecto mientras la app OAuth está en modo prueba (pendiente de
+  // verificación de Google) — activar solo en clínicas de prueba controladas.
+  { key: "google_calendar", label: "Google Calendar (sync de citas)", href: "/ajustes", optIn: true },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 
@@ -119,7 +124,7 @@ export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
   { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
   { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "odontogram_dictado_voz"] },
-  { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones"] },
+  { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones", "google_calendar"] },
 ];
 
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el
