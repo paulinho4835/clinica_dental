@@ -13,6 +13,8 @@ import {
 import { TopTreatmentsChart, type Treatment } from "@/components/dashboard/TopTreatmentsChart";
 import { TopDoctorsChart, type DoctorStat } from "@/components/dashboard/TopDoctorsChart";
 import { PatientsChart, type DailyPoint as PatDaily, type MonthlyPoint as PatMonthly } from "@/components/dashboard/PatientsChart";
+import { ReferralSourceChart, type ReferralSourcePoint } from "@/components/dashboard/ReferralSourceChart";
+import { REFERRAL_SOURCE_LABEL } from "@/lib/schemas/patient-intake";
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -47,7 +49,7 @@ export default async function FinanceDashboardPage() {
   const queryStart = monThis < firstThisMonth ? monThis : firstThisMonth;
   const dataStart = new Date(Math.min(yearStart.getTime(), firstPrevMonth.getTime(), queryStart.getTime()));
 
-  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: apptsRaw }, { data: worksRaw }, { data: allPayments }, { data: allPlans }, { count: newPatCount }] = await Promise.all([
+  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: apptsRaw }, { data: worksRaw }, { data: allPayments }, { data: allPlans }, { count: newPatCount }, { data: referralRaw }] = await Promise.all([
     supabase.rpc("dash_revenue_by_day", {
       p_from: firstPrevMonth.toISOString(),
       p_to: tomorrow.toISOString(),
@@ -76,7 +78,10 @@ export default async function FinanceDashboardPage() {
     supabase
       .from("patients")
       .select("id", { count: "exact" })
-      .gte("created_at", firstThisMonth.toISOString())
+      .gte("created_at", firstThisMonth.toISOString()),
+    supabase
+      .from("patients")
+      .select("referral_source, referral_source_other"),
   ]);
 
   const dayMap = new Map<string, number>();
@@ -232,6 +237,16 @@ export default async function FinanceDashboardPage() {
   }
   const noShowRate = monthApptsTotal > 0 ? (monthApptsNoShow / monthApptsTotal) * 100 : 0;
 
+  const referralCounts = new Map<string, number>();
+  for (const p of (referralRaw ?? []) as { referral_source: string | null }[]) {
+    const source = (p.referral_source ?? "").trim();
+    const label = source === "" ? "Sin especificar" : REFERRAL_SOURCE_LABEL[source] ?? "Sin especificar";
+    referralCounts.set(label, (referralCounts.get(label) ?? 0) + 1);
+  }
+  const referralData: ReferralSourcePoint[] = Array.from(referralCounts.entries())
+    .map(([label, cnt]) => ({ label, cnt }))
+    .sort((a, b) => b.cnt - a.cnt);
+
   // Desempeño del Asistente Virtual (agente de IA por WhatsApp). Se mide por la
   // columna appointments.source = 'agente' (citas que agendó) y
   // anamnesis_invitations.source = 'agente' (registros de pacientes que trajo).
@@ -359,6 +374,12 @@ export default async function FinanceDashboardPage() {
           <PatientsChart daily={patDaily} monthly={patMonthly} peakMonth={patPeakMonth} />
           <TopDoctorsChart data={topDoctors} currency={currency} />
         </div>
+      </div>
+
+      {/* Origen de pacientes */}
+      <h2 className="mt-10 mb-4 text-lg font-semibold">Origen de Pacientes</h2>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ReferralSourceChart data={referralData} />
       </div>
     </div>
   );
