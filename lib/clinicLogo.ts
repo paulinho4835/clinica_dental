@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 
 // Resuelve la URL del logo a mostrar en un documento impreso de la clínica, o
@@ -13,8 +14,15 @@ import { isR2Configured, presignDownload } from "@/lib/r2";
 //   2) URL pública pegada a mano en `logo_url` (legado) → tal cual. Se mantiene
 //      como compatibilidad: clínicas que ya pegaron una URL antes de que se
 //      retirara ese campo del formulario siguen viéndola.
-export async function getClinicLogoUrl(clinicId: string): Promise<string | null> {
-  const supabase = await createClient();
+//
+// `client` es opcional: páginas con sesión (impresión) usan el cliente por
+// defecto (RLS); páginas públicas sin sesión (ej. `/h/[token]`) deben pasar
+// su propio admin client, porque `createClient()` requiere cookies de sesión.
+export async function getClinicLogoUrl(
+  clinicId: string,
+  client?: SupabaseClient,
+): Promise<string | null> {
+  const supabase = client ?? (await createClient());
   const { data } = await supabase
     .from("clinics")
     .select("logo_storage_key, logo_url")

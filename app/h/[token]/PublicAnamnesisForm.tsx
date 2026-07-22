@@ -26,6 +26,7 @@ export function PublicAnamnesisForm({
   token,
   kind = "existing",
   clinicName,
+  logoUrl = null,
   patientName,
   initialData,
   initialAllergies,
@@ -35,6 +36,7 @@ export function PublicAnamnesisForm({
   token: string;
   kind?: "existing" | "new";
   clinicName: string;
+  logoUrl?: string | null;
   patientName: string;
   initialData: Anamnesis;
   initialAllergies: string;
@@ -109,6 +111,14 @@ export function PublicAnamnesisForm({
   return (
     <div className="mx-auto max-w-2xl px-5 py-8">
       <header className="mb-6">
+        {logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- URL firmada/externa, dominio variable por clínica
+          <img
+            src={logoUrl}
+            alt={clinicName}
+            className="mb-3 h-12 w-auto object-contain"
+          />
+        )}
         <p className="text-sm font-medium text-clinic">{clinicName}</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-800">
           {isNew ? "Registro de paciente" : "Historial clínico"}
