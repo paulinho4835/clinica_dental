@@ -26,6 +26,7 @@ import { AgentInfoPanel, type AgentInfoRow } from "@/components/ajustes/AgentInf
 import { isR2Configured, presignDownload } from "@/lib/r2";
 import { IntakeQuestionsPanel } from "@/components/ajustes/IntakeQuestionsPanel";
 import { getIntakeQuestions } from "@/lib/intakeQuestions";
+import { SettingsTabs, type SettingsTab } from "@/components/ui/SettingsTabs";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -216,10 +217,8 @@ export default async function SettingsPage() {
     );
   }
 
-  return (
-    <div className="space-y-10">
-      <h1 className="text-2xl font-bold">Ajustes de la clínica</h1>
-
+  const perfilYMarca = (
+    <>
       {canSignPrescriptions && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">Mi firma</h2>
@@ -227,16 +226,6 @@ export default async function SettingsPage() {
             Se agrega automáticamente a las recetas médicas que emitas.
           </p>
           <MySignaturePanel currentSignature={mySignature} />
-        </section>
-      )}
-
-      {canSignPrescriptions && features.google_calendar && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800">Google Calendar</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Tus citas agendadas en el sistema se replican en tu calendario personal.
-          </p>
-          <GoogleCalendarPanel connected={googleCalendarConnected} />
         </section>
       )}
 
@@ -268,7 +257,11 @@ export default async function SettingsPage() {
           />
         </section>
       )}
+    </>
+  );
 
+  const comunicacionPacientes = (
+    <>
       {isClinicAdmin && features.whatsapp && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">WhatsApp Baileys</h2>
@@ -297,47 +290,6 @@ export default async function SettingsPage() {
         </section>
       )}
 
-      {isClinicAdmin && features.bloqueo_horario && clinicalHours && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800">
-            Bloqueo por horario
-          </h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Define la franja en la que los doctores pueden editar el odontograma
-            y las notas de evolución. Fuera de ese horario quedan en modo lectura.
-            El administrador siempre puede editar.
-          </p>
-          <ClinicalHoursPanel config={clinicalHours} canWrite={canWrite} />
-        </section>
-      )}
-
-      {isClinicAdmin && features.preguntas_registro && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800">
-            Preguntas adicionales de registro
-          </h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Se agregan al final del formulario de alta que el paciente completa
-            por WhatsApp. Máximo 10 preguntas.
-          </p>
-          <IntakeQuestionsPanel initialQuestions={intakeQuestions} canWrite={canWrite} />
-        </section>
-      )}
-
-      {isClinicAdmin && features.consentimientos && profile && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800">Plantillas de consentimiento</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Gestiona las plantillas de consentimiento informado de tu clínica.
-            Puedes usar las plantillas del sistema como base o crear las tuyas propias.
-          </p>
-          <ConsentTemplatesPanel
-            systemTemplates={systemTemplates}
-            clinicTemplates={clinicTemplates}
-          />
-        </section>
-      )}
-
       {isClinicAdmin && features.agente_ia_info && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">
@@ -354,6 +306,65 @@ export default async function SettingsPage() {
         </section>
       )}
 
+      {isClinicAdmin && features.preguntas_registro && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Preguntas adicionales de registro
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Se agregan al final del formulario de alta que el paciente completa
+            por WhatsApp. Máximo 10 preguntas.
+          </p>
+          <IntakeQuestionsPanel initialQuestions={intakeQuestions} canWrite={canWrite} />
+        </section>
+      )}
+    </>
+  );
+
+  const operacionClinica = (
+    <>
+      {canSignPrescriptions && features.google_calendar && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Google Calendar</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Tus citas agendadas en el sistema se replican en tu calendario personal.
+          </p>
+          <GoogleCalendarPanel connected={googleCalendarConnected} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.bloqueo_horario && clinicalHours && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Bloqueo por horario
+          </h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Define la franja en la que los doctores pueden editar el odontograma
+            y las notas de evolución. Fuera de ese horario quedan en modo lectura.
+            El administrador siempre puede editar.
+          </p>
+          <ClinicalHoursPanel config={clinicalHours} canWrite={canWrite} />
+        </section>
+      )}
+
+      {isClinicAdmin && features.consentimientos && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Plantillas de consentimiento</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Gestiona las plantillas de consentimiento informado de tu clínica.
+            Puedes usar las plantillas del sistema como base o crear las tuyas propias.
+          </p>
+          <ConsentTemplatesPanel
+            systemTemplates={systemTemplates}
+            clinicTemplates={clinicTemplates}
+          />
+        </section>
+      )}
+    </>
+  );
+
+  const equipoYAccesos = (
+    <>
       {isClinicAdmin && profile && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">Recepcionistas</h2>
@@ -375,7 +386,20 @@ export default async function SettingsPage() {
           <TeamPanel members={team} currentUserId={profile.userId} />
         </section>
       )}
+    </>
+  );
 
+  const tabs: SettingsTab[] = [
+    { id: "perfil", label: "Perfil y marca", content: perfilYMarca },
+    { id: "comunicacion", label: "Comunicación con pacientes", content: comunicacionPacientes },
+    { id: "operacion", label: "Operación clínica", content: operacionClinica },
+    { id: "equipo", label: "Equipo y accesos", content: equipoYAccesos },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Ajustes de la clínica</h1>
+      <SettingsTabs tabs={tabs} />
     </div>
   );
 }
