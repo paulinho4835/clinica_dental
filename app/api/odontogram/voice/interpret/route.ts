@@ -43,7 +43,10 @@ export async function POST(request: Request) {
   const patientId = form.get("patientId");
   const durationMs = Number(form.get("durationMs"));
   if (!(audio instanceof Blob) || typeof patientId !== "string" || !patientId) return error("Faltan datos del dictado.", 400);
-  if (!ALLOWED_AUDIO.has(audio.type) || audio.size === 0 || audio.size > MAX_BYTES || !Number.isFinite(durationMs) || durationMs < 1 || durationMs > MAX_DURATION_MS) return error("El audio debe ser válido, durar hasta 60 segundos y pesar hasta 5 MB.", 400);
+  // El navegador manda el tipo con parámetros (ej. "audio/webm;codecs=opus");
+  // solo el tipo base importa para decidir si es un formato soportado.
+  const baseAudioType = audio.type.split(";")[0].trim();
+  if (!ALLOWED_AUDIO.has(baseAudioType) || audio.size === 0 || audio.size > MAX_BYTES || !Number.isFinite(durationMs) || durationMs < 1 || durationMs > MAX_DURATION_MS) return error("El audio debe ser válido, durar hasta 60 segundos y pesar hasta 5 MB.", 400);
 
   const { data: patient } = await supabase.from("patients").select("id").eq("id", patientId).eq("clinic_id", profile.clinicId).maybeSingle();
   if (!patient) return error("Paciente no encontrado.", 404);

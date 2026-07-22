@@ -9,6 +9,7 @@ export function VoiceReviewDialog({
   uncertainties,
   warnings,
   onRemove,
+  onDismissUncertainty,
   onApply,
   onCancel,
 }: {
@@ -17,6 +18,7 @@ export function VoiceReviewDialog({
   uncertainties: string[];
   warnings: string[];
   onRemove: (index: number) => void;
+  onDismissUncertainty: (index: number) => void;
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -32,7 +34,20 @@ export function VoiceReviewDialog({
           <button type="button" onClick={onCancel} aria-label="Cerrar revisión" className="rounded p-1 text-slate-500 hover:bg-slate-100">×</button>
         </div>
         <div className="mt-4 rounded bg-slate-50 p-3 text-sm text-slate-700"><strong>Transcripción:</strong> {transcript}</div>
-        {uncertainties.length > 0 && <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>Requiere revisión manual</strong><ul className="mt-1 list-disc pl-5">{uncertainties.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul></div>}
+        {uncertainties.length > 0 && (
+          <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <strong>Requiere revisión manual</strong>
+            <p className="mt-1 text-amber-800">Corrige estos casos desde la paleta y descártalos aquí para poder aplicar el resto.</p>
+            <ul className="mt-2 space-y-2">
+              {uncertainties.map((item, i) => (
+                <li key={`${item}-${i}`} className="flex items-center justify-between gap-3 rounded border border-amber-200 bg-white/60 p-2">
+                  <span>{item}</span>
+                  <button type="button" onClick={() => onDismissUncertainty(i)} className="shrink-0 rounded px-2 py-1 text-amber-900 hover:bg-amber-100">Descartar</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {warnings.length > 0 && <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>Propuestas descartadas por seguridad</strong><ul className="mt-1 list-disc pl-5">{warnings.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul></div>}
         <ul className="mt-4 space-y-2" aria-label="Cambios propuestos">
           {operations.map((operation, index) => <li key={`${operation.action}-${operation.tooth}-${index}`} className="flex items-center justify-between gap-3 rounded border border-slate-200 p-3 text-sm"><span>{describeVoiceOperation(operation)}</span><button type="button" onClick={() => onRemove(index)} className="rounded px-2 py-1 text-red-700 hover:bg-red-50">Descartar</button></li>)}

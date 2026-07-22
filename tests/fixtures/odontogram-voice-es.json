@@ -1,0 +1,1553 @@
+[
+  {
+    "id": 1,
+    "transcript": "Caries oclusal en el once.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "11",
+          "surface": "O",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 2,
+    "transcript": "caries recidivante en cara mesial del diente doce.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "12",
+          "surface": "M",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 3,
+    "transcript": "En el diente trece, resina distal.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "13",
+          "surface": "D",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 4,
+    "transcript": "Marcar amalgama vestibular en el catorce.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "14",
+          "surface": "V",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 5,
+    "transcript": "Caries lingual en el quince.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "15",
+          "surface": "L",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 6,
+    "transcript": "fractura en cara oclusal del diente dieciseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "16",
+          "surface": "O",
+          "condition": "fractura"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 7,
+    "transcript": "En el diente diecisiete, desgaste mesial.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "17",
+          "surface": "M",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 8,
+    "transcript": "Marcar caries distal en el dieciocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "18",
+          "surface": "D",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 9,
+    "transcript": "Caries vestibular en el veintiuno.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "V",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 10,
+    "transcript": "resina en cara palatino del diente veintidos.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "22",
+          "surface": "L",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 11,
+    "transcript": "En el diente veintitres, amalgama oclusal.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "23",
+          "surface": "O",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 12,
+    "transcript": "Marcar sellante mesial en el veinticuatro.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "24",
+          "surface": "M",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 13,
+    "transcript": "Caries distal en el veinticinco.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "25",
+          "surface": "D",
+          "condition": "fractura"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 14,
+    "transcript": "desgaste en cara bucal del diente veintiseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "26",
+          "surface": "V",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 15,
+    "transcript": "En el diente veintisiete, caries lingual.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "27",
+          "surface": "L",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 16,
+    "transcript": "Marcar caries recidivante oclusal en el veintiocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "28",
+          "surface": "O",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 17,
+    "transcript": "Caries mesial en el treinta y uno.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "31",
+          "surface": "M",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 18,
+    "transcript": "amalgama en cara distal del diente treinta y dos.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "32",
+          "surface": "D",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 19,
+    "transcript": "En el diente treinta y tres, sellante vestibular.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "33",
+          "surface": "V",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 20,
+    "transcript": "Marcar fractura lingual en el treinta y cuatro.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "34",
+          "surface": "L",
+          "condition": "fractura"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 21,
+    "transcript": "Caries oclusal en el treinta y cinco.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "35",
+          "surface": "O",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 22,
+    "transcript": "caries en cara mesial del diente treinta y seis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "36",
+          "surface": "M",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 23,
+    "transcript": "En el diente treinta y siete, caries recidivante distal.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "37",
+          "surface": "D",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 24,
+    "transcript": "Marcar resina vestibular en el treinta y ocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "38",
+          "surface": "V",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 25,
+    "transcript": "Caries lingual en el cuarenta y uno.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "41",
+          "surface": "L",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 26,
+    "transcript": "sellante en cara oclusal del diente cuarenta y dos.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "42",
+          "surface": "O",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 27,
+    "transcript": "En el diente cuarenta y tres, fractura mesial.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "43",
+          "surface": "M",
+          "condition": "fractura"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 28,
+    "transcript": "Marcar desgaste distal en el cuarenta y cuatro.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "44",
+          "surface": "D",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 29,
+    "transcript": "Caries vestibular en el cuarenta y cinco.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "45",
+          "surface": "V",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 30,
+    "transcript": "caries recidivante en cara palatino del diente cuarenta y seis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "L",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 31,
+    "transcript": "En el diente cuarenta y siete, resina oclusal.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "47",
+          "surface": "O",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 32,
+    "transcript": "Marcar amalgama mesial en el cuarenta y ocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "48",
+          "surface": "M",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 33,
+    "transcript": "Caries distal en el once.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "11",
+          "surface": "D",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 34,
+    "transcript": "fractura en cara bucal del diente doce.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "12",
+          "surface": "V",
+          "condition": "fractura"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 35,
+    "transcript": "En el diente trece, desgaste lingual.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "13",
+          "surface": "L",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 36,
+    "transcript": "Marcar caries oclusal en el catorce.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "14",
+          "surface": "O",
+          "condition": "caries"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 37,
+    "transcript": "Caries mesial en el quince.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "15",
+          "surface": "M",
+          "condition": "caries_recidivante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 38,
+    "transcript": "resina en cara distal del diente dieciseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "16",
+          "surface": "D",
+          "condition": "resina"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 39,
+    "transcript": "En el diente diecisiete, amalgama vestibular.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "17",
+          "surface": "V",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 40,
+    "transcript": "Marcar sellante lingual en el dieciocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "18",
+          "surface": "L",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 41,
+    "transcript": "Corona en el diente trece.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "13",
+          "condition": "corona"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 42,
+    "transcript": "El dieciseis tiene endodoncia.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "16",
+          "condition": "endodoncia"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 43,
+    "transcript": "Indicar perno muñón para el diente veintiuno.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "21",
+          "condition": "perno"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 44,
+    "transcript": "Implante en el diente veinticuatro.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "24",
+          "condition": "implante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 45,
+    "transcript": "El veintisiete tiene prótesis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "27",
+          "condition": "protesis"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 46,
+    "transcript": "Indicar extracción indicada para el diente treinta y dos.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "32",
+          "condition": "extraccion_indicada"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 47,
+    "transcript": "Ausente en el diente treinta y cinco.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "35",
+          "condition": "ausente"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 48,
+    "transcript": "El treinta y ocho tiene movilidad.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "38",
+          "condition": "movilidad"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 49,
+    "transcript": "Indicar en erupción para el diente cuarenta y tres.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "43",
+          "condition": "en_erupcion"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 50,
+    "transcript": "Marca roja requerida en el diente cuarenta y seis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "46",
+          "condition": "x_rojo"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 51,
+    "transcript": "El once tiene marca azul existente.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "11",
+          "condition": "x_azul"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 52,
+    "transcript": "Indicar corona para el diente catorce.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "14",
+          "condition": "corona"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 53,
+    "transcript": "Endodoncia en el diente diecisiete.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "17",
+          "condition": "endodoncia"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 54,
+    "transcript": "El veintidos tiene perno muñón.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "22",
+          "condition": "perno"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 55,
+    "transcript": "Indicar implante para el diente veinticinco.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "25",
+          "condition": "implante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 56,
+    "transcript": "Prótesis en el diente veintiocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "28",
+          "condition": "protesis"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 57,
+    "transcript": "El treinta y tres tiene extracción indicada.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "33",
+          "condition": "extraccion_indicada"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 58,
+    "transcript": "Indicar ausente para el diente treinta y seis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "36",
+          "condition": "ausente"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 59,
+    "transcript": "Movilidad en el diente cuarenta y uno.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "41",
+          "condition": "movilidad"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 60,
+    "transcript": "El cuarenta y cuatro tiene en erupción.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "44",
+          "condition": "en_erupcion"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 61,
+    "transcript": "Caries oclusal y distal en el cuarenta y seis; corona en el once; extracción indicada en el treinta y ocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "O",
+          "condition": "caries"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "D",
+          "condition": "caries"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "11",
+          "condition": "corona"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "38",
+          "condition": "extraccion_indicada"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 62,
+    "transcript": "Resina mesial y vestibular en el veintiuno; sellante oclusal en el dieciseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "M",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "V",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "16",
+          "surface": "O",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 63,
+    "transcript": "Endodoncia en el treinta y seis; amalgama distal en el cuarenta y siete.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "36",
+          "condition": "endodoncia"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "47",
+          "surface": "D",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 64,
+    "transcript": "Fractura vestibular en el veinticuatro; movilidad en el cuarenta y uno; desgaste oclusal en el dieciocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "24",
+          "surface": "V",
+          "condition": "fractura"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "41",
+          "condition": "movilidad"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "18",
+          "surface": "O",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 65,
+    "transcript": "Implante en el catorce; prótesis en el quince; ausente el veintiocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "14",
+          "condition": "implante"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "15",
+          "condition": "protesis"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "28",
+          "condition": "ausente"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 66,
+    "transcript": "Caries oclusal y distal en el cuarenta y seis; corona en el once; extracción indicada en el treinta y ocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "O",
+          "condition": "caries"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "D",
+          "condition": "caries"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "11",
+          "condition": "corona"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "38",
+          "condition": "extraccion_indicada"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 67,
+    "transcript": "Resina mesial y vestibular en el veintiuno; sellante oclusal en el dieciseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "M",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "V",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "16",
+          "surface": "O",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 68,
+    "transcript": "Endodoncia en el treinta y seis; amalgama distal en el cuarenta y siete.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "36",
+          "condition": "endodoncia"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "47",
+          "surface": "D",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 69,
+    "transcript": "Fractura vestibular en el veinticuatro; movilidad en el cuarenta y uno; desgaste oclusal en el dieciocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "24",
+          "surface": "V",
+          "condition": "fractura"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "41",
+          "condition": "movilidad"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "18",
+          "surface": "O",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 70,
+    "transcript": "Implante en el catorce; prótesis en el quince; ausente el veintiocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "14",
+          "condition": "implante"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "15",
+          "condition": "protesis"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "28",
+          "condition": "ausente"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 71,
+    "transcript": "Caries oclusal y distal en el cuarenta y seis; corona en el once; extracción indicada en el treinta y ocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "O",
+          "condition": "caries"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "46",
+          "surface": "D",
+          "condition": "caries"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "11",
+          "condition": "corona"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "38",
+          "condition": "extraccion_indicada"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 72,
+    "transcript": "Resina mesial y vestibular en el veintiuno; sellante oclusal en el dieciseis.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "M",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "21",
+          "surface": "V",
+          "condition": "resina"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "16",
+          "surface": "O",
+          "condition": "sellante"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 73,
+    "transcript": "Endodoncia en el treinta y seis; amalgama distal en el cuarenta y siete.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "36",
+          "condition": "endodoncia"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "47",
+          "surface": "D",
+          "condition": "amalgama"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 74,
+    "transcript": "Fractura vestibular en el veinticuatro; movilidad en el cuarenta y uno; desgaste oclusal en el dieciocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_surface",
+          "tooth": "24",
+          "surface": "V",
+          "condition": "fractura"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "41",
+          "condition": "movilidad"
+        },
+        {
+          "action": "set_surface",
+          "tooth": "18",
+          "surface": "O",
+          "condition": "desgaste"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 75,
+    "transcript": "Implante en el catorce; prótesis en el quince; ausente el veintiocho.",
+    "expected": {
+      "operations": [
+        {
+          "action": "set_whole",
+          "tooth": "14",
+          "condition": "implante"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "15",
+          "condition": "protesis"
+        },
+        {
+          "action": "set_whole",
+          "tooth": "28",
+          "condition": "ausente"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 76,
+    "transcript": "Quitar la condición de la cara oclusal del diente 12.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "12",
+          "surface": "O"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 77,
+    "transcript": "Borrar la condición completa del diente 17.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_whole",
+          "tooth": "17"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 78,
+    "transcript": "Quitar la condición de la cara distal del diente 24.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "24",
+          "surface": "D"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 79,
+    "transcript": "Eliminar lo marcado en la cara vestibular del 31.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "31",
+          "surface": "V"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 80,
+    "transcript": "Borrar la condición completa del diente 36.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_whole",
+          "tooth": "36"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 81,
+    "transcript": "Eliminar lo marcado en la cara oclusal del 43.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "43",
+          "surface": "O"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 82,
+    "transcript": "Quitar la condición de la cara mesial del diente 48.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "48",
+          "surface": "M"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 83,
+    "transcript": "Borrar la condición completa del diente 15.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_whole",
+          "tooth": "15"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 84,
+    "transcript": "Quitar la condición de la cara vestibular del diente 22.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "22",
+          "surface": "V"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 85,
+    "transcript": "Eliminar lo marcado en la cara lingual del 27.",
+    "expected": {
+      "operations": [
+        {
+          "action": "clear_surface",
+          "tooth": "27",
+          "surface": "L"
+        }
+      ],
+      "uncertainties": []
+    }
+  },
+  {
+    "id": 86,
+    "transcript": "En el treinta y... creo que había algo, no estoy seguro.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente incompleto o dudoso: \"en el treinta y...\""
+      ]
+    }
+  },
+  {
+    "id": 87,
+    "transcript": "Hay una manchita rara en un diente de arriba.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Condición no reconocida: \"manchita\" no está en el vocabulario permitido."
+      ]
+    }
+  },
+  {
+    "id": 88,
+    "transcript": "El diente de atrás se ve mal, revisar después.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "No se identifica el diente ni la condición con claridad."
+      ]
+    }
+  },
+  {
+    "id": 89,
+    "transcript": "Algo en la muela, no recuerdo cuál.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente no especificado con precisión."
+      ]
+    }
+  },
+  {
+    "id": 90,
+    "transcript": "Posible caries en alguno de los molares inferiores.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente ambiguo: no se especifica cuál molar inferior."
+      ]
+    }
+  },
+  {
+    "id": 91,
+    "transcript": "El paciente refiere dolor pero no se ve nada raro.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "No hay condición clínica dictada para registrar."
+      ]
+    }
+  },
+  {
+    "id": 92,
+    "transcript": "Habrá que evaluar el estado general de la boca.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "No se dictó ninguna operación sobre un diente específico."
+      ]
+    }
+  },
+  {
+    "id": 93,
+    "transcript": "Diente flojo, tal vez el que sigue al canino.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente ambiguo: \"el que sigue al canino\" no es un FDI válido."
+      ]
+    }
+  },
+  {
+    "id": 94,
+    "transcript": "Algo blanco en la encía cerca del dieciseis.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Condición referida a la encía, no a una cara u pieza dental soportada."
+      ]
+    }
+  },
+  {
+    "id": 95,
+    "transcript": "Revisar el fondo de saco, no el diente.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "No corresponde a una condición de diente registrable."
+      ]
+    }
+  },
+  {
+    "id": 96,
+    "transcript": "Creo que el cuarenta y ocho o el cuarenta y siete, no estoy seguro cuál.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente ambiguo entre 47 y 48."
+      ]
+    }
+  },
+  {
+    "id": 97,
+    "transcript": "Una lesión blanca, posible leucoplasia, cerca del veintidos.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Condición no enumerada: \"leucoplasia\" no está en el vocabulario permitido."
+      ]
+    }
+  },
+  {
+    "id": 98,
+    "transcript": "El diente se ve gastado pero no sé si es desgaste o fractura.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Condición ambigua entre desgaste y fractura, no se puede determinar con certeza."
+      ]
+    }
+  },
+  {
+    "id": 99,
+    "transcript": "Tal vez conviene una corona, ya veremos.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Expresión de duda/planeación, no una condición dictada con certeza."
+      ]
+    }
+  },
+  {
+    "id": 100,
+    "transcript": "No se distingue bien el número, sonaba a dieciséis o dieciocho.",
+    "expected": {
+      "operations": [],
+      "uncertainties": [
+        "Diente ambiguo entre 16 y 18."
+      ]
+    }
+  }
+]
