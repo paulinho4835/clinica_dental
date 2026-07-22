@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EMPTY_ANAMNESIS } from "@/lib/schemas/anamnesis";
 import { getActiveIntakeQuestions } from "@/lib/intakeQuestions";
+import { normalizeFeatures } from "@/lib/features";
 import { PublicAnamnesisForm } from "./PublicAnamnesisForm";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,7 @@ export default async function PublicAnamnesisPage({
 
   const { data: clinic } = await admin
     .from("clinics")
-    .select("name, settings")
+    .select("name, settings, features")
     .eq("id", invite.clinic_id)
     .maybeSingle();
 
@@ -101,7 +102,11 @@ export default async function PublicAnamnesisPage({
         initialData={EMPTY_ANAMNESIS}
         initialAllergies=""
         initialAlerts=""
-        customQuestions={isNew ? getActiveIntakeQuestions(clinic?.settings) : []}
+        customQuestions={
+          isNew && normalizeFeatures(clinic?.features).preguntas_registro
+            ? getActiveIntakeQuestions(clinic?.settings)
+            : []
+        }
       />
     </Shell>
   );

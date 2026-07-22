@@ -6,6 +6,7 @@ import { AnamnesisSchema, parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { PatientIntakeSchema } from "@/lib/schemas/patient-intake";
 import { checkRateLimit, clientIp, tooManyRequestsMessage } from "@/lib/ratelimit";
 import { getActiveIntakeQuestions, validateCustomAnswers } from "@/lib/intakeQuestions";
+import { normalizeFeatures } from "@/lib/features";
 
 export type SubmitState = { error?: string; ok?: boolean };
 
@@ -85,10 +86,12 @@ export async function submitPublicAnamnesis(
 
     const { data: clinicRow } = await admin
       .from("clinics")
-      .select("settings")
+      .select("settings, features")
       .eq("id", invite.clinic_id)
       .single();
-    const activeQuestions = getActiveIntakeQuestions(clinicRow?.settings);
+    const activeQuestions = normalizeFeatures(clinicRow?.features).preguntas_registro
+      ? getActiveIntakeQuestions(clinicRow?.settings)
+      : [];
 
     let customRaw: unknown = {};
     if (formData.get("custom")) {

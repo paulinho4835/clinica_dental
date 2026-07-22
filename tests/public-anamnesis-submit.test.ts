@@ -69,6 +69,7 @@ describe("submitPublicAnamnesis — preguntas adicionales (kind: new)", () => {
             { key: "seguro", label: "¿Tienes seguro?", type: "boolean", required: true, active: true, position: 0 },
           ],
         },
+        features: { preguntas_registro: true },
       },
     };
   });
@@ -97,5 +98,21 @@ describe("submitPublicAnamnesis — preguntas adicionales (kind: new)", () => {
     expect(
       (updatePayload?.submitted_custom as { key: string }[]).some((s) => s.key === "inventada"),
     ).toBe(false);
+  });
+
+  it("con el addon apagado, ignora la pregunta obligatoria (no la exige ni la guarda)", async () => {
+    clinicResult = {
+      data: {
+        settings: {
+          custom_intake_questions: [
+            { key: "seguro", label: "¿Tienes seguro?", type: "boolean", required: true, active: true, position: 0 },
+          ],
+        },
+        features: { preguntas_registro: false },
+      },
+    };
+    const result = await submitPublicAnamnesis("tok", {}, form({ custom: {} }));
+    expect(result.ok).toBe(true);
+    expect(updatePayload?.submitted_custom).toEqual([]);
   });
 });
