@@ -8,9 +8,12 @@ export default function Home() {
           Dentia
         </h1>
         <p className="mt-3 text-lg text-slate-600">
-          Gestión integral para clínicas dentales. Multi-clínica, escalable y{" "}
-          <strong>sin almacenamiento de imágenes</strong>: el odontograma y la ficha
-          clínica viven como datos estructurados (JSONB) y se dibujan en SVG.
+          Dentia es un software de gestión para clínicas dentales. Desde un solo
+          lugar, cada clínica administra la agenda de citas, el expediente de sus
+          pacientes, el odontograma, los planes de tratamiento y presupuestos, la
+          caja y el inventario. Los odontólogos pueden, además, conectar de forma
+          opcional su cuenta de Google para ver sus citas reflejadas en Google
+          Calendar.
         </p>
       </div>
       <div className="flex gap-4">
