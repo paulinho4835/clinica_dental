@@ -9,7 +9,7 @@ import { money } from "@/lib/format";
 import { computeCommission, netRate as netRateFn } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import type { PlanItemRow } from "@/app/api/patients/[id]/plan-items/route";
 
 const initial: ActionState = {};
@@ -235,21 +235,23 @@ export function WorkForm({
     (!doctors || selectedDoctorId) &&
     (!hasRecepcionistas || selectedCollectedById);
 
-  if (!open) {
-    return (
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" /> Registrar trabajo
-      </Button>
-    );
-  }
-
   const boldLabel = "font-semibold text-slate-700";
-  const sectionClass = "rounded-lg border border-slate-200 p-4 space-y-3";
-  const sectionTitleClass = "text-xs font-bold uppercase tracking-wide text-slate-500";
+  const sectionClass = "rounded-xl border-2 border-slate-200 p-5 space-y-3";
+  const sectionTitleClass = "text-sm font-bold uppercase tracking-wide text-clinic";
 
   return (
     <>
-    <Card className="p-4 ring-1 ring-slate-200">
+    <Button className="px-5 py-3 text-base" onClick={() => setOpen(true)}>
+      <Plus className="h-5 w-5" /> Registrar trabajo
+    </Button>
+
+    <Modal
+      open={open}
+      onClose={resetForm}
+      title="Registrar trabajo"
+      subtitle="Completa los datos del trabajo realizado y su comisión."
+      size="2xl"
+    >
       <form ref={formRef} action={formAction} className="space-y-4">
 
         {/* ── Paciente ──────────────────────────────────────── */}
@@ -257,7 +259,7 @@ export function WorkForm({
           <h3 className={sectionTitleClass}>Paciente</h3>
 
           <div ref={containerRef} className="relative block text-sm">
-            <FieldLabel className={boldLabel}>Paciente *</FieldLabel>
+            <FieldLabel className={boldLabel}>Nombre o CI *</FieldLabel>
             <input
               type="text"
               autoComplete="off"
@@ -300,8 +302,8 @@ export function WorkForm({
             const deuda = balance.totalWorked - balance.totalPaid;
             const alDia = deuda <= 0;
             return (
-              <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
-                <div className="flex gap-4">
+              <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
                   <span>Facturado: <strong className="tabular-nums">{money(balance.totalWorked, currency)}</strong></span>
                   <span>Pagado: <strong className="tabular-nums">{money(balance.totalPaid, currency)}</strong></span>
                 </div>
@@ -366,6 +368,11 @@ export function WorkForm({
                 })}
               </div>
               <input type="hidden" name="treatment_item_id" value={selectedPlanItemId} />
+              {!selectedPlanItemId && (
+                <p className="mt-1.5 text-xs text-amber-600">
+                  Este trabajo no está vinculado a ningún tratamiento del plan — no se podrá ver el avance de pago del paciente en Pagos a personal. Si corresponde a uno de los de arriba, selecciónalo.
+                </p>
+              )}
             </div>
           )}
 
@@ -395,7 +402,7 @@ export function WorkForm({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block text-sm sm:col-span-2">
-              <FieldLabel className={boldLabel}>Trabajo realizado *</FieldLabel>
+              <FieldLabel className={boldLabel}>Descripción *</FieldLabel>
               <input
                 name="description"
                 type="text"
@@ -608,22 +615,33 @@ export function WorkForm({
         )}
 
         <div className="flex gap-2">
-          <Button type="button" disabled={!canSubmit} onClick={() => setShowConfirm(true)}>
+          <Button
+            type="button"
+            className="px-5 py-3 text-base"
+            disabled={!canSubmit}
+            onClick={() => setShowConfirm(true)}
+          >
             {pending ? "Guardando…" : "Registrar"}
           </Button>
-          <Button type="button" variant="ghost" onClick={resetForm}>
+          <Button type="button" variant="ghost" className="px-5 py-3 text-base" onClick={resetForm}>
             Cancelar
           </Button>
         </div>
         {/* Botón real de submit, invisible, disparado desde el modal */}
         <button ref={hiddenSubmitRef} type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
-    </Card>
+    </Modal>
 
-    {/* ── Modal de confirmación ───────────────────────────────── */}
+    {/* ── Modal de confirmación ───────────────────────────────────────────
+        z-[60]: el formulario ahora vive dentro de <Modal>, que se porta a
+        document.body (createPortal) recién al abrirse — queda DESPUÉS en el
+        DOM que este div (que no está portado). Con el mismo z-50 en ambos,
+        el navegador desempata por orden de DOM y el overlay de <Modal> tapa
+        a este diálogo, dejándolo invisible y sin poder hacer click en "Sí,
+        registrar". Un z-index mayor lo fuerza a quedar siempre encima. ──── */}
     {showConfirm && (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"

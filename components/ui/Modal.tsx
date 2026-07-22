@@ -15,6 +15,7 @@ const SIZES = {
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-2xl",
+  "2xl": "max-w-4xl",
 } as const;
 
 export function Modal({
@@ -36,11 +37,25 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Escape para cerrar + bloqueo de scroll del body.
+  // onClose casi siempre es una función nueva en cada render del padre (p.ej.
+  // `onClose={() => setOpen(false)}` o un handler no memoizado). Si el efecto
+  // de abajo dependiera de onClose, escribir en un input dentro del modal
+  // (que re-renderiza al padre en cada tecla) volvería a disparar el efecto y
+  // robaría el foco de vuelta al panel — el usuario tendría que hacer click
+  // de nuevo tras cada letra. Guardamos la versión más reciente en un ref para
+  // no necesitarla en las dependencias.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Escape para cerrar + bloqueo de scroll del body + foco inicial.
+  // Depende SOLO de `open`: debe correr una vez al abrir/cerrar, no en cada
+  // re-render del padre.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     }
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -51,7 +66,7 @@ export function Modal({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
