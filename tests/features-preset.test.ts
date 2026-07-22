@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { initialFeaturesForPreset, MODULE_KEYS } from "@/lib/features";
+import { initialFeaturesForPreset, MODULE_KEYS, FEATURES, ADDON_GROUPS, normalizeFeatures } from "@/lib/features";
 
 describe("initialFeaturesForPreset", () => {
   it("consultorio apaga inventario/caja/cuentas/auditoria y deja lo esencial", () => {
@@ -27,5 +27,15 @@ describe("initialFeaturesForPreset", () => {
   it("define explícitamente cada MODULE_KEY (no depende de defaults por ausencia)", () => {
     const f = initialFeaturesForPreset("consultorio", { whatsapp: false });
     for (const k of MODULE_KEYS) expect(k in f).toBe(true);
+  });
+});
+
+describe("preguntas_registro feature", () => {
+  it("preguntas_registro es opt-in, apagado por defecto, y está en un grupo de ADDON_GROUPS", () => {
+    const meta = FEATURES.find((f) => f.key === "preguntas_registro");
+    expect(meta?.optIn).toBe(true);
+    expect(normalizeFeatures({}).preguntas_registro).toBe(false);
+    const inSomeGroup = ADDON_GROUPS.some((g) => g.keys.includes("preguntas_registro"));
+    expect(inSomeGroup).toBe(true);
   });
 });
