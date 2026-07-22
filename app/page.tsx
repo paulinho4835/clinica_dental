@@ -5,7 +5,7 @@ export default function Home() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-8 px-6">
       <div>
         <h1 className="text-4xl font-bold tracking-tight text-clinic-fg">
-          DentalSaaS
+          Dentia
         </h1>
         <p className="mt-3 text-lg text-slate-600">
           Gestión integral para clínicas dentales. Multi-clínica, escalable y{" "}

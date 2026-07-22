@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // "/restablecer" son el flujo de recuperación de contraseña, y "/auth/callback"
 // canjea el código del correo por sesión: todos deben ser accesibles SIN sesión.
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/signup",
   "/h",
