@@ -14,6 +14,13 @@ import type { PlanItemRow } from "@/app/api/patients/[id]/plan-items/route";
 
 const initial: ActionState = {};
 
+// El scroll del mouse sobre un input number/date enfocado cambia su valor en
+// Chrome; quitamos el foco al recibir wheel para que el scroll de la página
+// no altere el campo sin querer.
+function preventWheelChange(e: React.WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur();
+}
+
 type Patient = { id: string; full_name: string; national_id?: string | null };
 type Doctor = { id: string; full_name: string };
 type Recepcionista = { id: string; name: string };
@@ -236,15 +243,21 @@ export function WorkForm({
     );
   }
 
+  const boldLabel = "font-semibold text-slate-700";
+  const sectionClass = "rounded-lg border border-slate-200 p-4 space-y-3";
+  const sectionTitleClass = "text-xs font-bold uppercase tracking-wide text-slate-500";
+
   return (
     <>
-    <Card className="p-4">
+    <Card className="p-4 ring-1 ring-slate-200">
       <form ref={formRef} action={formAction} className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 
-          {/* ── Paciente ──────────────────────────────────────── */}
-          <div ref={containerRef} className="relative block text-sm sm:col-span-2">
-            <FieldLabel>Paciente *</FieldLabel>
+        {/* ── Paciente ──────────────────────────────────────── */}
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Paciente</h3>
+
+          <div ref={containerRef} className="relative block text-sm">
+            <FieldLabel className={boldLabel}>Paciente *</FieldLabel>
             <input
               type="text"
               autoComplete="off"
@@ -287,7 +300,7 @@ export function WorkForm({
             const deuda = balance.totalWorked - balance.totalPaid;
             const alDia = deuda <= 0;
             return (
-              <div className={`sm:col-span-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
+              <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ring-1 ${alDia ? "bg-emerald-50 ring-emerald-200 text-emerald-800" : "bg-amber-50 ring-amber-200 text-amber-900"}`}>
                 <div className="flex gap-4">
                   <span>Facturado: <strong className="tabular-nums">{money(balance.totalWorked, currency)}</strong></span>
                   <span>Pagado: <strong className="tabular-nums">{money(balance.totalPaid, currency)}</strong></span>
@@ -301,8 +314,8 @@ export function WorkForm({
 
           {/* Plan de tratamiento */}
           {selectedId && planItems.length > 0 && (
-            <div className="sm:col-span-2">
-              <FieldLabel>Seleccionar del plan de tratamiento</FieldLabel>
+            <div>
+              <FieldLabel className={boldLabel}>Seleccionar del plan de tratamiento</FieldLabel>
               <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                 {planItems.map((item) => {
                   const pagado = item.paidAmount;
@@ -358,8 +371,8 @@ export function WorkForm({
 
           {/* Doctor (solo recepcionista/admin) */}
           {doctors && (
-            <label className="block text-sm sm:col-span-2">
-              <FieldLabel>Doctor *</FieldLabel>
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Doctor *</FieldLabel>
               <select
                 name="doctor_id"
                 required
@@ -374,58 +387,59 @@ export function WorkForm({
               </select>
             </label>
           )}
+        </div>
 
-          {/* ── Trabajo realizado ─────────────────────────────── */}
-          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Trabajo</span>
-            <div className="h-px flex-1 bg-slate-100" />
+        {/* ── Trabajo realizado ─────────────────────────────── */}
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Trabajo</h3>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block text-sm sm:col-span-2">
+              <FieldLabel className={boldLabel}>Trabajo realizado *</FieldLabel>
+              <input
+                name="description"
+                type="text"
+                required
+                maxLength={120}
+                placeholder="ej. Cirugía, Endodoncia, Limpieza…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className={fieldInputClass}
+              />
+            </label>
+
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Fecha</FieldLabel>
+              <div className={`${fieldInputClass} bg-slate-50 text-slate-600`}>
+                {new Date(`${today}T00:00:00Z`).toLocaleDateString("es-BO", {
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "UTC",
+                })}
+              </div>
+              <input type="hidden" name="performed_at" value={today} />
+            </label>
+
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Notas (opcional)</FieldLabel>
+              <input
+                name="notes"
+                type="text"
+                maxLength={300}
+                placeholder="Detalle adicional…"
+                className={fieldInputClass}
+              />
+            </label>
           </div>
+        </div>
 
-          <label className="block text-sm sm:col-span-2">
-            <FieldLabel>Trabajo realizado *</FieldLabel>
-            <input
-              name="description"
-              type="text"
-              required
-              maxLength={120}
-              placeholder="ej. Cirugía, Endodoncia, Limpieza…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className={fieldInputClass}
-            />
-          </label>
+        {/* ── Laboratorio ───────────────────────────────────── */}
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Laboratorio (opcional)</h3>
 
           <label className="block text-sm">
-            <FieldLabel>Fecha</FieldLabel>
-            <input
-              name="performed_at"
-              type="date"
-              defaultValue={today}
-              className={fieldInputClass}
-            />
-          </label>
-
-          <label className="block text-sm">
-            <FieldLabel>Notas (opcional)</FieldLabel>
-            <input
-              name="notes"
-              type="text"
-              maxLength={300}
-              placeholder="Detalle adicional…"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* ── Laboratorio ───────────────────────────────────── */}
-          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Laboratorio (opcional)</span>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-
-          <label className="block text-sm sm:col-span-2">
-            <FieldLabel>Nombre del trabajo de laboratorio</FieldLabel>
+            <FieldLabel className={boldLabel}>Nombre del trabajo de laboratorio</FieldLabel>
             <input
               name="lab_work"
               type="text"
@@ -434,155 +448,158 @@ export function WorkForm({
               className={fieldInputClass}
             />
           </label>
+        </div>
 
-          {/* ── Montos ────────────────────────────────────────── */}
-          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Montos</span>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
+        {/* ── Montos ────────────────────────────────────────── */}
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Montos</h3>
 
-          {/* Costo del trabajo | Costo laboratorio */}
-          <label className="block text-sm">
-            <FieldLabel>Costo del tratamiento (Bs)</FieldLabel>
-            <input
-              name="cost"
-              type="number"
-              step="0.01"
-              min="0"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="0.00"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {selectedPlanItemId && planItemLabCostN > 0 ? (
-            <div className="block text-sm">
-              <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
-              <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
-                <span className="tabular-nums font-medium text-slate-700">{money(planItemLabCostN, currency)}</span>
-                <span className="text-xs text-slate-400">(ya registrado)</span>
-              </div>
-              <input type="hidden" name="lab_cost" value="0" />
-              <input type="hidden" name="treatment_lab_cost" value={planItemLabCostN} />
-            </div>
-          ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Costo del trabajo | Costo laboratorio */}
             <label className="block text-sm">
-              <FieldLabel>Costo laboratorio (Bs)</FieldLabel>
+              <FieldLabel className={boldLabel}>Costo del tratamiento (Bs)</FieldLabel>
               <input
-                name="lab_cost"
+                name="cost"
                 type="number"
                 step="0.01"
                 min="0"
-                value={labCost}
-                onChange={(e) => setLabCost(e.target.value)}
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                onWheel={preventWheelChange}
                 placeholder="0.00"
                 className={fieldInputClass}
               />
-              <input type="hidden" name="treatment_lab_cost" value={labCostN} />
             </label>
-          )}
 
-          {/* Cobrado al paciente | Método de pago */}
-          <label className="block text-sm">
-            <FieldLabel>Cobrado al paciente (Bs)</FieldLabel>
-            <input
-              name="amount_paid"
-              type="number"
-              step="0.01"
-              min="0"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-              placeholder="0.00"
-              className={fieldInputClass}
-            />
-          </label>
+            {selectedPlanItemId && planItemLabCostN > 0 ? (
+              <div className="block text-sm">
+                <FieldLabel className={boldLabel}>Costo laboratorio (Bs)</FieldLabel>
+                <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
+                  <span className="tabular-nums font-medium text-slate-700">{money(planItemLabCostN, currency)}</span>
+                  <span className="text-xs text-slate-400">(ya registrado)</span>
+                </div>
+                <input type="hidden" name="lab_cost" value="0" />
+                <input type="hidden" name="treatment_lab_cost" value={planItemLabCostN} />
+              </div>
+            ) : (
+              <label className="block text-sm">
+                <FieldLabel className={boldLabel}>Costo laboratorio (Bs)</FieldLabel>
+                <input
+                  name="lab_cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={labCost}
+                  onChange={(e) => setLabCost(e.target.value)}
+                  onWheel={preventWheelChange}
+                  placeholder="0.00"
+                  className={fieldInputClass}
+                />
+                <input type="hidden" name="treatment_lab_cost" value={labCostN} />
+              </label>
+            )}
 
-          <label className="block text-sm">
-            <FieldLabel>Método de pago</FieldLabel>
-            <select
-              name="payment_method"
-              disabled={amountPaidN <= 0}
-              className={fieldInputClass}
-            >
-              <option value="">— ninguno —</option>
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </label>
+            {/* Cobrado al paciente | Método de pago */}
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Cobrado al paciente (Bs)</FieldLabel>
+              <input
+                name="amount_paid"
+                type="number"
+                step="0.01"
+                min="0"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
+                onWheel={preventWheelChange}
+                placeholder="0.00"
+                className={fieldInputClass}
+              />
+            </label>
 
-          {/* Con factura / sin factura (informativo, no afecta montos) */}
-          <label className="block text-sm">
-            <FieldLabel>Comprobante</FieldLabel>
-            <select
-              name="invoiced"
-              value={invoiced}
-              onChange={(e) => setInvoiced(e.target.value)}
-              className={fieldInputClass}
-            >
-              <option value="false">Sin factura</option>
-              <option value="true">Con factura</option>
-            </select>
-          </label>
-
-          {/* Cobrado por */}
-          {hasRecepcionistas && (
-            <label className="block text-sm sm:col-span-2">
-              <FieldLabel>Cobrado por *</FieldLabel>
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Método de pago</FieldLabel>
               <select
-                name="collected_by_id"
-                required
-                value={selectedCollectedById}
-                onChange={(e) => setSelectedCollectedById(e.target.value)}
+                name="payment_method"
+                disabled={amountPaidN <= 0}
                 className={fieldInputClass}
               >
-                <option value="">Selecciona recepcionista…</option>
-                {recepcionistas!.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                <option value="">— ninguno —</option>
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
             </label>
-          )}
 
-          {/* ── Comisión ──────────────────────────────────────── */}
-          <div className="sm:col-span-2 flex items-center gap-2 pt-1">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Comisión del doctor</span>
-            <div className="h-px flex-1 bg-slate-100" />
+            {/* Con factura / sin factura (informativo, no afecta montos) */}
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Comprobante</FieldLabel>
+              <select
+                name="invoiced"
+                value={invoiced}
+                onChange={(e) => setInvoiced(e.target.value)}
+                className={fieldInputClass}
+              >
+                <option value="false">Sin factura</option>
+                <option value="true">Con factura</option>
+              </select>
+            </label>
+
+            {/* Cobrado por */}
+            {hasRecepcionistas && (
+              <label className="block text-sm sm:col-span-2">
+                <FieldLabel className={boldLabel}>Cobrado por *</FieldLabel>
+                <select
+                  name="collected_by_id"
+                  required
+                  value={selectedCollectedById}
+                  onChange={(e) => setSelectedCollectedById(e.target.value)}
+                  className={fieldInputClass}
+                >
+                  <option value="">Selecciona recepcionista…</option>
+                  {recepcionistas!.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
+        </div>
 
-          <label className="block text-sm">
-            <FieldLabel>Porcentaje de comisión (%)</FieldLabel>
-            <input
-              name="commission_pct"
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={pct}
-              onChange={(e) => setPct(e.target.value)}
-              placeholder="ej. 40"
-              className={fieldInputClass}
-            />
-          </label>
+        {/* ── Comisión ──────────────────────────────────────── */}
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Comisión del doctor</h3>
 
-          <div className="flex flex-col justify-end">
-            <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2.5 text-sm ring-1 ring-clinic/20">
-              <span className="text-slate-500">
-                {pctN > 0 && costN > 0 ? (
-                  treatmentLabCostN > 0
-                    ? <span>{pctN}% × {Math.round(netRate * 100)}% neto</span>
-                    : <span>{pctN}% de {money(amountPaidN, currency)}</span>
-                ) : "Comisión"}
-              </span>
-              <span className="tabular-nums text-base font-bold text-clinic">
-                {money(commission, currency)}
-              </span>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <FieldLabel className={boldLabel}>Porcentaje de comisión (%)</FieldLabel>
+              <input
+                name="commission_pct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={pct}
+                onChange={(e) => setPct(e.target.value)}
+                onWheel={preventWheelChange}
+                placeholder="ej. 40"
+                className={fieldInputClass}
+              />
+            </label>
+
+            <div className="flex flex-col justify-end">
+              <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2.5 text-sm ring-1 ring-clinic/20">
+                <span className="text-slate-500">
+                  {pctN > 0 && costN > 0 ? (
+                    treatmentLabCostN > 0
+                      ? <span>{pctN}% × {Math.round(netRate * 100)}% neto</span>
+                      : <span>{pctN}% de {money(amountPaidN, currency)}</span>
+                  ) : "Comisión"}
+                </span>
+                <span className="tabular-nums text-base font-bold text-clinic">
+                  {money(commission, currency)}
+                </span>
+              </div>
             </div>
           </div>
-
         </div>
 
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}

@@ -30,6 +30,13 @@ const PAYMENT_METHODS = [
 
 const initial: ActionState = {};
 
+// El scroll del mouse sobre un input number/date enfocado cambia su valor en
+// Chrome; quitamos el foco al recibir wheel para que el scroll de la página
+// no altere el campo sin querer.
+function preventWheelChange(e: React.WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur();
+}
+
 export function EditWorkButton({ work, currency }: { work: WorkData; currency: string }) {
   const [open, setOpen] = useState(false);
   useDismissable(() => setOpen(false), open);
@@ -123,6 +130,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     min="0"
                     value={cost}
                     onChange={(e) => setCost(e.target.value)}
+                    onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
                 </label>
@@ -137,6 +145,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     max="100"
                     value={pct}
                     onChange={(e) => setPct(e.target.value)}
+                    onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
                 </label>
@@ -174,6 +183,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     min="0"
                     value={labCost}
                     onChange={(e) => setLabCost(e.target.value)}
+                    onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
                 </label>
@@ -187,6 +197,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     min="0"
                     value={amountPaid}
                     onChange={(e) => setAmountPaid(e.target.value)}
+                    onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
                 </label>
@@ -227,6 +238,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     type="date"
                     value={performedAt}
                     onChange={(e) => setPerformedAt(e.target.value)}
+                    onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
                 </label>
