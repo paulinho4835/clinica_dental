@@ -10,8 +10,10 @@ import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import { DeletePatientButton } from "@/components/patients/DeletePatientButton";
 import {
   WorkStatusPanel,
+  AdHocWorkList,
   VisitasPanel,
   type ApptRow,
+  type WorkDebtRow,
 } from "@/components/history/PatientHistoryPanel";
 import {
   TreatmentPlanPanel,
@@ -125,6 +127,7 @@ export default async function PatientPage({
     { data: evolutionHistory },
     { data: rawOdoEvents },
     { data: rawCatalog },
+    { data: rawWorks },
   ] = await Promise.all([
     supabase
       .from("treatment_plans")
@@ -183,6 +186,13 @@ export default async function PatientPage({
       .select("id, name, base_price")
       .eq("active", true)
       .order("name"),
+    supabase
+      .from("doctor_works")
+      .select(
+        "id, description, cost, performed_at, treatment_item_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
+      )
+      .eq("patient_id", id)
+      .order("performed_at", { ascending: false }),
   ]);
 
   const catalog = (rawCatalog ?? []).map((c) => ({
@@ -374,12 +384,41 @@ export default async function PatientPage({
 
   const clinicName = (clinicRow as { name?: string; features?: unknown } | null)?.name ?? "";
 
-  const totalQuoted = (rawPlans ?? [])
+  // "Total tratamiento" = costo de sesiones ya registradas (doctor_works) +
+  // precio de ítems del plan que AÚN no tienen ninguna sesión registrada.
+  // Misma fórmula que /cuentas (lib/treatments/planItems.ts) y que
+  // /api/patients/[id]/balance — antes esto solo sumaba treatment_items, así
+  // que un trabajo suelto (sin ítem de plan vinculado, p.ej. registrado desde
+  // "Mis trabajos" con texto libre) mostraba "Saldo" negativo aunque el
+  // paciente ya hubiera pagado exactamente ese trabajo.
+  const itemIdsWithWork = new Set(
+    (rawWorks ?? [])
+      .map((w) => w.treatment_item_id as string | null)
+      .filter((wid): wid is string => !!wid),
+  );
+  const unstartedPlanItemsTotal = (rawPlans ?? [])
     .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
     .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
     .filter((it) => (it.status as string) !== "cancelled")
+    .filter((it) => !itemIdsWithWork.has(it.id as string))
     .reduce((s, it) => s + Number(it.price), 0);
+  const totalQuoted =
+    (rawWorks ?? []).reduce((s, w) => s + Number(w.cost), 0) + unstartedPlanItemsTotal;
   const totalPaid = totalPaidRaw;
+
+  // Trabajos registrados sin vincular a ningún ítem del plan (texto libre
+  // desde "Mis trabajos") — antes solo se veían en Cuentas de pacientes,
+  // nunca en la ficha clínica. Se muestran aparte de "Plan de tratamiento"
+  // porque no son un ítem planificado/presupuestado, ya ocurrieron.
+  const adHocWorkRows: WorkDebtRow[] = (rawWorks ?? [])
+    .filter((w) => !w.treatment_item_id)
+    .map((w) => ({
+      id: w.id as string,
+      description: w.description as string,
+      cost: Number(w.cost),
+      performedAt: w.performed_at as string,
+      doctorName: ((w.doctor as { full_name?: string } | null)?.full_name) ?? null,
+    }));
 
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
@@ -503,6 +542,16 @@ export default async function PatientPage({
         <h2 className="mb-3 text-lg font-semibold">Seguimiento del tratamiento</h2>
         <WorkStatusPanel patientId={patient.id} canWrite={canClinical} works={works} currency={currency} />
       </section>
+
+      {adHocWorkRows.length > 0 && (
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">Trabajos sin plan</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Registrados directamente desde "Mis trabajos", sin vincular a un ítem del plan de tratamiento.
+          </p>
+          <AdHocWorkList works={adHocWorkRows} currency={currency} />
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Evolución del paciente</h2>

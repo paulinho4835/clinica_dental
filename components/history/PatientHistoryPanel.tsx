@@ -109,6 +109,33 @@ export function VisitasPanel({ appointments }: { appointments: ApptRow[] }) {
   );
 }
 
+// Trabajos registrados desde "Mis trabajos" sin vincular a ningún ítem del
+// plan de tratamiento (texto libre). Antes de esto quedaban invisibles en la
+// ficha clínica del paciente — solo se veían del lado del dinero (Cuentas de
+// pacientes) — aunque el trabajo sí se hizo y se cobró. Solo lectura: no hay
+// "hecho/pendiente" que alternar porque no son ítems de un plan, ya ocurrieron.
+export function AdHocWorkList({ works, currency }: { works: WorkDebtRow[]; currency: string }) {
+  if (works.length === 0) return null;
+  return (
+    <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="divide-y divide-slate-100">
+        {works.map((w) => (
+          <div key={w.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <span className="w-24 shrink-0 whitespace-nowrap tabular-nums text-xs text-slate-400">
+              {fmtDay(w.performedAt)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-slate-700">{w.description}</span>
+            {w.doctorName && (
+              <span className="hidden truncate text-xs text-slate-400 sm:block">{w.doctorName}</span>
+            )}
+            <span className="shrink-0 tabular-nums font-medium text-slate-800">{money(w.cost, currency)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WorkStatusPanel({
   patientId,
   canWrite,
