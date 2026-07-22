@@ -11,6 +11,7 @@ import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import type { Anamnesis } from "@/lib/schemas/anamnesis";
 import type { PatientIntake } from "@/lib/schemas/patient-intake";
+import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
 export type IntakeItem = {
   id: string;
@@ -22,6 +23,7 @@ export type IntakeItem = {
   source: string;
   personal: PatientIntake | null;
   proposed: { data: Anamnesis; allergies: string[]; alerts: string[] } | null;
+  customAnswers: IntakeAnswerSnapshot[];
 };
 
 export function IncomingIntakesPanel({
@@ -160,6 +162,7 @@ export function IncomingIntakesPanel({
           kind="new"
           proposed={reviewItem.proposed}
           personal={reviewItem.personal}
+          customAnswers={reviewItem.customAnswers}
           canEdit
           onClose={() => setReviewId(null)}
           onDone={(patientId) => {

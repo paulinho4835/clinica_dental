@@ -16,6 +16,7 @@ import { getInitials, normalizeSearch } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AlertTriangle } from "lucide-react";
 import { usageLevel } from "@/lib/storageLimits";
+import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
 const AVATAR_COLORS = [
   "bg-violet-100 text-violet-700",
@@ -88,7 +89,7 @@ export default async function PatientsPage({
       supabase
         .from("anamnesis_invitations")
         .select(
-          "id, contact_name, contact_phone, completed_at, expires_at, submitted_personal, submitted_data, submitted_allergies, submitted_alerts, source",
+          "id, contact_name, contact_phone, completed_at, expires_at, submitted_personal, submitted_data, submitted_allergies, submitted_alerts, submitted_custom, source",
         )
         .eq("kind", "new")
         .is("reviewed_at", null)
@@ -114,6 +115,7 @@ export default async function PatientsPage({
               alerts: (r.submitted_alerts as string[] | null) ?? [],
             }
           : null,
+        customAnswers: (r.submitted_custom as IntakeAnswerSnapshot[] | null) ?? [],
       };
       if (item.completedAt) intakesReady.push(item);
       else if (new Date(r.expires_at as string).getTime() > now)

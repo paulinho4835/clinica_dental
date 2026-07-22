@@ -202,7 +202,7 @@ export async function applyAnamnesisInvitation(
   const { data: invite } = await supabase
     .from("anamnesis_invitations")
     .select(
-      "id, kind, patient_id, clinic_id, completed_at, reviewed_at, submitted_data, submitted_personal, submitted_allergies, submitted_alerts",
+      "id, kind, patient_id, clinic_id, completed_at, reviewed_at, submitted_data, submitted_personal, submitted_allergies, submitted_alerts, submitted_custom",
     )
     .eq("id", invitationId)
     .maybeSingle();
@@ -284,6 +284,7 @@ export async function applyAnamnesisInvitation(
         anamnesis_data: anamnesis,
         allergies,
         medical_alerts: alerts,
+        custom_intake_answers: (invite.submitted_custom as unknown[] | null) ?? [],
       })
       .select("id")
       .single();

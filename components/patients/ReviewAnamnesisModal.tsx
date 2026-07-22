@@ -16,6 +16,7 @@ import {
   REFERRAL_SOURCE_OPTIONS,
   type PatientIntake,
 } from "@/lib/schemas/patient-intake";
+import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 import {
   applyAnamnesisInvitation,
   discardAnamnesisInvitation,
@@ -40,6 +41,7 @@ export function ReviewAnamnesisModal({
   kind = "existing",
   proposed,
   personal,
+  customAnswers = [],
   currentAllergies = [],
   currentAlerts = [],
   canEdit = false,
@@ -50,6 +52,7 @@ export function ReviewAnamnesisModal({
   kind?: "existing" | "new";
   proposed: { data: Anamnesis; allergies: string[]; alerts: string[] };
   personal?: PatientIntake | null;
+  customAnswers?: IntakeAnswerSnapshot[];
   currentAllergies?: string[];
   currentAlerts?: string[];
   /** Permite corregir los datos antes de aprobar (admin, recepción, colega). */
@@ -493,6 +496,18 @@ export function ReviewAnamnesisModal({
                     viewPersonal.referral_source_other &&
                     ` — ${viewPersonal.referral_source_other}`}
                 </Row>
+              </dl>
+            )}
+            {isNew && customAnswers.length > 0 && (
+              <dl className="mb-4 space-y-2 rounded-lg bg-slate-50 px-4 py-3 text-sm">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Preguntas adicionales
+                </p>
+                {customAnswers.map((c) => (
+                  <Row key={c.key} label={c.label}>
+                    {typeof c.value === "boolean" ? (c.value ? "Sí" : "No") : c.value}
+                  </Row>
+                ))}
               </dl>
             )}
             <dl className="space-y-3 text-sm">
