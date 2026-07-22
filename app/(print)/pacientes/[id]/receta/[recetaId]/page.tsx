@@ -151,7 +151,7 @@ export default async function RecetaPage({
               <img
                 src={doctorSignature}
                 alt="Firma del odontólogo"
-                className="mx-auto h-20 object-contain"
+                className="mx-auto mb-2 h-20 object-contain"
               />
             )}
             <div className="border-t border-slate-400 pt-2">
