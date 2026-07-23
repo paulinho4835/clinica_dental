@@ -84,6 +84,14 @@ export default async function MisTrabajosPage({
     : "";
   const fromParam = resolvedParams.from ?? "";
   const toParam = resolvedParams.to ?? "";
+  // Sin filtro de fecha, la query trae solo el día de hoy en vez de TODO el
+  // historial de la clínica desde el día uno (crecía sin límite). fromParam/
+  // toParam (crudos, sin este default) se conservan para la UI — el filtro
+  // de fecha, el nombre del CSV y el mensaje de "sin resultados" deben seguir
+  // reflejando lo que el usuario realmente eligió, no este default interno.
+  const hasDateFilter = Boolean(fromParam || toParam);
+  const effectiveFrom = fromParam || (hasDateFilter ? "" : today);
+  const effectiveTo = toParam || (hasDateFilter ? "" : today);
 
   const selectedDoctor = canPickDoctor
     ? doctorParam === "all"
@@ -117,11 +125,11 @@ export default async function MisTrabajosPage({
   if (methodParam) {
     worksQuery = worksQuery.eq("payment_method", methodParam);
   }
-  if (fromParam) {
-    worksQuery = worksQuery.gte("performed_at", fromParam);
+  if (effectiveFrom) {
+    worksQuery = worksQuery.gte("performed_at", effectiveFrom);
   }
-  if (toParam) {
-    worksQuery = worksQuery.lte("performed_at", toParam);
+  if (effectiveTo) {
+    worksQuery = worksQuery.lte("performed_at", effectiveTo);
   }
 
   const platformAdminIds = canPickDoctor ? await getPlatformAdminIds() : [];
@@ -148,55 +156,22 @@ export default async function MisTrabajosPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
-  let patientsQuery = supabase
-    .from("patients")
-    .select("id, full_name, national_id")
-    .order("full_name");
-  if (profile) {
-    patientsQuery = patientsQuery.eq("clinic_id", profile.clinicId);
-  }
-  if (!canPickDoctor && profile) {
-    const [{ data: apptP }, { data: workP }, { data: planP }] = await Promise.all([
-      supabase
-        .from("appointments")
-        .select("patient_id")
-        .eq("dentist_name", profile.fullName)
-        .not("patient_id", "is", null),
-      supabase
-        .from("doctor_works")
-        .select("patient_id")
-        .eq("doctor_id", profile.userId)
-        .not("patient_id", "is", null),
-      // También los pacientes con un ítem del plan de tratamiento asignado a
-      // este doctor/colega (aunque aún no haya cita ni trabajo registrado).
-      supabase
-        .from("treatment_items")
-        .select("phase:treatment_phases!inner(plan:treatment_plans!inner(patient_id))")
-        .eq("doctor_id", profile.userId),
-    ]);
-    // PostgREST puede devolver las relaciones anidadas como objeto o como array
-    // según infiera la cardinalidad; normalizar a "primer elemento" en ambos casos.
-    const first = <T,>(v: T | T[] | null | undefined): T | undefined =>
-      Array.isArray(v) ? v[0] : (v ?? undefined);
-    const planPatientIds = (planP ?? [])
-      .map((r) => {
-        const phase = first(r.phase as unknown);
-        const plan = first((phase as { plan?: unknown } | undefined)?.plan);
-        return (plan as { patient_id?: string } | undefined)?.patient_id;
-      })
-      .filter((v): v is string => Boolean(v));
-    const ids = [
-      ...new Set([
-        ...(apptP ?? []).map((r) => r.patient_id as string),
-        ...(workP ?? []).map((r) => r.patient_id as string),
-        ...planPatientIds,
-      ]),
-    ];
-    patientsQuery =
-      ids.length > 0
-        ? patientsQuery.in("id", ids)
-        : patientsQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
-  }
+  // Doctores/colegas (no pueden elegir doctor): solo ven pacientes con los
+  // que ya tuvieron contacto real (cita, trabajo, o ítem de plan asignado a
+  // ellos). Calculado en SQL (visible_patients_for_work_doctor, migración
+  // 0102) en vez de traer historial completo de 3 tablas a JS.
+  const patientsQuery =
+    !canPickDoctor && profile
+      ? supabase.rpc("visible_patients_for_work_doctor", {
+          p_clinic_id: profile.clinicId,
+          p_doctor_id: profile.userId,
+          p_dentist_name: profile.fullName,
+        })
+      : (() => {
+          let q = supabase.from("patients").select("id, full_name, national_id").order("full_name");
+          if (profile) q = q.eq("clinic_id", profile.clinicId);
+          return q;
+        })();
 
   const [{ data: works }, { data: patients }, { data: doctorProfiles }, { data: recepData }] =
     await Promise.all([
@@ -324,6 +299,11 @@ export default async function MisTrabajosPage({
 
       {/* Filtro de rango de fechas */}
       <DateRangeFilter from={fromParam} to={toParam} />
+      {!hasDateFilter && (
+        <p className="text-xs text-slate-400">
+          Mostrando los trabajos de hoy. Usa el filtro de fecha para ver otro período.
+        </p>
+      )}
 
       {!isDoctor && (
         <WorkForm
@@ -524,10 +504,10 @@ export default async function MisTrabajosPage({
           {rows.length === 0 && (
             <EmptyState
               icon={<Briefcase className="h-6 w-6" />}
-              title={`Aún no hay trabajos registrados${fromParam || toParam ? " en este período" : ""}`}
+              title="Aún no hay trabajos registrados en este período"
               description={
-                !isDoctor && !fromParam && !toParam
-                  ? "Usa el botón “Registrar trabajo” de arriba para anotar el primero."
+                !isDoctor
+                  ? "Usa el botón “Registrar trabajo” de arriba, o el filtro de fecha para ver otro período."
                   : undefined
               }
             />
@@ -631,10 +611,10 @@ export default async function MisTrabajosPage({
             {rows.length === 0 && (
               <EmptyState
                 icon={<Briefcase className="h-6 w-6" />}
-                title={`Aún no hay trabajos registrados${fromParam || toParam ? " en este período" : ""}`}
+                title="Aún no hay trabajos registrados en este período"
                 description={
-                  !isDoctor && !fromParam && !toParam
-                    ? "Usa el botón “Registrar trabajo” de arriba para anotar el primero."
+                  !isDoctor
+                    ? "Usa el botón “Registrar trabajo” de arriba, o el filtro de fecha para ver otro período."
                     : undefined
                 }
               />
