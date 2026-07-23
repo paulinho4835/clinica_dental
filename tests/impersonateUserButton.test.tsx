@@ -54,6 +54,28 @@ describe("ImpersonateUserButton", () => {
     expect(window.location.href).toBe("/agenda");
   });
 
+  it("usa fallback '(sin nombre)' cuando targetName está vacío", async () => {
+    const mockSetSession = vi.fn();
+    createClient.mockReturnValue({ auth: { setSession: mockSetSession } } as any);
+    impersonateUser.mockResolvedValueOnce({
+      original: { access_token: "sa-a", refresh_token: "sa-r" },
+      impersonated: { access_token: "imp-a", refresh_token: "imp-r" },
+      targetName: "",
+      targetRole: "recepcionista",
+    });
+
+    render(<ImpersonateUserButton userId="user-1" />);
+    fireEvent.click(screen.getByRole("button"));
+
+    await waitFor(() =>
+      expect(mockSetSession).toHaveBeenCalledWith({ access_token: "imp-a", refresh_token: "imp-r" }),
+    );
+
+    expect(sessionStorage.getItem("sa_impersonation_label")).toBe(
+      "(sin nombre) (Recepcionista)",
+    );
+  });
+
   it("muestra toast de error si impersonateUser falla, sin cambiar sesión ni redirigir", async () => {
     const mockSetSession = vi.fn();
     createClient.mockReturnValue({ auth: { setSession: mockSetSession } } as any);

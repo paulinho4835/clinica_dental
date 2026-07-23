@@ -29,7 +29,7 @@ export function ImpersonateUserButton({ userId }: { userId: string }) {
             );
             sessionStorage.setItem(
               "sa_impersonation_label",
-              `${result.targetName} (${ROLE_LABEL[result.targetRole as Role] ?? result.targetRole})`,
+              `${result.targetName || "(sin nombre)"} (${ROLE_LABEL[result.targetRole as Role] ?? result.targetRole})`,
             );
             await createClient().auth.setSession(result.impersonated);
             window.location.href = "/agenda";

@@ -105,4 +105,16 @@ describe("impersonateUser", () => {
       "No se pudo iniciar sesión: otp inválido",
     );
   });
+
+  it("rechaza si no hay sesión activa del superadmin", async () => {
+    sessionResult = { data: { session: null } };
+    await expect(impersonateUser("user-1")).rejects.toThrow("No hay sesión activa");
+  });
+
+  it("rechaza si el usuario no tiene email registrado", async () => {
+    getUserByIdResult = { data: { user: { email: null } }, error: null };
+    await expect(impersonateUser("user-1")).rejects.toThrow(
+      "El usuario no tiene email registrado",
+    );
+  });
 });
