@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, Inbox, Headset, Trash2 } from "lucide-react";
+import { UserPlus, Inbox, Headset, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { NewPatientInviteModal } from "@/components/patients/NewPatientInviteModal";
 import { ReviewAnamnesisModal } from "@/components/patients/ReviewAnamnesisModal";
@@ -40,6 +40,11 @@ export function IncomingIntakesPanel({
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  // La lista de "esperando respuesta" crece sin límite (un enlace por cada
+  // paciente invitado que aún no completó el formulario) y no requiere
+  // acción inmediata, a diferencia de "por revisar" — colapsada por defecto
+  // para no empujar el resto de la página hacia abajo.
+  const [awaitingOpen, setAwaitingOpen] = useState(false);
 
   const reviewItem = ready.find((r) => r.id === reviewId) ?? null;
 
@@ -117,35 +122,50 @@ export function IncomingIntakesPanel({
       )}
 
       {awaiting.length > 0 && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs text-slate-400">
-            {awaiting.length} enlace{awaiting.length !== 1 ? "s" : ""} enviado
-            {awaiting.length !== 1 ? "s" : ""} esperando que el paciente complete.
-          </p>
-          {awaiting.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm text-slate-600">
-                  {a.contactName || "Sin nombre"}
-                </p>
-                <p className="truncate text-xs text-slate-400">
-                  {a.contactPhone ?? "Sin teléfono"} · esperando respuesta
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(a)}
-                disabled={deletingId === a.id}
-                title="Eliminar este registro pendiente"
-                className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setAwaitingOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-xs text-slate-400 hover:text-slate-600"
+          >
+            <span>
+              {awaiting.length} enlace{awaiting.length !== 1 ? "s" : ""} enviado
+              {awaiting.length !== 1 ? "s" : ""} esperando que el paciente complete.
+            </span>
+            {awaitingOpen ? (
+              <ChevronUp className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            )}
+          </button>
+          {awaitingOpen && (
+            <div className="mt-2 space-y-2">
+              {awaiting.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-slate-600">
+                      {a.contactName || "Sin nombre"}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
+                      {a.contactPhone ?? "Sin teléfono"} · esperando respuesta
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(a)}
+                    disabled={deletingId === a.id}
+                    title="Eliminar este registro pendiente"
+                    className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
