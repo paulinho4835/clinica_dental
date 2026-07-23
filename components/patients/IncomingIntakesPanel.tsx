@@ -40,10 +40,11 @@ export function IncomingIntakesPanel({
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  // La lista de "esperando respuesta" crece sin límite (un enlace por cada
-  // paciente invitado que aún no completó el formulario) y no requiere
-  // acción inmediata, a diferencia de "por revisar" — colapsada por defecto
-  // para no empujar el resto de la página hacia abajo.
+  // "Por revisar" empieza abierto (requiere acción). "Esperando respuesta"
+  // crece sin límite (un enlace por cada invitación aún sin completar) y no
+  // requiere acción inmediata — empieza colapsado para no empujar el resto
+  // de la página hacia abajo.
+  const [readyOpen, setReadyOpen] = useState(true);
   const [awaitingOpen, setAwaitingOpen] = useState(false);
 
   const reviewItem = ready.find((r) => r.id === reviewId) ?? null;
@@ -89,35 +90,56 @@ export function IncomingIntakesPanel({
       )}
 
       {ready.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {ready.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-clinic bg-clinic/5 px-3 py-2.5"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-medium text-slate-800">
-                    {r.personal?.full_name || r.contactName || "Paciente nuevo"}
-                  </p>
-                  {r.source === "agente" && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-clinic/10 px-2 py-0.5 text-[10px] font-medium text-clinic-700">
-                      <Headset className="h-3 w-3" />
-                      Asistente Virtual
-                    </span>
-                  )}
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setReadyOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-clinic/30 bg-clinic/10 px-3 py-2.5 text-sm font-semibold text-clinic-700 transition hover:bg-clinic/15"
+          >
+            <span className="flex items-center gap-2">
+              Por revisar
+              <span className="rounded-full bg-clinic px-2 py-0.5 text-xs font-bold text-white">
+                {ready.length}
+              </span>
+            </span>
+            {readyOpen ? (
+              <ChevronUp className="h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            )}
+          </button>
+          {readyOpen && (
+            <div className="mt-2 space-y-2">
+              {ready.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-clinic bg-clinic/5 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-slate-800">
+                        {r.personal?.full_name || r.contactName || "Paciente nuevo"}
+                      </p>
+                      {r.source === "agente" && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-clinic/10 px-2 py-0.5 text-[10px] font-medium text-clinic-700">
+                          <Headset className="h-3 w-3" />
+                          Asistente Virtual
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-slate-500">
+                      {r.personal?.national_id ? `CI: ${r.personal.national_id} · ` : ""}
+                      {r.contactPhone ?? r.personal?.phone ?? "Sin teléfono"}
+                      {r.source === "agente" ? " · Registrado por el Asistente Virtual (WhatsApp)" : ""}
+                    </p>
+                  </div>
+                  <Button size="sm" type="button" onClick={() => setReviewId(r.id)}>
+                    Revisar
+                  </Button>
                 </div>
-                <p className="truncate text-xs text-slate-500">
-                  {r.personal?.national_id ? `CI: ${r.personal.national_id} · ` : ""}
-                  {r.contactPhone ?? r.personal?.phone ?? "Sin teléfono"}
-                  {r.source === "agente" ? " · Registrado por el Asistente Virtual (WhatsApp)" : ""}
-                </p>
-              </div>
-              <Button size="sm" type="button" onClick={() => setReviewId(r.id)}>
-                Revisar
-              </Button>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -126,16 +148,18 @@ export function IncomingIntakesPanel({
           <button
             type="button"
             onClick={() => setAwaitingOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-xs text-slate-400 hover:text-slate-600"
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
           >
-            <span>
-              {awaiting.length} enlace{awaiting.length !== 1 ? "s" : ""} enviado
-              {awaiting.length !== 1 ? "s" : ""} esperando que el paciente complete.
+            <span className="flex items-center gap-2">
+              Esperando respuesta
+              <span className="rounded-full bg-slate-400 px-2 py-0.5 text-xs font-bold text-white">
+                {awaiting.length}
+              </span>
             </span>
             {awaitingOpen ? (
-              <ChevronUp className="h-3.5 w-3.5 shrink-0" />
+              <ChevronUp className="h-4 w-4 shrink-0" />
             ) : (
-              <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+              <ChevronDown className="h-4 w-4 shrink-0" />
             )}
           </button>
           {awaitingOpen && (
