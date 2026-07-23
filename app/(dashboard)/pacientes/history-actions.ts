@@ -55,7 +55,7 @@ export async function addPatientPayment(
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from("payments").insert({
+  const { data: payment, error } = await supabase.from("payments").insert({
     clinic_id: profile.clinicId,
     patient_id: d.patient_id,
     amount: d.amount,
@@ -72,7 +72,7 @@ export async function addPatientPayment(
     note: d.note ?? null,
     collected_by_id: d.collected_by_id ?? null,
     treatment_item_id: d.treatment_item_id ?? null,
-  });
+  }).select("id").single();
   if (error) return { error: error.message };
 
   // Si hay doctor, registrar automáticamente en Mis trabajos.
@@ -93,6 +93,7 @@ export async function addPatientPayment(
       performed_at: new Date().toISOString().split("T")[0],
       collected_by_id: d.collected_by_id ?? null,
       treatment_item_id: d.treatment_item_id ?? null,
+      payment_id: payment.id,
     });
     if (workError)
       return {
@@ -207,13 +208,6 @@ export async function deletePatientPayment(paymentId: string): Promise<ActionSta
 
   // Si el pago tenía doctor, addPatientPayment creó una comisión en Mis trabajos
   // que no tiene vínculo con este pago: avisar para que el admin la revise.
-  if (payment.doctor_id)
-    return {
-      ok: true,
-      warning:
-        "Pago eliminado. Como tenía un doctor asignado, revisa Mis trabajos y elimina la comisión asociada si corresponde.",
-    };
-
   return { ok: true };
 }
 
@@ -298,6 +292,20 @@ export async function updatePatientPayment(
     .eq("clinic_id", profile.clinicId);
   if (updErr) return { error: updErr.message };
 
+  // Si el pago creó un trabajo, ambos son el mismo hecho financiero. El enlace
+  // explícito evita depender de coincidencias ambiguas de fecha, monto o texto.
+  const { error: workError } = await supabase
+    .from("doctor_works")
+    .update({
+      description: after.note ?? "Pago desde ficha de paciente",
+      cost: after.amount,
+      amount_paid: after.amount,
+      payment_method: after.method,
+    })
+    .eq("payment_id", paymentId)
+    .eq("clinic_id", profile.clinicId);
+  if (workError) return { error: workError.message };
+
   // Mantener el crédito del ledger alineado con el nuevo monto.
   if (after.amount !== before.amount) {
     const { error: ledgerErr } = await supabase
@@ -328,12 +336,5 @@ export async function updatePatientPayment(
 
   // La comisión en Mis trabajos no está vinculada al pago: si cambió el monto
   // y había doctor, el admin debe ajustarla a mano.
-  if (payment.doctor_id && after.amount !== before.amount)
-    return {
-      ok: true,
-      warning:
-        "Pago actualizado. Como tenía un doctor asignado, revisa Mis trabajos y ajusta la comisión asociada si corresponde.",
-    };
-
   return { ok: true };
 }
