@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, UserX, UserCheck } from "lucide-react";
 import { confirm } from "@/lib/confirm";
+import { ImpersonateUserButton } from "@/components/superadmin/ImpersonateUserButton";
 import {
   removeClinicUser,
   updateUserRole,
@@ -103,6 +104,7 @@ export function ClinicUsers({ users }: { users: ClinicUser[] }) {
             </div>
             <div className="truncate text-xs text-slate-400">{u.email}</div>
           </div>
+          <ImpersonateUserButton userId={u.id} />
           <select
             defaultValue={u.role}
             disabled={pending}
