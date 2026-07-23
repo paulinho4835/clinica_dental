@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, getSessionRow } from "@/lib/auth";
 import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { isPlatformAdmin } from "@/lib/superadmin";
-import { canSeeNav, ROLE_LABEL, type Role } from "@/lib/rbac";
+import { canSeeNav, ROLE_LABEL } from "@/lib/rbac";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
@@ -18,15 +18,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, role, active, terms_accepted_at, terms_accepted_version, clinics(name, features, active)")
-    .eq("id", user.id)
-    .single();
+  const profile = await getSessionRow();
 
   const superadmin = await isPlatformAdmin();
 
@@ -34,13 +29,11 @@ export default async function DashboardLayout({
   // de una clínica (enterClinic() insertó un perfil temporal y refrescó el JWT).
   const isPreview = superadmin && !!profile;
 
-  const clinic = profile?.clinics as
-    | { name?: string; features?: unknown; active?: boolean }
-    | null;
+  const clinic = profile?.clinic ?? null;
 
   // Usuario desactivado: conserva todos sus datos pero no puede operar. El
   // superadmin en vista previa nunca se bloquea (su perfil temporal es active).
-  const profileActive = (profile as { active?: boolean } | null)?.active ?? true;
+  const profileActive = profile?.active ?? true;
   if (!superadmin && profile && profileActive === false) {
     return (
       <main className="flex min-h-screen items-center justify-center px-6">
@@ -78,13 +71,9 @@ export default async function DashboardLayout({
   // cambiaron de fondo: la versión aceptada es distinta de LEGAL_VERSION vigente.
   // No aplica al superadmin ni en vista previa: el admin acepta en nombre de toda
   // su clínica.
-  const termsProfile = profile as {
-    terms_accepted_at?: string | null;
-    terms_accepted_version?: string | null;
-  } | null;
   const termsAccepted =
-    !!termsProfile?.terms_accepted_at &&
-    termsProfile?.terms_accepted_version === LEGAL_VERSION;
+    !!profile?.termsAcceptedAt &&
+    profile?.termsAcceptedVersion === LEGAL_VERSION;
   if (!superadmin && profile && profile.role === "admin" && !termsAccepted) {
     return (
       <>
@@ -102,7 +91,7 @@ export default async function DashboardLayout({
 
   // Menú = módulos encendidos de la clínica Y permitidos para el rol del usuario.
   const features = normalizeFeatures(clinic?.features);
-  const role = profile?.role as Role | undefined;
+  const role = profile?.role;
 
   const nav =
     superadmin && !isPreview
@@ -115,15 +104,15 @@ export default async function DashboardLayout({
         }));
 
   const initials =
-    !superadmin && profile?.full_name
-      ? getInitials(profile.full_name)
+    !superadmin && profile?.fullName
+      ? getInitials(profile.fullName)
       : null;
 
   const subtitle = isPreview
     ? "Vista previa"
     : superadmin
     ? "Operador de plataforma"
-    : `${profile?.full_name ?? ""} · ${ROLE_LABEL[(profile?.role as Role) ?? ""] ?? profile?.role ?? ""}`;
+    : `${profile?.fullName ?? ""} · ${role ? ROLE_LABEL[role] : ""}`;
 
   return (
     <div className="flex min-h-screen flex-col">
