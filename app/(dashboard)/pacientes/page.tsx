@@ -93,6 +93,7 @@ export default async function PatientsPage({
   const intakesAwaiting: IntakeItem[] = [];
   let clinicName = "la clínica";
   if (canIntake) {
+    const nowISO = new Date().toISOString();
     const [{ data: rawIntakes }, { data: clinicRow }] = await Promise.all([
       supabase
         .from("anamnesis_invitations")
@@ -101,6 +102,10 @@ export default async function PatientsPage({
         )
         .eq("kind", "new")
         .is("reviewed_at", null)
+        // Enlaces vencidos y nunca completados no se muestran en ningún lado
+        // (se descartaban en JS después de traerlos) — se excluyen acá para
+        // no arrastrar invitaciones abandonadas de meses atrás en cada carga.
+        .or(`completed_at.not.is.null,expires_at.gt.${nowISO}`)
         .order("created_at", { ascending: false }),
       profile?.clinicId
         ? supabase.from("clinics").select("name").eq("id", profile.clinicId).single()
