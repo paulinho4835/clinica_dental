@@ -17,7 +17,10 @@ export function PatientSearch({ initial }: { initial: string }) {
       if (value.trim()) params.set("q", value.trim());
       const qs = params.toString();
       startTransition(() => {
-        router.replace(qs ? `/pacientes?${qs}` : "/pacientes");
+        // scroll: false — sin esto, cada tecla escrita hace que Next.js
+        // salte al inicio del módulo (comportamiento por defecto de
+        // router.replace en cada navegación).
+        router.replace(qs ? `/pacientes?${qs}` : "/pacientes", { scroll: false });
       });
     }, 300);
     return () => clearTimeout(id);
