@@ -44,23 +44,33 @@ export default async function PatientsPage({
   const isDoctor =
     profile?.role === "odontologo_general" || profile?.role === "especialista";
 
-  // Aviso de upsell: solo el admin decide sobre el plan. Se calcula aparte
-  // del listado (que puede estar filtrado por búsqueda `q`) para reflejar
-  // siempre el conteo TOTAL de pacientes de la clínica, no el filtrado.
+  const q = (await searchParams).q?.trim() ?? "";
+
+  // Conteo real de pacientes de la clínica (count: exact, head: true — cuenta
+  // filas sin traerlas, mucho más barato que un select completo). Se necesita
+  // sin búsqueda (para mostrar el total real en vez de "50+") y siempre para
+  // admin (aviso de límite de plan) — se pide junto, sin duplicar la query
+  // cuando ambos casos aplican a la vez.
+  const isAdmin = profile?.role === "admin" && profile.clinicId;
+  let totalPatients: number | null = null;
   let patientLimitAlert: { count: number; max: number; level: "warn" | "danger" } | null = null;
-  if (profile?.role === "admin" && profile.clinicId) {
-    const [{ count: totalPatients }, { data: clinicRow }] = await Promise.all([
+  if (!q || isAdmin) {
+    const [{ count }, clinicRes] = await Promise.all([
       supabase.from("patients").select("id", { count: "exact", head: true }),
-      supabase.from("clinics").select("max_patients").eq("id", profile.clinicId).single(),
+      isAdmin
+        ? supabase.from("clinics").select("max_patients").eq("id", profile!.clinicId).single()
+        : Promise.resolve({ data: null }),
     ]);
-    const maxPatients = (clinicRow as { max_patients: number | null } | null)?.max_patients ?? null;
-    if (maxPatients !== null && totalPatients !== null) {
-      const level = usageLevel(totalPatients, maxPatients);
-      if (level !== "ok") patientLimitAlert = { count: totalPatients, max: maxPatients, level };
+    totalPatients = count ?? null;
+    if (isAdmin) {
+      const maxPatients =
+        (clinicRes.data as { max_patients: number | null } | null)?.max_patients ?? null;
+      if (maxPatients !== null && totalPatients !== null) {
+        const level = usageLevel(totalPatients, maxPatients);
+        if (level !== "ok") patientLimitAlert = { count: totalPatients, max: maxPatients, level };
+      }
     }
   }
-
-  const q = (await searchParams).q?.trim() ?? "";
 
   // Sin búsqueda, limitar a los primeros PATIENTS_PAGE_LIMIT (orden alfabético)
   // en vez de traer TODA la clínica en cada carga — clínicas grandes no tienen
@@ -79,7 +89,7 @@ export default async function PatientsPage({
   }
 
   const { data: patients } = await query;
-  const truncated = !q && (patients?.length ?? 0) >= PATIENTS_PAGE_LIMIT;
+  const truncated = !q && totalPatients !== null && totalPatients > PATIENTS_PAGE_LIMIT;
 
   // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
   // Solo admin, recepción y colega: el panel muestra teléfonos y envía el
@@ -141,9 +151,13 @@ export default async function PatientsPage({
       <PageHeader
         title="Pacientes"
         subtitle={
-          patients && patients.length > 0
-            ? `${patients.length}${truncated ? "+" : ""} paciente${patients.length !== 1 ? "s" : ""} ${q ? "encontrado" : "registrado"}${patients.length !== 1 ? "s" : ""}`
-            : undefined
+          q
+            ? patients && patients.length > 0
+              ? `${patients.length} paciente${patients.length !== 1 ? "s" : ""} encontrado${patients.length !== 1 ? "s" : ""}`
+              : undefined
+            : totalPatients !== null && totalPatients > 0
+              ? `${totalPatients} paciente${totalPatients !== 1 ? "s" : ""} registrado${totalPatients !== 1 ? "s" : ""}`
+              : undefined
         }
       />
       {patientLimitAlert && (
