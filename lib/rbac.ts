@@ -9,6 +9,17 @@ export type Role =
   | "especialista"
   | "asistente";
 
+// Etiquetas en español para mostrar el rol en UI (menú lateral, panel de
+// superadmin, banner de "entrar como usuario").
+export const ROLE_LABEL: Record<Role, string> = {
+  admin: "Administrador",
+  recepcionista: "Recepcionista",
+  colega: "Colega",
+  odontologo_general: "Odontólogo",
+  especialista: "Especialista",
+  asistente: "Asistente",
+};
+
 // Roles con acceso de recepción: ven toda la clínica y pueden asignar trabajos a otros.
 // Colega NO entra aquí: solo ve sus propios datos (como un doctor).
 export function isReceptionistLike(role: Role | undefined): boolean {

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { FEATURES, normalizeFeatures } from "@/lib/features";
 import { isPlatformAdmin } from "@/lib/superadmin";
-import { canSeeNav, type Role } from "@/lib/rbac";
+import { canSeeNav, ROLE_LABEL, type Role } from "@/lib/rbac";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
@@ -118,19 +118,11 @@ export default async function DashboardLayout({
       ? getInitials(profile.full_name)
       : null;
 
-  const ROLE_LABEL: Record<string, string> = {
-    admin: "Administrador",
-    recepcionista: "Recepcionista",
-    colega: "Colega",
-    odontologo_general: "Odontólogo",
-    especialista: "Especialista",
-    asistente: "Asistente",
-  };
   const subtitle = isPreview
     ? "Vista previa"
     : superadmin
     ? "Operador de plataforma"
-    : `${profile?.full_name ?? ""} · ${ROLE_LABEL[profile?.role ?? ""] ?? profile?.role ?? ""}`;
+    : `${profile?.full_name ?? ""} · ${ROLE_LABEL[(profile?.role as Role) ?? ""] ?? profile?.role ?? ""}`;
 
   return (
     <div className="flex min-h-screen flex-col">

@@ -76,3 +76,16 @@ describe("permisos límite por rol", () => {
     expect(can("admin", "appointments:write")).toBe(true);
   });
 });
+
+import { ROLE_LABEL } from "@/lib/rbac";
+
+describe("ROLE_LABEL", () => {
+  it("tiene una etiqueta en español para cada rol", () => {
+    expect(ROLE_LABEL.admin).toBe("Administrador");
+    expect(ROLE_LABEL.recepcionista).toBe("Recepcionista");
+    expect(ROLE_LABEL.colega).toBe("Colega");
+    expect(ROLE_LABEL.odontologo_general).toBe("Odontólogo");
+    expect(ROLE_LABEL.especialista).toBe("Especialista");
+    expect(ROLE_LABEL.asistente).toBe("Asistente");
+  });
+});
