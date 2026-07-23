@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 export function SignOutButton() {
   const router = useRouter();
   async function signOut() {
+    sessionStorage.removeItem("sa_impersonation_return");
+    sessionStorage.removeItem("sa_impersonation_label");
     await createClient().auth.signOut();
     window.location.href = "/login";
   }

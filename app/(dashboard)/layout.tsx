@@ -9,6 +9,7 @@ import { ConfirmHost } from "@/components/ui/ConfirmHost";
 import { InstallAppBanner } from "@/components/ui/InstallAppBanner";
 import { getInitials } from "@/lib/format";
 import { ExitPreviewBanner } from "@/components/superadmin/ExitPreviewBanner";
+import { ImpersonationBanner } from "@/components/superadmin/ImpersonationBanner";
 import { TermsGate } from "@/components/legal/TermsGate";
 import { LEGAL_VERSION } from "@/lib/legal";
 
@@ -127,6 +128,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen flex-col">
       {isPreview && <ExitPreviewBanner clinicName={clinicName} />}
+      <ImpersonationBanner />
       <div className="flex flex-1 flex-col md:flex-row">
         <Sidebar
           clinicName={clinicName}
