@@ -424,3 +424,72 @@ export async function exitClinic(): Promise<{
     refresh_token: data.session.refresh_token,
   };
 }
+
+// ── "Entrar como este usuario" ───────────────────────────────────────────────
+// Genera una sesión real de un usuario de clínica vía magic link (server-side,
+// sin enviar ningún email, sin tocar su contraseña) para que el superadmin
+// reproduzca bugs "tal cual los ve" esa persona. No escribe en audit_log ni en
+// ninguna tabla — decisión explícita: la clínica no debe notar nada.
+export async function impersonateUser(targetUserId: string): Promise<{
+  original: { access_token: string; refresh_token: string };
+  impersonated: { access_token: string; refresh_token: string };
+  targetName: string;
+  targetRole: string;
+}> {
+  await assertSuperadmin();
+
+  const serverClient = await createClient();
+  const {
+    data: { session: originalSession },
+  } = await serverClient.auth.getSession();
+  if (!originalSession) throw new Error("No hay sesión activa");
+
+  const admin = createAdminClient();
+
+  const { data: targetIsAdmin } = await admin
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+  if (targetIsAdmin) throw new Error("No se puede entrar como otro superadmin");
+
+  const { data: targetProfile } = await admin
+    .from("profiles")
+    .select("full_name, role")
+    .eq("id", targetUserId)
+    .single();
+  if (!targetProfile) throw new Error("Usuario no encontrado");
+
+  const { data: targetAuthUser, error: getUserErr } = await admin.auth.admin.getUserById(targetUserId);
+  const email = targetAuthUser?.user?.email;
+  if (getUserErr || !email) throw new Error("El usuario no tiene email registrado");
+
+  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (linkErr || !linkData) {
+    throw new Error(`No se pudo generar el acceso: ${linkErr?.message ?? "sin datos"}`);
+  }
+
+  const { data: verifyData, error: verifyErr } = await serverClient.auth.verifyOtp({
+    token_hash: linkData.properties.hashed_token,
+    type: "magiclink",
+  });
+  if (verifyErr || !verifyData.session) {
+    throw new Error(`No se pudo iniciar sesión: ${verifyErr?.message ?? "sin sesión"}`);
+  }
+
+  return {
+    original: {
+      access_token: originalSession.access_token,
+      refresh_token: originalSession.refresh_token,
+    },
+    impersonated: {
+      access_token: verifyData.session.access_token,
+      refresh_token: verifyData.session.refresh_token,
+    },
+    targetName: targetProfile.full_name,
+    targetRole: targetProfile.role,
+  };
+}
