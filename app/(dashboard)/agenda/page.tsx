@@ -9,7 +9,6 @@ import { boliviaTodayISO } from "@/lib/format";
 import { gridRange } from "@/lib/agenda";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
-import { visiblePatientsForDoctor } from "@/lib/agenda/doctorPatientVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +86,10 @@ export default async function AgendaPage({
     doctorsQuery = doctorsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
   }
 
-  // Odontólogos y especialistas solo ven sus propios pacientes en el picker.
+  // Odontólogos y especialistas solo ven sus propios pacientes en el picker
+  // (los que ya atendieron, más los que todavía nadie en la clínica atendió).
+  // Esa regla se calcula en SQL (visible_patients_for_doctor, migración 0100)
+  // en vez de traer TODAS las citas y trabajos de la clínica a JS.
   const isDoctor =
     profile?.role === "odontologo_general" || profile?.role === "especialista";
   let patientsQuery = supabase
@@ -97,43 +99,20 @@ export default async function AgendaPage({
   if (profile) {
     patientsQuery = patientsQuery.eq("clinic_id", profile.clinicId);
   }
-  const [{ data: appts }, { data: patientsRaw }, { data: doctorsRaw }] = await Promise.all([
+  const [{ data: appts }, patientsRes, { data: doctorsRaw }] = await Promise.all([
     apptsQuery,
-    patientsQuery,
+    isDoctor && profile
+      ? supabase.rpc("visible_patients_for_doctor", {
+          p_clinic_id: profile.clinicId,
+          p_dentist_name: profile.fullName,
+          p_doctor_id: profile.userId,
+        })
+      : patientsQuery,
     doctorsQuery ?? Promise.resolve({ data: [] }),
   ]);
-
-  let patients = patientsRaw;
-  if (isDoctor && profile) {
-    // Un doctor ve a sus propios pacientes MÁS a los que todavía nadie en la
-    // clínica atendió (paciente nuevo, sin cita/trabajo previo con NINGÚN
-    // doctor) — así puede agendarle su primera cita. Lo que no ve es a un
-    // paciente ya "reclamado" por OTRO doctor.
-    const [{ data: apptP }, { data: workP }, { data: apptAll }, { data: workAll }] =
-      await Promise.all([
-        supabase
-          .from("appointments")
-          .select("patient_id")
-          .eq("dentist_name", profile.fullName)
-          .not("patient_id", "is", null),
-        supabase
-          .from("doctor_works")
-          .select("patient_id")
-          .eq("doctor_id", profile.userId)
-          .not("patient_id", "is", null),
-        supabase.from("appointments").select("patient_id").not("patient_id", "is", null),
-        supabase.from("doctor_works").select("patient_id").not("patient_id", "is", null),
-      ]);
-    const ownIds = [
-      ...(apptP ?? []).map((r) => r.patient_id as string),
-      ...(workP ?? []).map((r) => r.patient_id as string),
-    ];
-    const claimedIds = [
-      ...(apptAll ?? []).map((r) => r.patient_id as string),
-      ...(workAll ?? []).map((r) => r.patient_id as string),
-    ];
-    patients = visiblePatientsForDoctor(patientsRaw ?? [], ownIds, claimedIds);
-  }
+  const patients = patientsRes.data as
+    | { id: string; full_name: string; national_id: string | null }[]
+    | null;
 
   // Doctores que ve el modal para el campo "Odontólogo".
   // Admin/recepcionista: lista completa. Doctor: solo él mismo, así el
