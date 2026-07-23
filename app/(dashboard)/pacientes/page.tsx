@@ -66,7 +66,7 @@ export default async function PatientsPage({
   // en vez de traer TODA la clínica en cada carga — clínicas grandes no tienen
   // tope de max_patients, así que esta lista crece sin límite con el tiempo.
   // El buscador (PatientSearch) sigue trayendo coincidencias exactas sin tope.
-  const PATIENTS_PAGE_LIMIT = 200;
+  const PATIENTS_PAGE_LIMIT = 50;
   let query = supabase
     .from("patients")
     .select("id, full_name, national_id, phone, medical_alerts")
