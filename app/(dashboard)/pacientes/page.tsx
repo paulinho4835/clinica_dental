@@ -62,6 +62,11 @@ export default async function PatientsPage({
 
   const q = (await searchParams).q?.trim() ?? "";
 
+  // Sin búsqueda, limitar a los primeros PATIENTS_PAGE_LIMIT (orden alfabético)
+  // en vez de traer TODA la clínica en cada carga — clínicas grandes no tienen
+  // tope de max_patients, así que esta lista crece sin límite con el tiempo.
+  // El buscador (PatientSearch) sigue trayendo coincidencias exactas sin tope.
+  const PATIENTS_PAGE_LIMIT = 200;
   let query = supabase
     .from("patients")
     .select("id, full_name, national_id, phone, medical_alerts")
@@ -69,9 +74,12 @@ export default async function PatientsPage({
 
   if (q) {
     query = query.ilike("search_text", `%${normalizeSearch(q)}%`);
+  } else {
+    query = query.limit(PATIENTS_PAGE_LIMIT);
   }
 
   const { data: patients } = await query;
+  const truncated = !q && (patients?.length ?? 0) >= PATIENTS_PAGE_LIMIT;
 
   // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
   // Solo admin, recepción y colega: el panel muestra teléfonos y envía el
@@ -129,7 +137,7 @@ export default async function PatientsPage({
         title="Pacientes"
         subtitle={
           patients && patients.length > 0
-            ? `${patients.length} paciente${patients.length !== 1 ? "s" : ""} registrado${patients.length !== 1 ? "s" : ""}`
+            ? `${patients.length}${truncated ? "+" : ""} paciente${patients.length !== 1 ? "s" : ""} ${q ? "encontrado" : "registrado"}${patients.length !== 1 ? "s" : ""}`
             : undefined
         }
       />
@@ -165,6 +173,11 @@ export default async function PatientsPage({
       )}
 
       <PatientSearch initial={q} />
+      {truncated && (
+        <p className="text-xs text-slate-400">
+          Mostrando los primeros {PATIENTS_PAGE_LIMIT} pacientes (orden alfabético). Usa el buscador para encontrar a alguien más.
+        </p>
+      )}
 
       <div className="divide-y divide-slate-100 rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
         {patients?.map((p) => (
