@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   addPlanWork,
   deleteWork,
+  updatePlanItemName,
+  updatePlanItemPrice,
   type ActionState,
 } from "@/app/(dashboard)/pacientes/treatment-actions";
 import { PrintSelectModal } from "./PrintSelectModal";
@@ -35,6 +37,8 @@ export function TreatmentPlanPanel({
   patientId,
   canWrite,
   canDelete,
+  canEditName,
+  canEditPrice,
   works,
   dentists,
   catalog,
@@ -45,6 +49,10 @@ export function TreatmentPlanPanel({
   canWrite: boolean;
   /** Solo el admin puede eliminar trabajos ya agregados al plan. */
   canDelete: boolean;
+  /** Admin, doctores y colega pueden renombrar el trabajo (no el precio). */
+  canEditName?: boolean;
+  /** Solo el admin puede corregir el precio de un ítem ya agregado. */
+  canEditPrice?: boolean;
   works: Work[];
   dentists: Dentist[];
   /** Catálogo de tratamientos de la clínica (sugerencias + autollenado de precio). */
@@ -74,7 +82,7 @@ export function TreatmentPlanPanel({
         </div>
         <div className="divide-y divide-slate-100">
           {works.map((w) => (
-            <WorkRow key={w.id} work={w} patientId={patientId} canDelete={canDelete} currency={currency} />
+            <WorkRow key={w.id} work={w} patientId={patientId} canDelete={canDelete} canEditName={canEditName} canEditPrice={canEditPrice} currency={currency} />
           ))}
           {works.length === 0 && (
             <p className="px-4 py-3 text-sm text-slate-500">Sin trabajos en el plan.</p>
@@ -95,27 +103,141 @@ function WorkRow({
   work,
   patientId,
   canDelete,
+  canEditName,
+  canEditPrice,
   currency,
 }: {
   work: Work;
   patientId: string;
   canDelete: boolean;
+  canEditName?: boolean;
+  canEditPrice?: boolean;
   currency: string;
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState(work.name);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceVal, setPriceVal] = useState(String(work.price));
+
+  function saveName() {
+    const trimmed = nameVal.trim();
+    if (!trimmed || trimmed === work.name) {
+      setNameVal(work.name);
+      setEditing(false);
+      return;
+    }
+    start(async () => {
+      const fd = new FormData();
+      fd.set("item_id", work.id);
+      fd.set("patient_id", patientId);
+      fd.set("name", trimmed);
+      const res = await updatePlanItemName({}, fd);
+      if (res.error) {
+        toast(res.error, "error");
+        setNameVal(work.name);
+      } else {
+        router.refresh();
+      }
+      setEditing(false);
+    });
+  }
+
+  function savePrice() {
+    const n = Number(priceVal);
+    if (!Number.isFinite(n) || n < 0 || n === work.price) {
+      setPriceVal(String(work.price));
+      setEditingPrice(false);
+      return;
+    }
+    start(async () => {
+      const fd = new FormData();
+      fd.set("item_id", work.id);
+      fd.set("patient_id", patientId);
+      fd.set("price", String(n));
+      const res = await updatePlanItemPrice({}, fd);
+      if (res.error) {
+        toast(res.error, "error");
+        setPriceVal(String(work.price));
+      } else {
+        router.refresh();
+      }
+      setEditingPrice(false);
+    });
+  }
 
   return (
     <div className="grid grid-cols-2 items-center gap-3 px-4 py-2.5 text-sm sm:grid-cols-[10rem_1fr_9rem_7rem_2rem]">
       <span className="order-2 text-xs tabular-nums text-slate-400 sm:order-none sm:text-sm sm:text-slate-600">
         {fmtDateTime(work.createdAt)}
       </span>
-      <span className="order-1 font-medium sm:order-none">{work.name}</span>
+      <span className="order-1 font-medium sm:order-none">
+        {editing ? (
+          <input
+            autoFocus
+            type="text"
+            value={nameVal}
+            disabled={pending}
+            onChange={(e) => setNameVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveName();
+              if (e.key === "Escape") {
+                setNameVal(work.name);
+                setEditing(false);
+              }
+            }}
+            onBlur={saveName}
+            className="w-full rounded border border-clinic bg-white px-2 py-1 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-clinic"
+          />
+        ) : canEditName ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-left hover:underline decoration-dotted underline-offset-2"
+            title="Editar trabajo a realizar"
+          >
+            {work.name}
+          </button>
+        ) : (
+          work.name
+        )}
+      </span>
       <span className="order-3 truncate text-slate-500 sm:order-none">
         {work.dentistName ?? <span className="text-slate-300">—</span>}
       </span>
       <span className="order-4 text-right tabular-nums text-slate-600 sm:order-none">
-        {money(work.price, currency)}
+        {editingPrice ? (
+          <input
+            autoFocus
+            type="number"
+            step="0.01"
+            min="0"
+            value={priceVal}
+            disabled={pending}
+            onChange={(e) => setPriceVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") savePrice();
+              if (e.key === "Escape") {
+                setPriceVal(String(work.price));
+                setEditingPrice(false);
+              }
+            }}
+            onBlur={savePrice}
+            className="w-24 rounded border border-clinic bg-white px-2 py-1 text-right text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-clinic"
+          />
+        ) : canEditPrice ? (
+          <button
+            type="button"
+            onClick={() => setEditingPrice(true)}
+            className="hover:underline decoration-dotted underline-offset-2"
+            title="Editar precio"
+          >
+            {money(work.price, currency)}
+          </button>
+        ) : (
+          money(work.price, currency)
+        )}
       </span>
       <div className="order-5 text-right sm:order-none">
         {canDelete && (

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, canEditPlanItemName } from "@/lib/rbac";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -201,6 +201,83 @@ export async function setWorkDone(
   if (error) return { error: error.message };
 
   revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
+}
+
+// Renombra el "Trabajo a realizar" de un ítem ya agregado al plan. Admin,
+// doctores y colega pueden usarlo — recepcionista/asistente no. El precio
+// NO se toca acá: si el ítem estaba vinculado al catálogo, se desvincula
+// (procedure_id -> null) para que el nuevo texto libre se muestre tal cual.
+const RenameSchema = z.object({
+  item_id: z.string().uuid(),
+  patient_id: z.string().uuid(),
+  name: z.string().trim().min(1, "Escribe el trabajo a realizar"),
+});
+
+export async function updatePlanItemName(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (!canEditPlanItemName(profile.role))
+    return { error: "Sin permiso para editar el plan." };
+
+  const parsed = RenameSchema.safeParse({
+    item_id: formData.get("item_id"),
+    patient_id: formData.get("patient_id"),
+    name: formData.get("name"),
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("treatment_items")
+    .update({ custom_name: parsed.data.name, procedure_id: null })
+    .eq("id", parsed.data.item_id)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${parsed.data.patient_id}`);
+  return { ok: true };
+}
+
+// Corrige el precio de un ítem ya agregado al plan. SOLO el admin — doctores,
+// colega y especialista pueden corregir el texto (updatePlanItemName) pero no
+// el monto, para que un error de tipeo en el nombre no se use para tocar montos.
+const PriceSchema = z.object({
+  item_id: z.string().uuid(),
+  patient_id: z.string().uuid(),
+  price: z.coerce.number().min(0, "Precio inválido"),
+});
+
+export async function updatePlanItemPrice(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Sesión expirada." };
+  if (profile.role !== "admin")
+    return { error: "Solo el administrador puede editar el precio." };
+
+  const parsed = PriceSchema.safeParse({
+    item_id: formData.get("item_id"),
+    patient_id: formData.get("patient_id"),
+    price: formData.get("price"),
+  });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("treatment_items")
+    .update({ price: parsed.data.price })
+    .eq("id", parsed.data.item_id)
+    .eq("clinic_id", profile.clinicId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/pacientes/${parsed.data.patient_id}`);
   return { ok: true };
 }
 

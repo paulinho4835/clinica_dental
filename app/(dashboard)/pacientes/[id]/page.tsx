@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
-import { can, canSeeNav, canEditAnamnesis } from "@/lib/rbac";
+import { can, canSeeNav, canEditAnamnesis, canEditPlanItemName } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
 import { OdontogramTabs } from "@/components/odontogram/OdontogramTabs";
@@ -23,7 +23,7 @@ import {
 import type { TeethMap } from "@/lib/odontogram/types";
 import { PEDIATRIC_QUADRANTS, PEDIATRIC_QUADRANT_NUMBERS } from "@/lib/odontogram/pediatricTypes";
 import { savePediatricOdontogram } from "@/app/(dashboard)/pacientes/pediatric-odontogram-actions";
-import { money } from "@/lib/format";
+import { money, calcAge } from "@/lib/format";
 import { getClinicCurrency } from "@/lib/superadmin";
 import Link from "next/link";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
@@ -535,7 +535,7 @@ export default async function PatientPage({
     <>
       <section>
         <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} currency={currency} />
+        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} canEditName={canEditPlanItemName(profile?.role)} canEditPrice={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} currency={currency} />
       </section>
 
       <section>
@@ -698,7 +698,12 @@ export default async function PatientPage({
     <div className="space-y-6">
       <header>
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+          <h1 className="flex flex-wrap items-baseline gap-x-2 text-2xl font-bold">
+            {patient.full_name}
+            {calcAge(patient.dob) !== null && (
+              <span className="text-2xl font-bold text-slate-400">{calcAge(patient.dob)} años</span>
+            )}
+          </h1>
           <div className="flex items-start gap-2">
             {canEditClinical && (
               <Link
@@ -731,6 +736,7 @@ export default async function PatientPage({
           </div>
         </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
+          {patient.national_id && <span>CI: {patient.national_id}</span>}
           {patient.dob && <span>Nac.: {patient.dob}</span>}
           {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
           {patient.referral_source && (

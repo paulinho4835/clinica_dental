@@ -88,3 +88,10 @@ const CLINICAL_EDIT_ROLES = new Set<Role>([
 export function canEditAnamnesis(role: string | undefined): boolean {
   return role ? CLINICAL_EDIT_ROLES.has(role as Role) : false;
 }
+
+// Mismo set de roles: admin + doctores + colega pueden renombrar el "Trabajo a
+// realizar" de un ítem del plan ya agregado. El precio NO se puede editar por
+// esta vía (solo agregar/eliminar), para no alterar montos ya cobrados/comisionados.
+export function canEditPlanItemName(role: string | undefined): boolean {
+  return role ? CLINICAL_EDIT_ROLES.has(role as Role) : false;
+}

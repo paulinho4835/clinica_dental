@@ -15,6 +15,20 @@ export function getInitials(name: string): string {
     .toUpperCase();
 }
 
+// Edad en años a partir de la fecha de nacimiento (YYYY-MM-DD). null si no hay dob.
+export function calcAge(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob + "T00:00:00");
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const beforeBirthdayThisYear =
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate());
+  if (beforeBirthdayThisYear) age--;
+  return age;
+}
+
 // Normaliza texto para búsqueda: minúsculas y sin acentos ("María" -> "maria").
 export function normalizeSearch(s: string): string {
   return s
