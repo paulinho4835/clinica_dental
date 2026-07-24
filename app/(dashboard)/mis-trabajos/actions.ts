@@ -10,8 +10,7 @@ import { canSeeNav, isReceptionistLike } from "@/lib/rbac";
 export type ActionState = { error?: string; ok?: boolean };
 
 const WorkSchema = z.object({
-  patient_id: z.string().uuid().optional().nullable(),
-  patient_name: z.string().trim().max(120).optional().nullable(),
+  patient_id: z.string().uuid({ message: "Selecciona un paciente registrado en el sistema." }),
   description: z.string().trim().min(1, "Describe el trabajo realizado."),
   cost: z.coerce.number().min(0, "El costo no puede ser negativo."),
   commission_pct: z.coerce
@@ -48,7 +47,6 @@ export async function createDoctorWork(
 
   const parsed = WorkSchema.safeParse({
     patient_id: formData.get("patient_id") || null,
-    patient_name: formData.get("patient_name") || null,
     description: formData.get("description"),
     cost: formData.get("cost") || 0,
     commission_pct: formData.get("commission_pct") || 0,
@@ -68,21 +66,28 @@ export async function createDoctorWork(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   const d = parsed.data;
-  if (!d.patient_id && !d.patient_name)
-    return { error: "Indica el paciente (registrado o por nombre)." };
 
   // "Cobrado por" referencia clinic_receptionists (no profiles). Si no se
   // indicó recepcionista, queda null: NO se puede usar profile.userId (es un id
   // de profiles) porque violaría el FK doctor_works/payments_collected_by_id_fkey.
   const resolvedCollectedById = d.collected_by_id ?? null;
 
+  const supabase = await createClient();
+  const { data: patientRow } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("id", d.patient_id)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (!patientRow)
+    return { error: "Paciente no encontrado. Debe estar registrado en el módulo Pacientes antes de registrar un trabajo." };
+
   const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
   let payment: { id: string } | null = null;
   let payError: { message: string } | null = null;
 
   const insertData = {
-    patient_id: d.patient_id ?? null,
-    patient_name: d.patient_id ? null : d.patient_name,
+    patient_id: d.patient_id,
     description: d.description,
     cost: d.cost,
     commission_pct: d.commission_pct,
@@ -98,7 +103,6 @@ export async function createDoctorWork(
     collected_by_id: resolvedCollectedById,
   };
 
-  const supabase = await createClient();
   let actualDoctorId: string;
   let workId: string;
 
@@ -219,6 +223,7 @@ const EditSchema = z.object({
   notes: z.string().trim().max(300).optional().nullable(),
   lab_work: z.string().trim().max(200).optional().nullable(),
   lab_cost: z.coerce.number().min(0).default(0),
+  treatment_lab_cost: z.coerce.number().min(0).default(0),
 });
 
 export async function updateDoctorWork(
@@ -241,6 +246,7 @@ export async function updateDoctorWork(
     notes: formData.get("notes") || null,
     lab_work: formData.get("lab_work") || null,
     lab_cost: formData.get("lab_cost") || 0,
+    treatment_lab_cost: formData.get("treatment_lab_cost") || 0,
   });
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -269,6 +275,7 @@ export async function updateDoctorWork(
     notes: d.notes ?? null,
     lab_work: d.lab_work ?? null,
     lab_cost: d.lab_cost,
+    treatment_lab_cost: d.treatment_lab_cost,
   };
 
   const { error } = await supabase

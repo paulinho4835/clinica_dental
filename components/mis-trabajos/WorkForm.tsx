@@ -231,7 +231,7 @@ export function WorkForm({
   const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;
   const canSubmit =
     !pending &&
-    query.trim() &&
+    selectedId &&
     (!doctors || selectedDoctorId) &&
     (!hasRecepcionistas || selectedCollectedById);
 
@@ -263,7 +263,7 @@ export function WorkForm({
             <input
               type="text"
               autoComplete="off"
-              placeholder="Buscar por nombre o CI… (o escribe un nombre suelto)"
+              placeholder="Buscar por nombre o CI…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -274,7 +274,6 @@ export function WorkForm({
               className={fieldInputClass}
             />
             <input type="hidden" name="patient_id" value={selectedId} />
-            <input type="hidden" name="patient_name" value={selectedId ? "" : query} />
             {showSuggestions && filtered.length > 0 && (
               <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
                 {filtered.map((p) => (
@@ -610,8 +609,10 @@ export function WorkForm({
         </div>
 
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-        {!query.trim() && (
-          <p className="text-xs text-amber-600">Indica el paciente.</p>
+        {!selectedId && (
+          <p className="text-xs text-amber-600">
+            Selecciona un paciente registrado. Si no existe, créalo primero en el módulo Pacientes.
+          </p>
         )}
 
         <div className="flex gap-2">

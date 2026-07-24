@@ -5,6 +5,7 @@ import { Pencil, X } from "lucide-react";
 import { updateDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { money } from "@/lib/format";
+import { computeCommission } from "@/lib/commission";
 import { toast } from "@/lib/toast";
 import { useDismissable } from "@/components/ui/useDismissable";
 
@@ -58,7 +59,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
   const pctN = Number(pct) || 0;
   const labCostN = Number(labCost) || 0;
   const amountPaidN = Number(amountPaid) || 0;
-  const commission = Math.round((costN - labCostN) * pctN) / 100;
+  const commission = computeCommission({ amountPaid: amountPaidN, cost: costN, labCost: labCostN, pct: pctN });
 
   useEffect(() => {
     if (state.ok) {
@@ -186,6 +187,7 @@ export function EditWorkButton({ work, currency }: { work: WorkData; currency: s
                     onWheel={preventWheelChange}
                     className={fieldInputClass}
                   />
+                  <input type="hidden" name="treatment_lab_cost" value={labCostN} />
                 </label>
 
                 <label className="block text-sm">

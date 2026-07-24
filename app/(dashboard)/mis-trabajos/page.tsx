@@ -105,7 +105,7 @@ export default async function MisTrabajosPage({
   let worksQuery = supabase
     .from("doctor_works")
     .select(
-      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, commission_paid_amount, invoiced, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
+      "id, description, cost, commission_pct, commission_amount, amount_paid, payment_method, performed_at, created_at, notes, lab_work, lab_cost, treatment_lab_cost, lab_commission_pct, lab_commission_amount, patient_name, commission_paid, commission_paid_amount, invoiced, patients(full_name), doctor:profiles!doctor_works_doctor_id_fkey(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
     )
     .order("performed_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -317,19 +317,14 @@ export default async function MisTrabajosPage({
 
       {/* Stats — los doctores solo ven su comisión pendiente (lo acumulado
           confundía al admin: lo accionable es cuánto falta pagar/cobrar),
-          no los montos facturados ni lo cobrado a pacientes. */}
+          no los montos facturados ni lo cobrado a pacientes. "Trabajos
+          facturados" (costo total, sin restar lab ni comisión) se ocultó
+          para todos los roles porque confundía — no es un monto accionable. */}
       <div
         className={`grid grid-cols-1 gap-4 ${
-          isRecepcionista ? "sm:grid-cols-2" : isDoctor ? "sm:grid-cols-1" : "sm:grid-cols-3"
+          isRecepcionista ? "sm:grid-cols-2" : isDoctor ? "sm:grid-cols-1" : "sm:grid-cols-2"
         }`}
       >
-        {isAdmin && (
-          <Stat
-            label="Trabajos facturados"
-            value={money(totalCost, currency)}
-            icon={<Briefcase className="h-5 w-5" />}
-          />
-        )}
         {!isDoctor && (
           <Stat
             label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
