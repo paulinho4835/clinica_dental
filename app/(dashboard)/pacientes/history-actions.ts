@@ -55,51 +55,29 @@ export async function addPatientPayment(
 
   const supabase = await createClient();
 
-  const { data: payment, error } = await supabase.from("payments").insert({
-    clinic_id: profile.clinicId,
-    patient_id: d.patient_id,
-    amount: d.amount,
-    method: d.method,
-    kind: "payment",
+  // Un solo RPC transaccional (migración 0103): si hay doctor, el pago y su
+  // comisión en Mis trabajos se crean juntos o no se crea ninguno. Antes eran
+  // dos inserts sueltos y uno podía fallar dejando el pago sin su comisión,
+  // sin rastro (bug real: pago de Tayra Rocha Esprella, 2026-07-22).
+  const { error } = await supabase.rpc("create_payment_with_work", {
+    p_clinic_id: profile.clinicId,
+    p_patient_id: d.patient_id,
+    p_amount: d.amount,
+    p_method: d.method,
+    p_kind: "payment",
     // Mediodía UTC = 8:00 en Bolivia: la fecha elegida se muestra tal cual.
     // (Una fecha "pelada" se interpretaba como medianoche UTC = 20:00 del día
     // anterior en Bolivia, y el pago aparecía con la fecha corrida.)
-    received_at: d.received_at
+    p_received_at: d.received_at
       ? `${d.received_at}T12:00:00Z`
       : new Date().toISOString(),
-    doctor_id: d.doctor_id ?? null,
-    commission_pct: d.commission_pct,
-    note: d.note ?? null,
-    collected_by_id: d.collected_by_id ?? null,
-    treatment_item_id: d.treatment_item_id ?? null,
-  }).select("id").single();
+    p_doctor_id: d.doctor_id ?? null,
+    p_commission_pct: d.commission_pct,
+    p_note: d.note ?? null,
+    p_collected_by_id: d.collected_by_id ?? null,
+    p_treatment_item_id: d.treatment_item_id ?? null,
+  });
   if (error) return { error: error.message };
-
-  // Si hay doctor, registrar automáticamente en Mis trabajos.
-  // Cliente normal con RLS (ya no service-role): la migración 0055 permite a la
-  // recepcionista insertar trabajos de su clínica.
-  // El pago ya se insertó arriba; si esto falla hay que avisar para no dejar el
-  // pago sin su trabajo asociado (descuadre entre cuentas y comisiones).
-  if (d.doctor_id) {
-    const { error: workError } = await supabase.from("doctor_works").insert({
-      clinic_id: profile.clinicId,
-      doctor_id: d.doctor_id,
-      patient_id: d.patient_id,
-      description: d.note ?? "Pago desde ficha de paciente",
-      cost: d.amount,
-      commission_pct: d.commission_pct,
-      amount_paid: d.amount,
-      payment_method: d.method,
-      performed_at: new Date().toISOString().split("T")[0],
-      collected_by_id: d.collected_by_id ?? null,
-      treatment_item_id: d.treatment_item_id ?? null,
-      payment_id: payment.id,
-    });
-    if (workError)
-      return {
-        error: `El pago se registró, pero no se pudo reflejar en Mis trabajos: ${workError.message}`,
-      };
-  }
 
   revalidatePath(`/pacientes/${d.patient_id}`);
   revalidatePath("/cuentas");

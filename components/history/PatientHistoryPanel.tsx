@@ -610,6 +610,11 @@ function PaymentForm({
   const [doctorId, setDoctorId] = useState("");
   const [collectedById, setCollectedById] = useState("");
   const [itemId, setItemId] = useState("");
+  // Bloqueado = el tratamiento elegido ya tiene doctor asignado; no se puede
+  // dejar el pago "Sin asignar" y perder la comisión (bug real: pago aplicado
+  // a un tratamiento con doctor conocido pero sin doctor_id -> no aparecía en
+  // Mis trabajos).
+  const [lockedDoctor, setLockedDoctor] = useState(false);
 
   const amountN = Number(amount) || 0;
   const pctN = Number(pct) || 0;
@@ -628,6 +633,7 @@ function PaymentForm({
       setDoctorId("");
       setCollectedById("");
       setItemId("");
+      setLockedDoctor(false);
       router.refresh();
     }
   }, [state, router]);
@@ -679,18 +685,26 @@ function PaymentForm({
 
         {doctors.length > 0 && (
           <label className="text-xs">
-            <span className="mb-1 block text-slate-500">Doctor (opcional)</span>
+            <span className="mb-1 block text-slate-500">
+              {lockedDoctor ? "Doctor" : "Doctor (opcional)"}
+            </span>
             <select
               name="doctor_id"
               value={doctorId}
+              disabled={lockedDoctor}
               onChange={(e) => { setDoctorId(e.target.value); if (!e.target.value) setPct(""); }}
-              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
             >
               <option value="">— Sin asignar —</option>
               {doctors.map((d) => (
                 <option key={d.id} value={d.id}>{d.full_name}</option>
               ))}
             </select>
+            {lockedDoctor && (
+              <span className="mt-0.5 block text-[11px] text-slate-400">
+                Tomado del tratamiento seleccionado
+              </span>
+            )}
           </label>
         )}
         {!doctorId && <input type="hidden" name="commission_pct" value="0" />}
@@ -743,6 +757,15 @@ function PaymentForm({
                   const restante = Math.max(0, item.price - item.paidAmount);
                   if (!amount && restante > 0) setAmount(String(restante));
                   if (noteRef.current && !noteRef.current.value) noteRef.current.value = item.name;
+                  if (item.doctorId) {
+                    setDoctorId(item.doctorId);
+                    setPct(String(item.defaultCommissionPct || 0));
+                    setLockedDoctor(true);
+                  } else {
+                    setLockedDoctor(false);
+                  }
+                } else {
+                  setLockedDoctor(false);
                 }
               }}
               className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-clinic focus:outline-none"

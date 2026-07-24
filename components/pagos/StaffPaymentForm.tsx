@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/actions";
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
@@ -79,6 +80,11 @@ export function StaffPaymentForm({
   // Grupos seleccionados y el monto a abonar a cada uno (editable: permite
   // adelantos parciales). key del grupo → monto como string del input.
   const [groupAmounts, setGroupAmounts] = useState<Map<string, string>>(new Map());
+  // El monto a abonar viene BLOQUEADO por defecto (= lo calculado por el
+  // sistema). Solo se desbloquea a pedido explícito ("Editar") para el caso
+  // real de un adelanto parcial — así un scroll de mouse o un tipeo accidental
+  // no puede cambiar cuánto se le paga a un doctor.
+  const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
   const [fetching, startFetch] = useTransition();
   // Evita repreguntar: tras confirmar, disparamos el submit real y esta bandera
   // deja pasar ese segundo evento sin volver a mostrar el diálogo.
@@ -192,9 +198,21 @@ export function StaffPaymentForm({
 
   function toggleGroup(g: WorkGroup) {
     const next = new Map(groupAmounts);
-    if (next.has(g.key)) next.delete(g.key);
-    else next.set(g.key, String(g.remaining)); // por defecto: saldar el restante
+    if (next.has(g.key)) {
+      next.delete(g.key);
+      setEditingGroups((prev) => {
+        const s = new Set(prev);
+        s.delete(g.key);
+        return s;
+      });
+    } else {
+      next.set(g.key, String(g.remaining)); // por defecto: saldar el restante
+    }
     syncDerived(next);
+  }
+
+  function unlockGroupAmount(key: string) {
+    setEditingGroups((prev) => new Set(prev).add(key));
   }
 
   function setGroupAmount(g: WorkGroup, value: string) {
@@ -211,6 +229,7 @@ export function StaffPaymentForm({
 
   function clearSelection() {
     setGroupAmounts(new Map());
+    setEditingGroups(new Set());
     setAmount("");
     setConcept("");
   }
@@ -230,6 +249,7 @@ export function StaffPaymentForm({
       setAmount("");
       setConcept("");
       setGroupAmounts(new Map());
+      setEditingGroups(new Set());
       // Refrescar los trabajos pendientes de la persona, para que los que se
       // acaban de pagar desaparezcan sin necesidad de F5.
       if (earnsCommission) {
@@ -323,6 +343,7 @@ export function StaffPaymentForm({
             <div className="overflow-hidden rounded border border-slate-200 bg-white">
               {groups.map((g) => {
                 const checked = groupAmounts.has(g.key);
+                const editing = editingGroups.has(g.key);
                 const rawAmount = groupAmounts.get(g.key) ?? "";
                 const amountNum = Number(rawAmount);
                 const amountInvalid =
@@ -445,25 +466,47 @@ export function StaffPaymentForm({
                         </table>
                       </div>
                     )}
-                    {/* Monto a abonar (editable → adelanto parcial) */}
+                    {/* Monto a abonar: bloqueado por defecto (= calculado por el
+                        sistema). Solo se desbloquea con el botón "Editar", a
+                        pedido explícito, para el caso real de un adelanto
+                        parcial — así un scroll de mouse o un tipeo accidental
+                        no puede cambiar cuánto se le paga al doctor. */}
                     {checked && (
                       <div className="ml-6 flex flex-wrap items-center gap-2">
                         <label className="flex items-center gap-1.5 text-xs text-slate-500">
                           Abonar Bs
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            max={g.remaining}
-                            value={rawAmount}
-                            onChange={(e) => setGroupAmount(g, e.target.value)}
-                            className={`w-24 rounded border bg-white px-2 py-1 text-sm tabular-nums text-slate-900 focus:outline-none focus:ring-1 ${
-                              amountInvalid
-                                ? "border-red-400 focus:border-red-500 focus:ring-red-500"
-                                : "border-slate-300 focus:border-clinic focus:ring-clinic"
-                            }`}
-                          />
+                          {editing ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              max={g.remaining}
+                              value={rawAmount}
+                              onChange={(e) => setGroupAmount(g, e.target.value)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              autoFocus
+                              className={`w-24 rounded border bg-white px-2 py-1 text-sm tabular-nums text-slate-900 focus:outline-none focus:ring-1 ${
+                                amountInvalid
+                                  ? "border-red-400 focus:border-red-500 focus:ring-red-500"
+                                  : "border-slate-300 focus:border-clinic focus:ring-clinic"
+                              }`}
+                            />
+                          ) : (
+                            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm tabular-nums font-medium text-slate-700">
+                              {money(amountNum, currency)}
+                            </span>
+                          )}
                         </label>
+                        {!editing && (
+                          <button
+                            type="button"
+                            onClick={() => unlockGroupAmount(g.key)}
+                            className="flex items-center gap-1 text-xs text-slate-400 hover:text-clinic"
+                            title="Registrar un adelanto parcial"
+                          >
+                            <Pencil className="h-3 w-3" /> Editar
+                          </button>
+                        )}
                         {amountNum > 0 && amountNum < g.remaining - 0.005 && !amountInvalid && (
                           <span className="text-xs text-slate-400">
                             adelanto parcial — quedarán {money(Math.round((g.remaining - amountNum) * 100) / 100, currency)} pendientes
