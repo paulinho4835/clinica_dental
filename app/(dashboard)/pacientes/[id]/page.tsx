@@ -49,6 +49,10 @@ import type {
   ConsentAppointment,
 } from "@/components/consents/ConsentModal";
 import { CustomIntakeAnswers } from "@/components/patients/CustomIntakeAnswers";
+import {
+  DoctorAccountPanel,
+  type DoctorAccountRow,
+} from "@/components/patients/DoctorAccountPanel";
 import { SettingsTabs, type SettingsTab } from "@/components/ui/SettingsTabs";
 import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
@@ -136,9 +140,11 @@ export default async function PatientPage({
       )
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
+    // treatment_item_id / received_at: necesarios para el estado de cuenta
+    // acotado del doctor (avance de pago por tratamiento suyo).
     supabase
       .from("payments")
-      .select("id, amount")
+      .select("id, amount, received_at, treatment_item_id")
       .eq("patient_id", id),
     supabase
       .from("appointments")
@@ -189,7 +195,7 @@ export default async function PatientPage({
     supabase
       .from("doctor_works")
       .select(
-        "id, description, cost, performed_at, treatment_item_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
+        "id, description, cost, amount_paid, performed_at, treatment_item_id, doctor_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
       )
       .eq("patient_id", id)
       .order("performed_at", { ascending: false }),
@@ -420,6 +426,78 @@ export default async function PatientPage({
       doctorName: ((w.doctor as { full_name?: string } | null)?.full_name) ?? null,
     }));
 
+  // ---------------------------------------------------------------------------
+  // Estado de cuenta del DOCTOR: solo sus tratamientos.
+  // El admin pidió que los doctores dejen de depender de recepción para saber si
+  // el paciente va al día con sus cuotas, pero sin abrirles la cuenta completa
+  // del paciente: cada doctor ve el avance de pago de lo suyo y nada más.
+  // ---------------------------------------------------------------------------
+  const paidByItem = new Map<
+    string,
+    { amount: number; count: number; last: string | null }
+  >();
+  for (const p of payments ?? []) {
+    const itemId = (p as { treatment_item_id?: string | null }).treatment_item_id;
+    if (!itemId) continue;
+    const cur = paidByItem.get(itemId) ?? { amount: 0, count: 0, last: null };
+    cur.amount += Number(p.amount);
+    cur.count += 1;
+    const at = (p as { received_at?: string }).received_at ?? null;
+    if (at && (!cur.last || at > cur.last)) cur.last = at;
+    paidByItem.set(itemId, cur);
+  }
+
+  // Ítems del plan que "son suyos": los asignados a él MÁS aquellos donde ya
+  // registró una sesión (puede haber atendido un ítem asignado a otro doctor).
+  const myWorkedItemIds = new Set(
+    (rawWorks ?? [])
+      .filter((w) => w.doctor_id === profile?.userId && w.treatment_item_id)
+      .map((w) => w.treatment_item_id as string),
+  );
+
+  const doctorAccountRows: DoctorAccountRow[] = !isDoctor
+    ? []
+    : [
+        ...(rawPlans ?? [])
+          .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
+          .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
+          .filter((it) => (it.status as string) !== "cancelled")
+          .filter(
+            (it) =>
+              (it.doctor_id as string | null) === profile?.userId ||
+              myWorkedItemIds.has(it.id as string),
+          )
+          .map((it) => {
+            const p = paidByItem.get(it.id as string);
+            return {
+              id: it.id as string,
+              name:
+                ((it.procedure as { name?: string } | null)?.name ??
+                  (it.custom_name as string)) || "—",
+              price: Number(it.price),
+              paid: p?.amount ?? 0,
+              paymentsCount: p?.count ?? 0,
+              lastPaymentAt: p?.last ?? null,
+              done: (it.status as string) === "done",
+              adHoc: false,
+            };
+          }),
+        // Trabajos sueltos suyos (sin ítem de plan): el cobro no se rastrea por
+        // pagos individuales, va en el propio registro del trabajo.
+        ...(rawWorks ?? [])
+          .filter((w) => !w.treatment_item_id && w.doctor_id === profile?.userId)
+          .map((w) => ({
+            id: w.id as string,
+            name: w.description as string,
+            price: Number(w.cost),
+            paid: Number((w as { amount_paid?: number }).amount_paid ?? 0),
+            paymentsCount: null,
+            lastPaymentAt: w.performed_at as string,
+            done: true,
+            adHoc: true,
+          })),
+      ];
+
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
   // Última invitación de historial (estado + propuesta pendiente de revisión).
@@ -635,6 +713,12 @@ export default async function PatientPage({
             )}
           </div>
         </section>
+      )}
+
+      {/* Doctores y colegas: versión acotada a sus propios tratamientos.
+          No ven el total del paciente ni lo de los demás doctores. */}
+      {!canBilling && isDoctor && (
+        <DoctorAccountPanel rows={doctorAccountRows} currency={currency} />
       )}
     </>
   );
