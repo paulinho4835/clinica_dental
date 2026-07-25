@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const isVercelCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-  // Si no es el cron, verificar sesión normal
+  // Si no es el cron, verificar sesión normal y acotar a la clínica del que
+  // llama — sin esto, cualquier admin disparaba el envío de recordatorios de
+  // TODAS las clínicas, no solo la suya.
+  let clinicId: string | undefined;
   if (!isVercelCron) {
     const [profile, features] = await Promise.all([getProfile(), getClinicFeatures()]);
     if (!can(profile?.role, "appointments:write")) {
@@ -30,8 +33,9 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+    clinicId = profile?.clinicId;
   }
 
-  const result = await processRemindersZavu();
+  const result = await processRemindersZavu(clinicId);
   return NextResponse.json({ ok: true, ...result });
 }

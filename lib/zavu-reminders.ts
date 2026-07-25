@@ -46,14 +46,19 @@ async function markFailed(id: string) {
     .eq("id", id);
 }
 
-export async function processRemindersZavu(): Promise<{
+// clinicId: si se pasa, procesa SOLO los recordatorios de esa clínica (uso
+// manual desde el dashboard — un admin de la clínica A no debe poder disparar
+// el envío de recordatorios de la clínica B). Sin clinicId, procesa TODAS las
+// clínicas — solo el cron de Vercel (contexto de servidor confiable) debe
+// invocarlo así.
+export async function processRemindersZavu(clinicId?: string): Promise<{
   sent: number;
   failed: number;
   skipped: number;
 }> {
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("appointment_reminders")
     .select(
       "id, appointments(starts_at, status, dentist_name, reason, patient_name, patients(full_name, phone), clinics(name))"
@@ -61,6 +66,9 @@ export async function processRemindersZavu(): Promise<{
     .eq("status", "pending")
     .lte("scheduled_for", now)
     .limit(100);
+  if (clinicId) query = query.eq("clinic_id", clinicId);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[zavu-reminders] Error consultando recordatorios:", error.message);
