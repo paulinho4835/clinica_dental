@@ -7,37 +7,43 @@ import { createStaffPayment, type ActionState } from "@/app/(dashboard)/pagos/ac
 import { fetchDoctorUnpaidWorks, type UnpaidWork } from "@/app/(dashboard)/pagos/work-actions";
 import { TreatmentProgressBar } from "@/components/treatments/TreatmentProgressBar";
 import { COMMISSION_ROLES, isOverdue } from "@/lib/pagos";
-import { money } from "@/lib/format";
+import { money, fmtBoliviaTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { confirm } from "@/lib/confirm";
 
-// Agrupación de trabajos pendientes por ítem del plan de tratamiento.
-// Varias cuotas/sesiones del mismo tratamiento se muestran como una sola
-// barra de progreso (el avance del pago del paciente es por tratamiento).
-type WorkGroup = {
-  key: string;
-  name: string;
-  // Trabajos del grupo ordenados del más antiguo al más nuevo; los abonos
-  // parciales se asignan en ese orden (primero se salda la cuota más vieja).
-  // performed_at/description/commission_pct alimentan la tabla de detalle que
-  // se muestra al seleccionar el grupo.
-  works: {
-    id: string;
-    remaining: number;
-    performed_at: string;
-    description: string;
-    commission_pct: number;
-  }[];
+// Una fila por trabajo, con TODOS los datos visibles de entrada — mismas
+// columnas que la tabla de "Mis trabajos". Antes los trabajos se agrupaban por
+// tratamiento y había que marcar el checkbox para desplegar el detalle; el
+// admin se perdía con eso. Ahora ve todo y solo marca lo que va a pagar.
+type WorkRow = UnpaidWork & {
+  /** Comisión total del trabajo (propia + laboratorio). */
   commission: number;
-  // Comisión ya abonada (adelantos) y restante por pagar del grupo.
-  commissionPaid: number;
+  /** Comisión que queda por pagarle al doctor. 0 = ya saldada. */
   remaining: number;
-  planItemPrice: number;
-  planItemPaid: number;
-  performed_at: string;
-  patient_name: string | null;
-  hasBar: boolean;
 };
+
+const METHOD_LABEL: Record<string, string> = {
+  cash: "Efectivo",
+  qr: "QR",
+  card: "Tarjeta",
+  transfer: "Transf.",
+};
+
+// Columnas: checkbox · fecha · paciente · cobrado por · trabajo · costo ·
+// comisión · cobrado · método · abonar. Sin columna "Doctor": todas las filas
+// son del mismo doctor (el destinatario del pago), repetirlo sería ruido.
+// La columna "Trabajo" es la más ancha: aloja el nombre + la barra de avance
+// del pago del paciente, que es el dato que el admin mira para decidir.
+const GRID =
+  "grid grid-cols-[1.75rem_4.5rem_minmax(5.5rem,1fr)_minmax(5rem,0.8fr)_minmax(11rem,2.2fr)_5.5rem_6.5rem_5.5rem_5rem_8rem] items-start gap-2";
+
+// "2026-06" → "junio 2026", para el selector de mes.
+function monthLabel(ym: string) {
+  return new Date(`${ym}-01T12:00:00`).toLocaleDateString("es-BO", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 // Destinatario de un pago: un empleado con cuenta (profiles) o una recepcionista
 // sin cuenta (clinic_receptionists). `key` es el id compuesto ("p:uuid"/"r:uuid").
@@ -54,7 +60,7 @@ const initial: ActionState = {};
 function fmtShortDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("es-BO", {
     day: "2-digit",
-    month: "2-digit",
+    month: "short",
   });
 }
 
@@ -65,10 +71,15 @@ export function StaffPaymentForm({
   payee,
   today,
   currency,
+  selectedMonth,
 }: {
   payee: Payee;
   today: string;
   currency: string;
+  /** Mes elegido en el filtro de la página ("YYYY-MM" o "all"). Filtra los
+   *  trabajos pendientes por su fecha: los doctores llevan un cuaderno por mes,
+   *  así el admin ve "qué le debo a este doctor de tal mes" y cuadra con él. */
+  selectedMonth: string;
 }) {
   const [state, formAction, pending] = useActionState(createStaffPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -77,14 +88,14 @@ export function StaffPaymentForm({
   const [amount, setAmount] = useState("");
   const [concept, setConcept] = useState("");
   const [unpaidWorks, setUnpaidWorks] = useState<UnpaidWork[]>([]);
-  // Grupos seleccionados y el monto a abonar a cada uno (editable: permite
-  // adelantos parciales). key del grupo → monto como string del input.
-  const [groupAmounts, setGroupAmounts] = useState<Map<string, string>>(new Map());
+  // Trabajos marcados y el monto a abonar a cada uno (editable: permite
+  // adelantos parciales). id del trabajo → monto como string del input.
+  const [workAmounts, setWorkAmounts] = useState<Map<string, string>>(new Map());
   // El monto a abonar viene BLOQUEADO por defecto (= lo calculado por el
   // sistema). Solo se desbloquea a pedido explícito ("Editar") para el caso
   // real de un adelanto parcial — así un scroll de mouse o un tipeo accidental
   // no puede cambiar cuánto se le paga a un doctor.
-  const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
+  const [editingWorks, setEditingWorks] = useState<Set<string>>(new Set());
   const [fetching, startFetch] = useTransition();
   // Evita repreguntar: tras confirmar, disparamos el submit real y esta bandera
   // deja pasar ese segundo evento sin volver a mostrar el diálogo.
@@ -104,89 +115,85 @@ export function StaffPaymentForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payee.id]);
 
-  // Agrupar trabajos por treatment_item_id → una barra por tratamiento.
-  // Los trabajos sin plan (manuales) quedan como grupo individual sin barra.
-  const groups = useMemo<WorkGroup[]>(() => {
-    const map = new Map<string, WorkGroup>();
-    for (const w of unpaidWorks) {
-      const key = w.planItemId ?? `work:${w.id}`;
-      const comm = w.commission_amount + w.lab_commission_amount;
-      const paid = w.commission_paid_amount;
-      const remaining = Math.max(0, Math.round((comm - paid) * 100) / 100);
-      const existing = map.get(key);
-      if (existing) {
-        existing.works.push({
-          id: w.id,
-          remaining,
-          performed_at: w.performed_at,
-          description: w.description,
-          commission_pct: w.commission_pct,
-        });
-        existing.commission += comm;
-        existing.commissionPaid += paid;
-        existing.remaining = Math.round((existing.remaining + remaining) * 100) / 100;
-        if (w.performed_at > existing.performed_at) existing.performed_at = w.performed_at;
-      } else {
-        map.set(key, {
-          key,
-          name: w.planItemId ? w.planItemName : w.description,
-          works: [
-            {
-              id: w.id,
-              remaining,
-              performed_at: w.performed_at,
-              description: w.description,
-              commission_pct: w.commission_pct,
-            },
-          ],
-          commission: comm,
-          commissionPaid: paid,
-          remaining,
-          planItemPrice: w.planItemPrice,
-          planItemPaid: w.planItemPaid,
-          performed_at: w.performed_at,
-          patient_name: w.patient_name,
-          hasBar: w.planItemPrice > 0,
-        });
-      }
-    }
-    // Dentro de cada grupo, cuota más antigua primero: los abonos se asignan
-    // en ese orden. unpaidWorks llega del server ordenado descendente.
-    for (const g of map.values()) g.works.reverse();
-    return Array.from(map.values());
-  }, [unpaidWorks]);
+  // Una fila por trabajo, con la comisión total y lo que resta por pagar ya
+  // calculados. Sin agrupar: el admin ve la misma granularidad que en la tabla
+  // de Mis trabajos, así los montos que compara son los mismos.
+  const rows = useMemo<WorkRow[]>(
+    () =>
+      unpaidWorks.map((w) => {
+        const commission = w.commission_amount + w.lab_commission_amount;
+        return {
+          ...w,
+          commission,
+          remaining: Math.max(
+            0,
+            Math.round((commission - w.commission_paid_amount) * 100) / 100,
+          ),
+        };
+      }),
+    [unpaidWorks],
+  );
 
-  // Reparte el abono de cada grupo seleccionado entre sus trabajos (cuota más
-  // antigua primero, hasta el restante de cada una) → pares work_ids/work_amounts
-  // que viajan como hidden inputs al server action.
+  // Filtrar NO deselecciona: si el admin marcó trabajos de junio y luego mira
+  // julio, esos abonos siguen contando (el total y el aviso lo dejan claro).
+  const visibleRows = useMemo(
+    () =>
+      selectedMonth === "all"
+        ? rows
+        : rows.filter((r) => r.performed_at.startsWith(selectedMonth)),
+    [rows, selectedMonth],
+  );
+
+  // Comisión pendiente que el filtro de mes dejó fuera. Se avisa siempre: con un
+  // mes elegido, esconder deuda de otros meses sin decirlo es cómo una comisión
+  // vieja termina sin pagarse nunca.
+  const pendingOutsideMonth = useMemo(() => {
+    if (selectedMonth === "all") return 0;
+    return (
+      Math.round(
+        rows
+          .filter((r) => !r.performed_at.startsWith(selectedMonth))
+          .reduce((s, r) => s + r.remaining, 0) * 100,
+      ) / 100
+    );
+  }, [rows, selectedMonth]);
+
+  // Pares work_ids/work_amounts que viajan como hidden inputs al server action.
+  // Ahora es directo: un trabajo marcado = un abono a ese trabajo.
   const allocations = useMemo(() => {
     const out: { workId: string; amount: number }[] = [];
-    for (const g of groups) {
-      const raw = groupAmounts.get(g.key);
+    for (const r of rows) {
+      const raw = workAmounts.get(r.id);
       if (raw === undefined) continue;
-      let left = Math.round((Number(raw) || 0) * 100) / 100;
-      for (const w of g.works) {
-        if (left <= 0) break;
-        const alloc = Math.min(left, w.remaining);
-        if (alloc > 0) out.push({ workId: w.id, amount: Math.round(alloc * 100) / 100 });
-        left = Math.round((left - alloc) * 100) / 100;
-      }
+      const n = Math.round((Number(raw) || 0) * 100) / 100;
+      if (n > 0) out.push({ workId: r.id, amount: n });
     }
     return out;
-  }, [groups, groupAmounts]);
+  }, [rows, workAmounts]);
 
   const allocatedTotal = useMemo(
     () => Math.round(allocations.reduce((s, a) => s + a.amount, 0) * 100) / 100,
     [allocations],
   );
-  const hasSelection = groupAmounts.size > 0;
+  const hasSelection = workAmounts.size > 0;
+
+  // Trabajos marcados que el filtro de mes dejó fuera de pantalla: se avisan en
+  // el resumen para que el total nunca sorprenda.
+  const hiddenSelectedCount = useMemo(
+    () => allocations.filter((a) => !visibleRows.some((r) => r.id === a.workId)).length,
+    [allocations, visibleRows],
+  );
 
   function syncDerived(next: Map<string, string>) {
-    setGroupAmounts(next);
-    const selected = groups.filter((g) => next.has(g.key));
-    const total = selected.reduce((s, g) => s + (Number(next.get(g.key)) || 0), 0);
+    setWorkAmounts(next);
+    const selected = rows.filter((r) => next.has(r.id));
+    const total = selected.reduce((s, r) => s + (Number(next.get(r.id)) || 0), 0);
     setAmount(total > 0 ? String(Math.round(total * 100) / 100) : "");
-    const descs = [...new Set(selected.map((g) => g.name).filter(Boolean))];
+    const descs = [
+      ...new Set(
+        selected.map((r) => (r.planItemId ? r.planItemName : r.description)).filter(Boolean),
+      ),
+    ];
     const conceptStr =
       descs.length > 4
         ? `Comisiones: ${descs.slice(0, 4).join(", ")} (+${descs.length - 4} más)`
@@ -196,50 +203,52 @@ export function StaffPaymentForm({
     setConcept(conceptStr);
   }
 
-  function toggleGroup(g: WorkGroup) {
-    const next = new Map(groupAmounts);
-    if (next.has(g.key)) {
-      next.delete(g.key);
-      setEditingGroups((prev) => {
+  function toggleWork(r: WorkRow) {
+    const next = new Map(workAmounts);
+    if (next.has(r.id)) {
+      next.delete(r.id);
+      setEditingWorks((prev) => {
         const s = new Set(prev);
-        s.delete(g.key);
+        s.delete(r.id);
         return s;
       });
     } else {
-      next.set(g.key, String(g.remaining)); // por defecto: saldar el restante
+      next.set(r.id, String(r.remaining)); // por defecto: saldar el restante
     }
     syncDerived(next);
   }
 
-  function unlockGroupAmount(key: string) {
-    setEditingGroups((prev) => new Set(prev).add(key));
+  function unlockWorkAmount(id: string) {
+    setEditingWorks((prev) => new Set(prev).add(id));
   }
 
-  function setGroupAmount(g: WorkGroup, value: string) {
-    const next = new Map(groupAmounts);
-    next.set(g.key, value);
+  function setWorkAmount(r: WorkRow, value: string) {
+    const next = new Map(workAmounts);
+    next.set(r.id, value);
     syncDerived(next);
   }
 
+  // Solo lo que el admin está viendo: con un mes filtrado, "seleccionar todos"
+  // no debe arrastrar trabajos de meses que no tiene en pantalla.
   function selectAll() {
     const next = new Map<string, string>();
-    for (const g of groups) if (g.remaining > 0) next.set(g.key, String(g.remaining));
+    for (const r of visibleRows) if (r.remaining > 0) next.set(r.id, String(r.remaining));
     syncDerived(next);
   }
 
   function clearSelection() {
-    setGroupAmounts(new Map());
-    setEditingGroups(new Set());
+    setWorkAmounts(new Map());
+    setEditingWorks(new Set());
     setAmount("");
     setConcept("");
   }
 
   // Un abono inválido (vacío, 0 o mayor al restante) bloquea el submit.
-  const invalidGroup = groups.find((g) => {
-    const raw = groupAmounts.get(g.key);
+  const invalidRow = rows.find((r) => {
+    const raw = workAmounts.get(r.id);
     if (raw === undefined) return false;
     const n = Number(raw);
-    return !Number.isFinite(n) || n <= 0 || n > g.remaining + 0.005;
+    return !Number.isFinite(n) || n <= 0 || n > r.remaining + 0.005;
   });
 
   useEffect(() => {
@@ -248,8 +257,8 @@ export function StaffPaymentForm({
       formRef.current?.reset();
       setAmount("");
       setConcept("");
-      setGroupAmounts(new Map());
-      setEditingGroups(new Set());
+      setWorkAmounts(new Map());
+      setEditingWorks(new Set());
       // Refrescar los trabajos pendientes de la persona, para que los que se
       // acaban de pagar desaparezcan sin necesidad de F5.
       if (earnsCommission) {
@@ -313,12 +322,17 @@ export function StaffPaymentForm({
       {/* Panel de trabajos — para quienes ganan comisión (doctores y admin clínico) */}
       {earnsCommission && (
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Trabajos pendientes de comisión
+              {selectedMonth !== "all" && (
+                <span className="ml-1.5 font-normal capitalize text-slate-400">
+                  · {monthLabel(selectedMonth)}
+                </span>
+              )}
             </span>
             {unpaidWorks.length > 0 && (
-              <div className="flex gap-3">
+              <div className="flex items-center gap-3">
                 <button type="button" onClick={selectAll} className="text-xs text-clinic hover:underline">
                   Seleccionar todos
                 </button>
@@ -339,184 +353,184 @@ export function StaffPaymentForm({
             <p className="py-1 text-xs text-slate-400">Sin comisiones pendientes.</p>
           )}
 
-          {!fetching && unpaidWorks.length > 0 && (
-            <div className="overflow-hidden rounded border border-slate-200 bg-white">
-              {groups.map((g) => {
-                const checked = groupAmounts.has(g.key);
-                const editing = editingGroups.has(g.key);
-                const rawAmount = groupAmounts.get(g.key) ?? "";
+          {!fetching && rows.length > 0 && visibleRows.length === 0 && (
+            <p className="py-1 text-xs capitalize text-slate-400">
+              Sin trabajos en {monthLabel(selectedMonth)}.
+            </p>
+          )}
+
+          {/* ── Tarjetas (móvil): mismo patrón que el historial de pagos más abajo
+              — la tabla de grilla no cabe en una pantalla angosta ni con
+              scroll horizontal cómodo, así que en <sm se listan tarjetas con
+              todos los datos apilados. ── */}
+          {!fetching && visibleRows.length > 0 && (
+            <div className="space-y-2 sm:hidden">
+              {visibleRows.map((r) => {
+                const checked = workAmounts.has(r.id);
+                const editing = editingWorks.has(r.id);
+                const rawAmount = workAmounts.get(r.id) ?? "";
                 const amountNum = Number(rawAmount);
                 const amountInvalid =
                   checked &&
-                  (!Number.isFinite(amountNum) || amountNum <= 0 || amountNum > g.remaining + 0.005);
-                const sessions = g.works.length;
-                // % de comisión representativo del grupo (todas las cuotas de un
-                // mismo tratamiento comparten el mismo % configurado).
-                const commissionPct = g.works[0]?.commission_pct;
+                  (!Number.isFinite(amountNum) ||
+                    amountNum <= 0 ||
+                    amountNum > r.remaining + 0.005);
+                const payable = r.remaining > 0;
                 return (
                   <div
-                    key={g.key}
-                    className={`flex flex-col gap-1 border-b border-slate-100 px-3 py-2 text-sm last:border-0 transition ${
-                      checked ? "bg-clinic/5" : "hover:bg-slate-50"
+                    key={r.id}
+                    className={`rounded-lg border p-3 text-sm transition ${
+                      checked ? "border-clinic/30 bg-clinic/5" : "border-slate-200 bg-white"
                     }`}
                   >
-                    <label
-                      className={`flex items-center gap-3 ${
-                        g.remaining > 0 ? "cursor-pointer" : "cursor-default"
-                      }`}
-                    >
+                    <div className="flex items-start gap-2">
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={g.remaining <= 0}
-                        onChange={() => toggleGroup(g)}
-                        className="accent-clinic shrink-0 disabled:opacity-30"
+                        disabled={!payable}
+                        onChange={() => toggleWork(r)}
+                        aria-label={`Pagar comisión de ${r.description}`}
+                        className="mt-1 accent-clinic disabled:opacity-30"
                       />
-                      <span className="whitespace-nowrap tabular-nums text-xs text-slate-400">
-                        {fmtShortDate(g.performed_at)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-700">
-                        {g.name}
-                        {sessions > 1 && (
-                          <span className="ml-1.5 text-xs text-slate-400">({sessions} cuotas)</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 truncate font-medium text-slate-700">
+                            {r.planItemId ? r.planItemName : r.description}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap tabular-nums text-xs text-slate-400">
+                            {fmtShortDate(r.performed_at)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {r.patient_name ?? "—"}
+                          {r.collected_by_name && ` · cobró ${r.collected_by_name}`}
+                        </div>
+                        {r.lab_work && (
+                          <span className="mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                            Lab: {r.lab_work}
+                          </span>
                         )}
-                      </span>
-                      {g.patient_name && (
-                        <span className="shrink-0 text-xs text-slate-400">
-                          {g.patient_name}
+                        {r.planItemPrice > 0 && (
+                          <div className="mt-1.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                              Pago del paciente
+                            </span>
+                            <TreatmentProgressBar
+                              paid={r.planItemPaid}
+                              total={r.planItemPrice}
+                              currency={currency}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-slate-100 pt-2 text-xs">
+                      <div>
+                        <span className="text-slate-400">Costo</span>
+                        <div className="tabular-nums text-slate-600">
+                          {money(r.cost, currency)}
+                          {r.lab_cost > 0 && (
+                            <span className="text-amber-600"> +{money(r.lab_cost, currency)} lab</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Cobrado</span>
+                        <div className="tabular-nums text-slate-600">
+                          {money(r.amount_paid, currency)}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Comisión</span>
+                        <div className="tabular-nums font-medium text-clinic">
+                          {money(r.commission, currency)}{" "}
+                          <span className="font-normal text-slate-400">({r.commission_pct}%)</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Método</span>
+                        <div className="text-slate-600">
+                          {r.payment_method ? (METHOD_LABEL[r.payment_method] ?? r.payment_method) : "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {!payable && (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                          Comisión pagada ✓
                         </span>
                       )}
-                      <span
-                        className={`whitespace-nowrap tabular-nums text-xs font-medium ${
-                          g.remaining <= 0 ? "text-emerald-600" : "text-clinic"
-                        }`}
-                      >
-                        {g.remaining <= 0
-                          ? "Comisión saldada ✓"
-                          : g.commissionPaid > 0
-                            ? money(g.remaining, currency)
-                            : money(g.commission, currency)}
-                      </span>
-                      {commissionPct !== undefined && (
-                        <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
-                          ({commissionPct}%)
+                      {payable && r.commission_paid_amount > 0 && (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
+                          Restan {money(r.remaining, currency)}
                         </span>
                       )}
-                      {g.remaining > 0 && isOverdue(g.performed_at, today) && (
-                        <span className="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10">
+                      {payable && isOverdue(r.performed_at, today) && (
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/10">
                           atrasado
                         </span>
                       )}
-                    </label>
-                    {/* Comisión con abono previo: mostrar el avance del doctor */}
-                    {g.commissionPaid > 0 && g.remaining > 0 && (
-                      <p className="ml-6 text-xs text-amber-600">
-                        Abonado {money(g.commissionPaid, currency)} de {money(g.commission, currency)} — restan {money(g.remaining, currency)}
-                      </p>
-                    )}
-                    {/* Barra del PACIENTE (pagos del tratamiento): informativa,
-                        independiente de la comisión — no desaparece hasta que
-                        el paciente salde, sin importar los adelantos al doctor.
-                        El rótulo evita confundirla con la comisión del doctor. */}
-                    {g.hasBar && (
-                      <div className="ml-6">
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                          Pago del paciente
+                      {r.invoiced === true && (
+                        <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-600">
+                          Factura ✓
                         </span>
-                        <TreatmentProgressBar paid={g.planItemPaid} total={g.planItemPrice} currency={currency} />
-                      </div>
-                    )}
-                    {/* Detalle al seleccionar: una fila por sesión/cuota del grupo. */}
+                      )}
+                    </div>
+
                     {checked && (
-                      <div className="ml-6 overflow-hidden rounded border border-slate-200">
-                        <table className="w-full table-fixed text-sm">
-                          <colgroup>
-                            <col className="w-[12%]" />
-                            <col className="w-[24%]" />
-                            <col className="w-[34%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[14%]" />
-                          </colgroup>
-                          <thead>
-                            <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
-                              <th className="px-3 py-2 font-medium">Fecha</th>
-                              <th className="px-3 py-2 font-medium">Paciente</th>
-                              <th className="px-3 py-2 font-medium">Tratamiento</th>
-                              <th className="px-3 py-2 text-right font-medium">Monto pagado</th>
-                              <th className="px-3 py-2 text-right font-medium">% Comisión</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {g.works.map((w) => (
-                              <tr key={w.id}>
-                                <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-500">
-                                  {fmtShortDate(w.performed_at)}
-                                </td>
-                                <td className="truncate px-3 py-2 text-slate-700">{g.patient_name ?? "—"}</td>
-                                <td className="truncate px-3 py-2 text-slate-700">{w.description || "—"}</td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
-                                  {money(g.planItemPaid, currency)}
-                                </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-700">
-                                  {w.commission_pct}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    {/* Monto a abonar: bloqueado por defecto (= calculado por el
-                        sistema). Solo se desbloquea con el botón "Editar", a
-                        pedido explícito, para el caso real de un adelanto
-                        parcial — así un scroll de mouse o un tipeo accidental
-                        no puede cambiar cuánto se le paga al doctor. */}
-                    {checked && (
-                      <div className="ml-6 flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                          Abonar Bs
-                          {editing ? (
+                      <div className="mt-2 border-t border-slate-100 pt-2">
+                        {editing ? (
+                          <label className="block text-xs">
+                            <span className="mb-1 block text-slate-500">Abonar</span>
                             <input
                               type="number"
                               step="0.01"
                               min="0.01"
-                              max={g.remaining}
+                              max={r.remaining}
                               value={rawAmount}
-                              onChange={(e) => setGroupAmount(g, e.target.value)}
+                              onChange={(e) => setWorkAmount(r, e.target.value)}
                               onWheel={(e) => e.currentTarget.blur()}
                               autoFocus
-                              className={`w-24 rounded border bg-white px-2 py-1 text-sm tabular-nums text-slate-900 focus:outline-none focus:ring-1 ${
+                              className={`w-full rounded border bg-white px-2 py-1.5 text-right text-sm tabular-nums text-slate-900 focus:outline-none focus:ring-1 ${
                                 amountInvalid
                                   ? "border-red-400 focus:border-red-500 focus:ring-red-500"
                                   : "border-slate-300 focus:border-clinic focus:ring-clinic"
                               }`}
                             />
-                          ) : (
-                            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm tabular-nums font-medium text-slate-700">
-                              {money(amountNum, currency)}
-                            </span>
-                          )}
-                        </label>
-                        {!editing && (
-                          <button
-                            type="button"
-                            onClick={() => unlockGroupAmount(g.key)}
-                            className="flex items-center gap-1 text-xs text-slate-400 hover:text-clinic"
-                            title="Registrar un adelanto parcial"
-                          >
-                            <Pencil className="h-3 w-3" /> Editar
-                          </button>
-                        )}
-                        {amountNum > 0 && amountNum < g.remaining - 0.005 && !amountInvalid && (
-                          <span className="text-xs text-slate-400">
-                            adelanto parcial — quedarán {money(Math.round((g.remaining - amountNum) * 100) / 100, currency)} pendientes
-                          </span>
+                          </label>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-500">Abonar</span>
+                            <div className="flex items-center gap-2">
+                              <span className="tabular-nums font-semibold text-clinic">
+                                {money(amountNum, currency)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => unlockWorkAmount(r.id)}
+                                className="flex items-center gap-1 text-xs text-slate-400 hover:text-clinic"
+                                title="Registrar un adelanto parcial"
+                              >
+                                <Pencil className="h-3 w-3" /> Editar
+                              </button>
+                            </div>
+                          </div>
                         )}
                         {amountInvalid && (
-                          <span className="text-xs text-red-600">
-                            máximo {money(g.remaining, currency)}
+                          <span className="mt-1 block text-right text-xs text-red-600">
+                            máx. {money(r.remaining, currency)}
                           </span>
                         )}
+                        {!amountInvalid &&
+                          amountNum > 0 &&
+                          amountNum < r.remaining - 0.005 && (
+                            <span className="mt-1 block text-right text-xs text-slate-400">
+                              parcial — restarán{" "}
+                              {money(Math.round((r.remaining - amountNum) * 100) / 100, currency)}
+                            </span>
+                          )}
                       </div>
                     )}
                   </div>
@@ -525,12 +539,219 @@ export function StaffPaymentForm({
             </div>
           )}
 
+          {/* ── Tabla (sm+): -mx-3 anula el padding del panel para usar todo el
+              ancho disponible; scroll horizontal solo a partir de sm. ── */}
+          {!fetching && visibleRows.length > 0 && (
+            <div className="-mx-3 hidden overflow-x-auto border-y border-slate-200 bg-white sm:block">
+              <div className="min-w-[62rem]">
+                {/* Mismas columnas que la tabla de Mis trabajos: el admin ve
+                    todo de entrada y solo marca el checkbox de lo que paga. */}
+                <div
+                  className={`${GRID} border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500`}
+                >
+                  <span />
+                  <span>Fecha</span>
+                  <span>Paciente</span>
+                  <span>Cobrado por</span>
+                  <span>Trabajo</span>
+                  <span className="text-right">Costo</span>
+                  <span className="text-right">Comisión</span>
+                  <span className="text-right">Cobrado</span>
+                  <span>Método</span>
+                  <span className="text-right">Abonar</span>
+                </div>
+                {visibleRows.map((r) => {
+                  const checked = workAmounts.has(r.id);
+                  const editing = editingWorks.has(r.id);
+                  const rawAmount = workAmounts.get(r.id) ?? "";
+                  const amountNum = Number(rawAmount);
+                  const amountInvalid =
+                    checked &&
+                    (!Number.isFinite(amountNum) ||
+                      amountNum <= 0 ||
+                      amountNum > r.remaining + 0.005);
+                  const payable = r.remaining > 0;
+                  return (
+                    <div
+                      key={r.id}
+                      className={`${GRID} border-b border-slate-100 px-3 py-2.5 text-sm last:border-0 transition ${
+                        checked ? "bg-clinic/5" : "hover:bg-slate-50/70"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!payable}
+                        onChange={() => toggleWork(r)}
+                        aria-label={`Pagar comisión de ${r.description}`}
+                        className="mt-0.5 accent-clinic disabled:opacity-30"
+                      />
+                      <div className="whitespace-nowrap tabular-nums text-xs leading-tight text-slate-400">
+                        <div>{fmtShortDate(r.performed_at)}</div>
+                        <div className="text-slate-300">{fmtBoliviaTime(r.created_at)}</div>
+                      </div>
+                      <span className="truncate font-medium text-slate-700">
+                        {r.patient_name ?? "—"}
+                      </span>
+                      <span className="truncate text-slate-500">
+                        {r.collected_by_name ?? <span className="text-slate-300">—</span>}
+                      </span>
+                      <div className="min-w-0 leading-tight">
+                        <span className="block truncate text-slate-600">
+                          {r.planItemId ? r.planItemName : r.description}
+                        </span>
+                        {r.lab_work && (
+                          <span className="mt-0.5 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                            Lab: {r.lab_work}
+                          </span>
+                        )}
+                        {/* Avance del PACIENTE en el tratamiento: explica por qué
+                            puede seguir generándose comisión aunque esta fila ya
+                            esté saldada (tratamientos largos se cobran por partes).
+                            El rótulo evita confundirla con la comisión del doctor. */}
+                        {r.planItemPrice > 0 && (
+                          <div className="mt-1">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                              Pago del paciente
+                            </span>
+                            <TreatmentProgressBar
+                              paid={r.planItemPaid}
+                              total={r.planItemPrice}
+                              currency={currency}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right tabular-nums leading-tight text-slate-600">
+                        <span>{money(r.cost, currency)}</span>
+                        {r.lab_cost > 0 && (
+                          <span className="block text-xs text-amber-600">
+                            +{money(r.lab_cost, currency)} lab
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right tabular-nums leading-tight">
+                        <span className="font-medium text-clinic">
+                          {money(r.commission, currency)}
+                        </span>
+                        <span className="block text-xs text-slate-400">
+                          {r.commission_pct}%{r.lab_cost > 0 && " s/neto"}
+                        </span>
+                        {!payable && (
+                          <span className="block text-xs font-medium text-emerald-600">
+                            Pagada ✓
+                          </span>
+                        )}
+                        {payable && r.commission_paid_amount > 0 && (
+                          <span className="block text-xs font-medium text-amber-600">
+                            Restan {money(r.remaining, currency)}
+                          </span>
+                        )}
+                        {payable && isOverdue(r.performed_at, today) && (
+                          <span className="mt-0.5 inline-block rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-500/10">
+                            atrasado
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-right tabular-nums text-slate-600">
+                        {money(r.amount_paid, currency)}
+                      </span>
+                      <span className="text-slate-500">
+                        {r.payment_method ? (
+                          (METHOD_LABEL[r.payment_method] ?? r.payment_method)
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                        {r.invoiced === true && (
+                          <span className="block text-xs font-medium text-sky-600">Factura ✓</span>
+                        )}
+                        {r.invoiced === false && (
+                          <span className="block text-xs text-slate-400">Sin factura</span>
+                        )}
+                      </span>
+                      {/* Abonar: bloqueado por defecto (= lo que calcula el
+                          sistema). "Editar" lo desbloquea a pedido explícito para
+                          un adelanto parcial; así un scroll de mouse o un tipeo
+                          accidental no cambia cuánto se le paga al doctor. */}
+                      <div className="text-right leading-tight">
+                        {!checked ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : editing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            max={r.remaining}
+                            value={rawAmount}
+                            onChange={(e) => setWorkAmount(r, e.target.value)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            autoFocus
+                            className={`w-full rounded border bg-white px-2 py-1 text-right text-sm tabular-nums text-slate-900 focus:outline-none focus:ring-1 ${
+                              amountInvalid
+                                ? "border-red-400 focus:border-red-500 focus:ring-red-500"
+                                : "border-slate-300 focus:border-clinic focus:ring-clinic"
+                            }`}
+                          />
+                        ) : (
+                          <>
+                            <span className="block tabular-nums font-semibold text-clinic">
+                              {money(amountNum, currency)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => unlockWorkAmount(r.id)}
+                              className="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-clinic"
+                              title="Registrar un adelanto parcial"
+                            >
+                              <Pencil className="h-3 w-3" /> Editar
+                            </button>
+                          </>
+                        )}
+                        {amountInvalid && (
+                          <span className="block text-xs text-red-600">
+                            máx. {money(r.remaining, currency)}
+                          </span>
+                        )}
+                        {checked &&
+                          !amountInvalid &&
+                          amountNum > 0 &&
+                          amountNum < r.remaining - 0.005 && (
+                            <span className="block text-xs text-slate-400">
+                              parcial — restarán{" "}
+                              {money(Math.round((r.remaining - amountNum) * 100) / 100, currency)}
+                            </span>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Deuda de otros meses: visible aunque el filtro la saque de la tabla. */}
+          {!fetching && pendingOutsideMonth > 0 && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10">
+              Además hay {money(pendingOutsideMonth, currency)} de comisión pendiente
+              de otros meses. Cambia el mes o usa “Todos los meses” para verla.
+            </p>
+          )}
+
           {hasSelection && (
             <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2 text-sm ring-1 ring-clinic/20">
               <span className="text-xs text-slate-500">
-                {groupAmounts.size} tratamiento{groupAmounts.size !== 1 ? "s" : ""} seleccionado{groupAmounts.size !== 1 ? "s" : ""}
+                {workAmounts.size} trabajo{workAmounts.size !== 1 ? "s" : ""} seleccionado
+                {workAmounts.size !== 1 ? "s" : ""}
+                {hiddenSelectedCount > 0 && (
+                  <span className="text-amber-600">
+                    {" "}
+                    ({hiddenSelectedCount} de otro mes, fuera del filtro)
+                  </span>
+                )}
               </span>
-              <span className="tabular-nums font-semibold text-clinic">{money(allocatedTotal, currency)}</span>
+              <span className="tabular-nums font-semibold text-clinic">
+                {money(allocatedTotal, currency)}
+              </span>
             </div>
           )}
         </div>
@@ -602,14 +823,14 @@ export function StaffPaymentForm({
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={pending || Boolean(invalidGroup)}
+          disabled={pending || Boolean(invalidRow)}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
           {pending ? "…" : "Registrar pago"}
         </button>
-        {invalidGroup && (
+        {invalidRow && (
           <span className="text-xs text-red-600">
-            Corrige el abono de "{invalidGroup.name}" (máximo {money(invalidGroup.remaining, currency)}).
+            Corrige el abono de "{invalidRow.planItemId ? invalidRow.planItemName : invalidRow.description}" (máximo {money(invalidRow.remaining, currency)}).
           </span>
         )}
       </div>

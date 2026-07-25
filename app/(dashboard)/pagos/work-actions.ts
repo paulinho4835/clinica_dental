@@ -21,6 +21,18 @@ export type UnpaidWork = {
   planItemPaid: number;
   // % de comisión manual del doctor sobre este trabajo (doctor_works.commission_pct).
   commission_pct: number;
+  // Campos que replican la tabla de "Mis trabajos": el admin pidió ver los
+  // mismos datos acá, sin tener que abrir nada, para decidir el pago de un
+  // vistazo (costo real, lo cobrado al paciente, método, quién cobró).
+  created_at: string;
+  cost: number;
+  lab_cost: number;
+  lab_work: string | null;
+  amount_paid: number;
+  payment_method: string | null;
+  collected_by_name: string | null;
+  invoiced: boolean | null;
+  commission_paid: boolean;
 };
 
 export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWork[]> {
@@ -40,7 +52,7 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
   const { data } = await admin
     .from("doctor_works")
     .select(
-      "id, description, patient_name, commission_amount, lab_commission_amount, commission_paid_amount, commission_paid, commission_pct, performed_at, cost, amount_paid, treatment_item_id, patient_id, patients(full_name)",
+      "id, description, patient_name, commission_amount, lab_commission_amount, commission_paid_amount, commission_paid, commission_pct, performed_at, created_at, cost, lab_cost, lab_work, amount_paid, payment_method, invoiced, treatment_item_id, patient_id, patients(full_name), collected_by:clinic_receptionists!doctor_works_collected_by_id_fkey(name)",
     )
     .eq("clinic_id", profile.clinicId)
     .eq("doctor_id", doctorId)
@@ -130,6 +142,16 @@ export async function fetchDoctorUnpaidWorks(doctorId: string): Promise<UnpaidWo
       planItemPrice,
       planItemPaid,
       commission_pct: Number(w.commission_pct ?? 0),
+      created_at: w.created_at as string,
+      cost: Number(w.cost),
+      lab_cost: Number(w.lab_cost ?? 0),
+      lab_work: (w.lab_work as string | null) ?? null,
+      amount_paid: Number(w.amount_paid),
+      payment_method: (w.payment_method as string | null) ?? null,
+      collected_by_name:
+        ((w.collected_by as { name?: string } | null)?.name ?? null) || null,
+      invoiced: (w.invoiced as boolean | null) ?? null,
+      commission_paid: Boolean(w.commission_paid),
     };
   });
 }

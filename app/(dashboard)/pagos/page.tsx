@@ -354,9 +354,13 @@ export default async function PagosPage({
 
       <div className="flex flex-col items-start gap-6 md:flex-row">
         {/* Panel izquierdo: búsqueda + lista de personas. En móvil se oculta al
-            elegir a alguien (evita el layout de 2 columnas apretado). */}
+            elegir a alguien (evita el layout de 2 columnas apretado).
+            Angosto (w-52) a propósito: la lista solo necesita nombre + monto, y
+            cada rem que no usa acá se lo lleva la tabla de trabajos, que es
+            ancha y es donde el admin realmente trabaja. `sticky` la mantiene a
+            la vista al bajar por el historial, en vez de dejar un hueco blanco. */}
         <div
-          className={`w-full space-y-3 md:w-64 md:shrink-0 ${
+          className={`w-full space-y-3 md:sticky md:top-4 md:w-52 md:shrink-0 ${
             selectedPayee || showOverdueView ? "hidden md:block" : ""
           }`}
         >
@@ -484,11 +488,18 @@ export default async function PagosPage({
                 ← Volver a la lista
               </Link>
 
-              <div>
-                <h2 className="text-lg font-semibold">{selectedPayee.full_name}</h2>
-                <p className="text-xs text-slate-400">
-                  {ROLE_LABEL[selectedPayee.role] ?? selectedPayee.role}
-                </p>
+              {/* El filtro de mes gobierna TODO el panel: los trabajos
+                  pendientes de comisión y el historial de pagos. Los doctores
+                  llevan un cuaderno por mes, así el admin elige el mes y cuadra
+                  contra él ("qué le debo de junio"). */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">{selectedPayee.full_name}</h2>
+                  <p className="text-xs text-slate-400">
+                    {ROLE_LABEL[selectedPayee.role] ?? selectedPayee.role}
+                  </p>
+                </div>
+                <PagosFilter selectedMonth={selectedMonth} />
               </div>
 
               {/* Tarjetas de resumen */}
@@ -519,12 +530,20 @@ export default async function PagosPage({
 
               {/* Formulario (incluye el panel de trabajos pendientes).
                   key={...} resetea el estado del form al cambiar de persona. */}
-              <StaffPaymentForm key={selectedPayee.key} payee={selectedPayee} today={today} currency={currency} />
+              <StaffPaymentForm
+                key={selectedPayee.key}
+                payee={selectedPayee}
+                today={today}
+                currency={currency}
+                selectedMonth={selectedMonth}
+              />
 
               {/* Historial de pagos de la persona */}
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <PagosFilter selectedMonth={selectedMonth} />
+                  <h3 className="text-sm font-medium capitalize text-slate-600">
+                    Pagos registrados · {monthLabel}
+                  </h3>
                   <PrintPagosButton rows={printRows} monthLabel={monthLabel} currency={currency} />
                 </div>
 
