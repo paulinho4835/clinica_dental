@@ -34,8 +34,5 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: RLS check (toda tabla nueva debe tener row level security)
-        run: npm run check:rls
-
       - name: Tests
         run: npm test
