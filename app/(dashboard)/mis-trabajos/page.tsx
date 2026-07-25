@@ -12,6 +12,7 @@ import { EditWorkButton } from "@/components/mis-trabajos/EditWorkButton";
 import { RequestFeedbackButton } from "@/components/mis-trabajos/RequestFeedbackButton";
 import { DoctorFilter } from "@/components/mis-trabajos/DoctorFilter";
 import { MethodFilter } from "@/components/mis-trabajos/MethodFilter";
+import { CommissionFilter } from "@/components/mis-trabajos/CommissionFilter";
 import { DateRangeFilter } from "@/components/mis-trabajos/DateRangeFilter";
 import { ExportCsvButton, type CsvWorkRow } from "@/components/mis-trabajos/ExportCsvButton";
 import { PrintPdfButton } from "@/components/mis-trabajos/PrintPdfButton";
@@ -61,7 +62,13 @@ type DoctorSummaryRow = {
 export default async function MisTrabajosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ doctor?: string; method?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    doctor?: string;
+    method?: string;
+    from?: string;
+    to?: string;
+    comision?: string;
+  }>;
 }) {
   await requireNavAccess("mis_trabajos");
   const supabase = await createClient();
@@ -84,13 +91,31 @@ export default async function MisTrabajosPage({
     : "";
   const fromParam = resolvedParams.from ?? "";
   const toParam = resolvedParams.to ?? "";
+  // Estado de la comisión: "" (todas) | "pending" (falta cobrarla) | "paid"
+  // (ya saldada). Los abonos parciales caen en "pending": aún se les debe algo.
+  // La recepcionista no gana comisión, así que para ella el filtro no aplica.
+  const commissionParam =
+    !isRecepcionista && ["pending", "paid"].includes(resolvedParams.comision ?? "")
+      ? (resolvedParams.comision ?? "")
+      : "";
   // Sin filtro de fecha, la query trae solo el día de hoy en vez de TODO el
   // historial de la clínica desde el día uno (crecía sin límite). fromParam/
   // toParam (crudos, sin este default) se conservan para la UI — el filtro
   // de fecha, el nombre del CSV y el mensaje de "sin resultados" deben seguir
   // reflejando lo que el usuario realmente eligió, no este default interno.
+  //
+  // Excepción: con el filtro de comisión activo, "solo hoy" lo dejaría vacío
+  // casi siempre — lo que un doctor quiere saber ahí es qué le deben en total,
+  // y esa deuda es de semanas o meses atrás. En ese caso la ventana por defecto
+  // se abre a los últimos 12 meses (sigue acotada, no es el historial entero).
   const hasDateFilter = Boolean(fromParam || toParam);
-  const effectiveFrom = fromParam || (hasDateFilter ? "" : today);
+  const commissionDefaultFrom = (() => {
+    const d = new Date(`${today}T12:00:00`);
+    d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+  const defaultFrom = commissionParam ? commissionDefaultFrom : today;
+  const effectiveFrom = fromParam || (hasDateFilter ? "" : defaultFrom);
   const effectiveTo = toParam || (hasDateFilter ? "" : today);
 
   const selectedDoctor = canPickDoctor
@@ -124,6 +149,11 @@ export default async function MisTrabajosPage({
   }
   if (methodParam) {
     worksQuery = worksQuery.eq("payment_method", methodParam);
+  }
+  // Filtro por estado de comisión en SQL (no en JS): así el contador de
+  // trabajos, el CSV y el PDF reflejan exactamente lo filtrado.
+  if (commissionParam) {
+    worksQuery = worksQuery.eq("commission_paid", commissionParam === "paid");
   }
   if (effectiveFrom) {
     worksQuery = worksQuery.gte("performed_at", effectiveFrom);
@@ -209,6 +239,21 @@ export default async function MisTrabajosPage({
         )
     : 0;
 
+  // Comisión ya cobrada en el período/filtro actual. Incluye los abonos
+  // parciales de trabajos aún pendientes: es plata que el doctor ya recibió,
+  // y sumarla solo cuando el trabajo queda saldado dejaría fuera adelantos
+  // reales (ortodoncias largas viven meses en estado "parcial").
+  const totalPaidCommission = !isRecepcionista
+    ? rows.reduce(
+        (s, w) =>
+          s +
+          (w.commission_paid
+            ? Number(w.commission_amount) + Number(w.lab_commission_amount)
+            : Number(w.commission_paid_amount ?? 0)),
+        0,
+      )
+    : 0;
+
   // Resumen por doctor (solo admin viendo todos)
   const doctorSummary: DoctorSummaryRow[] =
     isAdmin && selectedDoctor === "all" && rows.length > 0
@@ -255,6 +300,21 @@ export default async function MisTrabajosPage({
       ? `trabajos-${fromParam || "inicio"}-a-${toParam || "hoy"}.csv`
       : `trabajos-${today}.csv`;
 
+  // Con el filtro de comisión activo, "no hay trabajos en este período" miente:
+  // sí los hay, solo que ninguno está en ese estado.
+  const emptyTitle = commissionParam
+    ? commissionParam === "pending"
+      ? "No hay comisiones por cobrar"
+      : "No hay comisiones ya pagadas"
+    : "Aún no hay trabajos registrados en este período";
+  const emptyDescription = commissionParam
+    ? commissionParam === "pending"
+      ? "Todas las comisiones del período están pagadas."
+      : "Ninguna comisión del período se pagó todavía."
+    : !isDoctor
+      ? "Usa el botón “Registrar trabajo” de arriba, o el filtro de fecha para ver otro período."
+      : undefined;
+
   const sortedDoctors = doctorProfiles
     ? [
         ...(doctorProfiles.filter((d) => d.id === profile?.userId) ?? []),
@@ -294,6 +354,8 @@ export default async function MisTrabajosPage({
             />
           )}
           <MethodFilter selected={methodParam} />
+          {/* Solo para quienes ganan comisión (la recepcionista no). */}
+          {!isRecepcionista && <CommissionFilter selected={commissionParam} />}
         </div>
       </div>
 
@@ -301,7 +363,9 @@ export default async function MisTrabajosPage({
       <DateRangeFilter from={fromParam} to={toParam} />
       {!hasDateFilter && (
         <p className="text-xs text-slate-400">
-          Mostrando los trabajos de hoy. Usa el filtro de fecha para ver otro período.
+          {commissionParam
+            ? "Mostrando los últimos 12 meses. Usa el filtro de fecha para acotar el período."
+            : "Mostrando los trabajos de hoy. Usa el filtro de fecha para ver otro período."}
         </p>
       )}
 
@@ -322,13 +386,25 @@ export default async function MisTrabajosPage({
           para todos los roles porque confundía — no es un monto accionable. */}
       <div
         className={`grid grid-cols-1 gap-4 ${
-          isRecepcionista ? "sm:grid-cols-2" : isDoctor ? "sm:grid-cols-1" : "sm:grid-cols-2"
+          isRecepcionista ? "sm:grid-cols-2" : isDoctor ? "sm:grid-cols-2" : "sm:grid-cols-3"
         }`}
       >
         {!isDoctor && (
           <Stat
             label={isRecepcionista ? "Cobrado hoy" : "Cobrado a pacientes"}
             value={money(isRecepcionista ? todayPaid : totalPaid, currency)}
+            icon={<Banknote className="h-5 w-5" />}
+            valueClassName="text-emerald-600"
+          />
+        )}
+        {/* Los dos lados de la comisión, siempre juntos: lo que ya recibió y lo
+            que le falta. Ambos se calculan sobre lo que está en pantalla, así
+            que al filtrar por "Por cobrar" el pendiente es el total y el
+            cobrado son los abonos parciales de esos mismos trabajos. */}
+        {!isRecepcionista && (
+          <Stat
+            label="Comisión cobrada"
+            value={money(totalPaidCommission, currency)}
             icon={<Banknote className="h-5 w-5" />}
             valueClassName="text-emerald-600"
           />
@@ -499,12 +575,8 @@ export default async function MisTrabajosPage({
           {rows.length === 0 && (
             <EmptyState
               icon={<Briefcase className="h-6 w-6" />}
-              title="Aún no hay trabajos registrados en este período"
-              description={
-                !isDoctor
-                  ? "Usa el botón “Registrar trabajo” de arriba, o el filtro de fecha para ver otro período."
-                  : undefined
-              }
+              title={emptyTitle}
+              description={emptyDescription}
             />
           )}
         </div>
