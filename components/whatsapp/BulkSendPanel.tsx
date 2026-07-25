@@ -121,7 +121,7 @@ export function BulkSendPanel({ connected }: { connected: boolean }) {
   if (!connected) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
-        WhatsApp Baileys no está conectado. Ve a{" "}
+        El Agente de WhatsApp no está conectado. Ve a{" "}
         <a href="/ajustes" className="underline font-medium">
           Ajustes
         </a>{" "}

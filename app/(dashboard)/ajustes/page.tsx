@@ -264,7 +264,7 @@ export default async function SettingsPage() {
     <>
       {isClinicAdmin && features.whatsapp && (
         <section>
-          <h2 className="text-lg font-semibold text-slate-800">WhatsApp Baileys</h2>
+          <h2 className="text-lg font-semibold text-slate-800">Agente de WhatsApp</h2>
           <p className="mb-3 text-sm text-slate-500">
             Conecta el número de WhatsApp de tu clínica para enviar recordatorios automáticos.
             Escanea el código QR con la app de WhatsApp en el teléfono de la clínica.

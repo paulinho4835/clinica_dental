@@ -33,15 +33,15 @@ export default async function WaMasivoPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-800">WhatsApp Masivo</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Envía recordatorios de cita a todos los pacientes del día seleccionado a través de
-          WhatsApp Baileys. Los mensajes se envían de forma individual con un delay configurable
+          Envía recordatorios de cita a todos los pacientes del día seleccionado a través del
+          Agente de WhatsApp. Los mensajes se envían de forma individual con un delay configurable
           para evitar restricciones.
         </p>
       </div>
 
       {!features.whatsapp && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
-          El módulo <strong>WhatsApp Baileys</strong> no está habilitado para esta clínica.
+          El módulo <strong>Agente de WhatsApp</strong> no está habilitado para esta clínica.
           Actívalo desde el panel de Superadmin.
         </div>
       )}
