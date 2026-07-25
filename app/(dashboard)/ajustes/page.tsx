@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { TeamPanel, type TeamMember } from "@/components/ajustes/TeamPanel";
 import { MySignaturePanel } from "@/components/ajustes/MySignaturePanel";
+import { StampUploadPanel } from "@/components/ajustes/StampUploadPanel";
 import { GoogleCalendarPanel } from "@/components/ajustes/GoogleCalendarPanel";
 import { ClinicProfilePanel, type ClinicProfile } from "@/components/ajustes/ClinicProfilePanel";
 import {
@@ -38,16 +39,18 @@ export default async function SettingsPage() {
   const features = await getClinicFeatures();
   const canSignPrescriptions = can(profile?.role, "clinical:write");
 
-  // Firma personal del doctor (recetas médicas) + estado de Google Calendar.
+  // Firma y sello personales del doctor (recetas médicas) + estado de Google Calendar.
   let mySignature: string | null = null;
+  let myStamp: string | null = null;
   let googleCalendarConnected = false;
   if (canSignPrescriptions && profile) {
     const { data } = await supabase
       .from("profiles")
-      .select("signature, google_calendar_connected")
+      .select("signature, stamp, google_calendar_connected")
       .eq("id", profile.userId)
       .single();
     mySignature = (data?.signature as string | null) ?? null;
+    myStamp = (data?.stamp as string | null) ?? null;
     googleCalendarConnected = data?.google_calendar_connected ?? false;
   }
 
@@ -226,6 +229,17 @@ export default async function SettingsPage() {
             Se agrega automáticamente a las recetas médicas que emitas.
           </p>
           <MySignaturePanel currentSignature={mySignature} />
+        </section>
+      )}
+
+      {canSignPrescriptions && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Mi sello</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Foto de tu sello físico. Se agrega automáticamente a las recetas
+            médicas que emitas, junto a tu firma.
+          </p>
+          <StampUploadPanel currentStamp={myStamp} />
         </section>
       )}
 
