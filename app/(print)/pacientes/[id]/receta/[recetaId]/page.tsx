@@ -22,7 +22,7 @@ export default async function RecetaPage({
 
   const { data: rx } = await supabase
     .from("prescriptions")
-    .select("id, medications, notes, issued_at, doctor:profiles(full_name, signature)")
+    .select("id, medications, notes, issued_at, doctor:profiles(full_name, signature, stamp)")
     .eq("id", recetaId)
     .eq("patient_id", id)
     .single();
@@ -44,9 +44,12 @@ export default async function RecetaPage({
   const logoUrl = await getClinicLogoUrl(patient.clinic_id);
 
   const medications = rx.medications as Medication[];
-  const doctor = rx.doctor as { full_name?: string; signature?: string | null } | null;
+  const doctor = rx.doctor as
+    | { full_name?: string; signature?: string | null; stamp?: string | null }
+    | null;
   const doctorName = doctor?.full_name ?? null;
   const doctorSignature = doctor?.signature ?? null;
+  const doctorStamp = doctor?.stamp ?? null;
 
   return (
     <>
@@ -143,8 +146,8 @@ export default async function RecetaPage({
           </div>
         )}
 
-        {/* Firma del odontólogo (el paciente no firma la receta) */}
-        <div className="mt-16 flex justify-center">
+        {/* Firma y sello del odontólogo (el paciente no firma la receta) */}
+        <div className="mt-16 flex justify-center gap-12">
           <div className="w-64 text-center text-sm text-slate-500">
             {doctorSignature && (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -158,6 +161,17 @@ export default async function RecetaPage({
               Firma del Odontólogo
             </div>
           </div>
+          {doctorStamp && (
+            <div className="w-64 text-center text-sm text-slate-500">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={doctorStamp}
+                alt="Sello del odontólogo"
+                className="mx-auto mb-2 h-20 object-contain"
+              />
+              <div className="border-t border-slate-400 pt-2">Sello</div>
+            </div>
+          )}
         </div>
       </div>
     </>
