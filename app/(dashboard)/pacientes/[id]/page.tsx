@@ -2,57 +2,29 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlatformAdminIds } from "@/lib/platformAdmins";
 import { getProfile } from "@/lib/auth";
-import { can, canSeeNav, canEditAnamnesis, canEditPlanItemName } from "@/lib/rbac";
+import { can, canSeeNav, canEditAnamnesis } from "@/lib/rbac";
 import { OdontogramEditor } from "@/components/odontogram/OdontogramEditor";
 import { OdontogramHistory } from "@/components/odontogram/OdontogramHistory";
 import { OdontogramTabs } from "@/components/odontogram/OdontogramTabs";
 import { EditPatientForm } from "@/components/patients/EditPatientForm";
 import { DeletePatientButton } from "@/components/patients/DeletePatientButton";
-import {
-  WorkStatusPanel,
-  AdHocWorkList,
-  VisitasPanel,
-  type ApptRow,
-  type WorkDebtRow,
-} from "@/components/history/PatientHistoryPanel";
-import {
-  TreatmentPlanPanel,
-  type Work,
-  type Dentist,
-} from "@/components/treatments/TreatmentPlanPanel";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { PEDIATRIC_QUADRANTS, PEDIATRIC_QUADRANT_NUMBERS } from "@/lib/odontogram/pediatricTypes";
 import { savePediatricOdontogram } from "@/app/(dashboard)/pacientes/pediatric-odontogram-actions";
 import { money, calcAge } from "@/lib/format";
 import { getClinicCurrency } from "@/lib/superadmin";
 import Link from "next/link";
-import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
-import { PrescriptionsPanel } from "@/components/patients/PrescriptionsPanel";
-import type {
-  PrescriptionRow,
-  Medication,
-} from "@/app/(dashboard)/pacientes/prescription-actions";
-import {
-  ConsentsPanel,
-  type ConsentRow,
-} from "@/components/consents/ConsentsPanel";
-import { EvolutionPanel } from "@/components/patients/EvolutionPanel";
+import { normalizeFeatures } from "@/lib/features";
 import { PerioPanel, type PerioExamRow } from "@/components/perio/PerioPanel";
 import type { PerioMeasurements } from "@/lib/perio/types";
 import { AnamnesisPanel } from "@/components/patients/AnamnesisPanel";
-import { PhotosPanel, type PhotoItem } from "@/components/patients/PhotosPanel";
-import { isR2Configured, presignDownload } from "@/lib/r2";
 import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { REFERRAL_SOURCE_LABEL } from "@/lib/schemas/patient-intake";
-import type {
-  ConsentTemplate,
-  ConsentAppointment,
-} from "@/components/consents/ConsentModal";
 import { CustomIntakeAnswers } from "@/components/patients/CustomIntakeAnswers";
-import {
-  DoctorAccountPanel,
-  type DoctorAccountRow,
-} from "@/components/patients/DoctorAccountPanel";
+import { fetchPatientPlanItems } from "@/lib/treatments/planItems";
+import { TratamientoTab } from "@/components/patients/lazy-tabs/TratamientoTab";
+import { CuentaTab } from "@/components/patients/lazy-tabs/CuentaTab";
+import { DocumentosTab } from "@/components/patients/lazy-tabs/DocumentosTab";
 import { SettingsTabs, type SettingsTab } from "@/components/ui/SettingsTabs";
 import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
@@ -84,7 +56,6 @@ export default async function PatientPage({
   const platformAdminIds = await getPlatformAdminIds();
   const platformAdminIdSet = new Set(platformAdminIds);
   const canSeeHistory = profile?.role === "admin";
-  const canClinical = can(profile?.role, "clinical:write");
   const canDelete = can(profile?.role, "patients:delete");
   const canBilling = can(profile?.role, "billing:write");
   const canSeeCuentas = canSeeNav(profile?.role, "cuentas");
@@ -105,107 +76,23 @@ export default async function PatientPage({
   const hidePhone =
     profile?.role === "odontologo_general" || profile?.role === "especialista";
 
-  // Solo doctores activos en el selector de asignación de tratamientos; los
-  // trabajos ya registrados conservan el nombre del doctor aunque se desactive.
-  let dentistsQuery = supabase
-    .from("profiles")
-    .select("id, full_name")
-    .in("role", ["odontologo_general", "especialista", "admin", "colega"])
-    .eq("clinic_id", patient.clinic_id)
-    .eq("active", true)
-    .order("full_name");
-  if (platformAdminIds.length > 0) {
-    dentistsQuery = dentistsQuery.not("id", "in", `(${platformAdminIds.join(",")})`);
-  }
-
-  const [
-    { data: rawPlans },
-    { data: payments },
-    { data: appointments },
-    { data: dentists },
-    { data: rawPrescriptions },
-    { data: clinicRow },
-    { data: rawConsents },
-    { data: consentTemplates },
-    { data: evolutionNotes },
-    { data: evolutionHistory },
-    { data: rawOdoEvents },
-    { data: rawCatalog },
-    { data: rawWorks },
-  ] = await Promise.all([
-    supabase
-      .from("treatment_plans")
-      .select(
-        "id, treatment_phases(treatment_items(id, price, status, custom_name, created_at, doctor_id, doctor:profiles!treatment_items_doctor_id_fkey(full_name), procedure:procedure_catalog(name)))",
-      )
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false }),
-    // treatment_item_id / received_at: necesarios para el estado de cuenta
-    // acotado del doctor (avance de pago por tratamiento suyo).
-    supabase
-      .from("payments")
-      .select("id, amount, received_at, treatment_item_id")
-      .eq("patient_id", id),
-    supabase
-      .from("appointments")
-      .select("id, starts_at, dentist_name, reason, status")
-      .eq("patient_id", id)
-      .neq("status", "cancelled")
-      .order("starts_at", { ascending: false }),
-    dentistsQuery,
-    supabase
-      .from("prescriptions")
-      .select("id, medications, notes, issued_at, doctor:profiles(full_name)")
-      .eq("patient_id", id)
-      .order("issued_at", { ascending: false }),
-    supabase
-      .from("clinics")
-      .select("features, name")
-      .eq("id", patient.clinic_id)
-      .single(),
-    supabase
-      .from("consents")
-      .select("id, title, status, created_at")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("consent_templates")
-      .select("id, title, body")
-      .order("sort_order"),
-    supabase
-      .from("patient_evolution_notes")
-      .select("id, author_id, author_name, body, note_type, appointment_id, subjective, objective, assessment, plan, created_at, updated_at")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("patient_evolution_note_history")
-      .select("id, note_id, author_id, author_name, body, note_type, subjective, objective, assessment, plan, action, changed_at")
-      .eq("patient_id", id)
-      .order("changed_at", { ascending: false }),
+  // Solo lo necesario para la pestaña por defecto (Historia clínica) y el
+  // encabezado se pide en la carga inicial de la página. Tratamiento, Cuenta
+  // y Documentos se piden bajo demanda (ver components/patients/lazy-tabs) —
+  // antes se calculaban siempre las 4 pestañas aunque el usuario solo mirara
+  // una, pagando ese costo de CPU/queries en cada visita a la ficha.
+  const [{ data: rawOdoEvents }, { data: clinicRow }] = await Promise.all([
     supabase
       .from("odontogram_events")
       .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(id, full_name)")
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     supabase
-      .from("procedure_catalog")
-      .select("id, name, base_price")
-      .eq("active", true)
-      .order("name"),
-    supabase
-      .from("doctor_works")
-      .select(
-        "id, description, cost, amount_paid, performed_at, treatment_item_id, doctor_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
-      )
-      .eq("patient_id", id)
-      .order("performed_at", { ascending: false }),
+      .from("clinics")
+      .select("features, name")
+      .eq("id", patient.clinic_id)
+      .single(),
   ]);
-
-  const catalog = (rawCatalog ?? []).map((c) => ({
-    id: c.id as string,
-    name: c.name as string,
-    base_price: Number(c.base_price),
-  }));
 
   // Aplana el join de actor a actor_name para el componente de historial.
   // Los platform-admins (superadmin) nunca exponen su nombre en la clínica.
@@ -226,77 +113,29 @@ export default async function PatientPage({
     };
   });
 
-  // Aplana todos los items del plan en una lista de "trabajos".
-  const works: Work[] = (rawPlans ?? [])
-    .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
-    .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
-    .map((it) => ({
-      id: it.id as string,
-      name:
-        ((it.procedure as { name?: string } | null)?.name ?? (it.custom_name as string)) || "—",
-      price: Number(it.price),
-      done: it.status === "done",
-      createdAt: it.created_at as string,
-      dentistId: (it.doctor_id as string | null) ?? null,
-      dentistName: ((it.doctor as { full_name?: string } | null)?.full_name) ?? null,
-    }))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-  const apptRows: ApptRow[] = (appointments ?? []).map((a) => ({
-    id: a.id as string,
-    startsAt: a.starts_at as string,
-    dentistName: a.dentist_name as string | null,
-    reason: a.reason as string | null,
-    status: a.status as string,
-  }));
-
-  const totalPaidRaw = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
-
-  const prescriptionRows: PrescriptionRow[] = (rawPrescriptions ?? []).map((rx) => ({
-    id: rx.id as string,
-    doctorName:
-      ((rx.doctor as { full_name?: string } | null)?.full_name) ?? null,
-    medications: rx.medications as Medication[],
-    notes: rx.notes as string | null,
-    issuedAt: rx.issued_at as string,
-  }));
-
   const features = normalizeFeatures(clinicRow?.features);
-  const recetasEnabled = features.recetas;
-  const consentimientosEnabled = features.consentimientos;
-  const fotosEnabled = fotosFeatureEnabled(features);
-  const fotosQuota = photoQuota(clinicRow?.features);
 
-  // Fotos del paciente: el binario vive en R2; aquí solo cargamos referencias y
-  // generamos URLs firmadas de lectura (bucket privado). Solo si el addon está
-  // encendido y R2 configurado.
-  const r2Ready = isR2Configured();
-  let photos: PhotoItem[] = [];
-  // Fotos usadas por TODA la clínica (el tope es por clínica, no por paciente).
-  let clinicPhotoCount = 0;
-  if (fotosEnabled && r2Ready) {
-    const { count: clinicCount } = await supabase
-      .from("patient_photos")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", patient.clinic_id);
-    clinicPhotoCount = clinicCount ?? 0;
-
-    const { data: photoRows } = await supabase
-      .from("patient_photos")
-      .select("id, storage_key, kind, caption, created_at, uploader:uploaded_by(full_name)")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false });
-    photos = await Promise.all(
-      (photoRows ?? []).map(async (p) => ({
-        id: p.id as string,
-        url: await presignDownload(p.storage_key as string),
-        kind: (p.kind as string | null) ?? null,
-        caption: (p.caption as string | null) ?? null,
-        createdAt: p.created_at as string,
-        uploaderName:
-          ((p.uploader as { full_name?: string } | null)?.full_name) ?? null,
-      })),
+  // Saldo del encabezado: solo lo calculan admin/recepción/colega (canBilling);
+  // los doctores lo ven acotado a lo suyo dentro de la pestaña "Cuenta"
+  // (lazy). Misma fórmula que /cuentas y /api/patients/[id]/balance.
+  let totalQuoted = 0;
+  let totalPaid = 0;
+  if (canBilling) {
+    const [{ data: works }, { data: payments }, planItems] = await Promise.all([
+      supabase.from("doctor_works").select("cost, treatment_item_id").eq("patient_id", id),
+      supabase.from("payments").select("amount").eq("patient_id", id),
+      fetchPatientPlanItems(supabase, id),
+    ]);
+    const itemIdsWithWork = new Set(
+      (works ?? [])
+        .map((w) => w.treatment_item_id as string | null)
+        .filter((wid): wid is string => !!wid),
     );
+    const unstartedPlanItemsTotal = planItems
+      .filter((item) => !itemIdsWithWork.has(item.id))
+      .reduce((s, item) => s + item.price, 0);
+    totalQuoted = (works ?? []).reduce((s, w) => s + Number(w.cost), 0) + unstartedPlanItemsTotal;
+    totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
   }
 
   // Periodontograma (addon "periodontograma"): exámenes periodontales fechados.
@@ -369,135 +208,7 @@ export default async function PatientPage({
     });
   }
 
-  const consentRows: ConsentRow[] = (rawConsents ?? []).map((c) => ({
-    id: c.id as string,
-    title: c.title as string,
-    status: c.status as "pendiente" | "firmado",
-    createdAt: c.created_at as string,
-  }));
-
-  const consentTemplateList: ConsentTemplate[] = (consentTemplates ?? []).map((t) => ({
-    id: t.id as string,
-    title: t.title as string,
-    body: t.body as string,
-  }));
-
-  const consentAppts: ConsentAppointment[] = apptRows.map((a) => ({
-    id: a.id,
-    startsAt: a.startsAt,
-    reason: a.reason,
-  }));
-
   const clinicName = (clinicRow as { name?: string; features?: unknown } | null)?.name ?? "";
-
-  // "Total tratamiento" = costo de sesiones ya registradas (doctor_works) +
-  // precio de ítems del plan que AÚN no tienen ninguna sesión registrada.
-  // Misma fórmula que /cuentas (lib/treatments/planItems.ts) y que
-  // /api/patients/[id]/balance — antes esto solo sumaba treatment_items, así
-  // que un trabajo suelto (sin ítem de plan vinculado, p.ej. registrado desde
-  // "Mis trabajos" con texto libre) mostraba "Saldo" negativo aunque el
-  // paciente ya hubiera pagado exactamente ese trabajo.
-  const itemIdsWithWork = new Set(
-    (rawWorks ?? [])
-      .map((w) => w.treatment_item_id as string | null)
-      .filter((wid): wid is string => !!wid),
-  );
-  const unstartedPlanItemsTotal = (rawPlans ?? [])
-    .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
-    .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
-    .filter((it) => (it.status as string) !== "cancelled")
-    .filter((it) => !itemIdsWithWork.has(it.id as string))
-    .reduce((s, it) => s + Number(it.price), 0);
-  const totalQuoted =
-    (rawWorks ?? []).reduce((s, w) => s + Number(w.cost), 0) + unstartedPlanItemsTotal;
-  const totalPaid = totalPaidRaw;
-
-  // Trabajos registrados sin vincular a ningún ítem del plan (texto libre
-  // desde "Mis trabajos") — antes solo se veían en Cuentas de pacientes,
-  // nunca en la ficha clínica. Se muestran aparte de "Plan de tratamiento"
-  // porque no son un ítem planificado/presupuestado, ya ocurrieron.
-  const adHocWorkRows: WorkDebtRow[] = (rawWorks ?? [])
-    .filter((w) => !w.treatment_item_id)
-    .map((w) => ({
-      id: w.id as string,
-      description: w.description as string,
-      cost: Number(w.cost),
-      performedAt: w.performed_at as string,
-      doctorName: ((w.doctor as { full_name?: string } | null)?.full_name) ?? null,
-    }));
-
-  // ---------------------------------------------------------------------------
-  // Estado de cuenta del DOCTOR: solo sus tratamientos.
-  // El admin pidió que los doctores dejen de depender de recepción para saber si
-  // el paciente va al día con sus cuotas, pero sin abrirles la cuenta completa
-  // del paciente: cada doctor ve el avance de pago de lo suyo y nada más.
-  // ---------------------------------------------------------------------------
-  const paidByItem = new Map<
-    string,
-    { amount: number; count: number; last: string | null }
-  >();
-  for (const p of payments ?? []) {
-    const itemId = (p as { treatment_item_id?: string | null }).treatment_item_id;
-    if (!itemId) continue;
-    const cur = paidByItem.get(itemId) ?? { amount: 0, count: 0, last: null };
-    cur.amount += Number(p.amount);
-    cur.count += 1;
-    const at = (p as { received_at?: string }).received_at ?? null;
-    if (at && (!cur.last || at > cur.last)) cur.last = at;
-    paidByItem.set(itemId, cur);
-  }
-
-  // Ítems del plan que "son suyos": los asignados a él MÁS aquellos donde ya
-  // registró una sesión (puede haber atendido un ítem asignado a otro doctor).
-  const myWorkedItemIds = new Set(
-    (rawWorks ?? [])
-      .filter((w) => w.doctor_id === profile?.userId && w.treatment_item_id)
-      .map((w) => w.treatment_item_id as string),
-  );
-
-  const doctorAccountRows: DoctorAccountRow[] = !isDoctor
-    ? []
-    : [
-        ...(rawPlans ?? [])
-          .flatMap((p) => (p.treatment_phases as Record<string, unknown>[]) ?? [])
-          .flatMap((ph) => (ph.treatment_items as Record<string, unknown>[]) ?? [])
-          .filter((it) => (it.status as string) !== "cancelled")
-          .filter(
-            (it) =>
-              (it.doctor_id as string | null) === profile?.userId ||
-              myWorkedItemIds.has(it.id as string),
-          )
-          .map((it) => {
-            const p = paidByItem.get(it.id as string);
-            return {
-              id: it.id as string,
-              name:
-                ((it.procedure as { name?: string } | null)?.name ??
-                  (it.custom_name as string)) || "—",
-              price: Number(it.price),
-              paid: p?.amount ?? 0,
-              paymentsCount: p?.count ?? 0,
-              lastPaymentAt: p?.last ?? null,
-              done: (it.status as string) === "done",
-              adHoc: false,
-            };
-          }),
-        // Trabajos sueltos suyos (sin ítem de plan): el cobro no se rastrea por
-        // pagos individuales, va en el propio registro del trabajo.
-        ...(rawWorks ?? [])
-          .filter((w) => !w.treatment_item_id && w.doctor_id === profile?.userId)
-          .map((w) => ({
-            id: w.id as string,
-            name: w.description as string,
-            price: Number(w.cost),
-            paid: Number((w as { amount_paid?: number }).amount_paid ?? 0),
-            paymentsCount: null,
-            lastPaymentAt: w.performed_at as string,
-            done: true,
-            adHoc: true,
-          })),
-      ];
-
   const teeth = (odo?.teeth as TeethMap) ?? {};
 
   // Última invitación de historial (estado + propuesta pendiente de revisión).
@@ -609,173 +320,28 @@ export default async function PatientPage({
     </>
   );
 
-  const tratamiento = (
-    <>
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Plan de tratamiento</h2>
-        <TreatmentPlanPanel patientId={patient.id} canWrite={canClinical} canDelete={profile?.role === "admin"} canEditName={canEditPlanItemName(profile?.role)} canEditPrice={profile?.role === "admin"} works={works} dentists={dentists ?? []} catalog={catalog} recetasEnabled={recetasEnabled} currency={currency} />
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Seguimiento del tratamiento</h2>
-        <WorkStatusPanel patientId={patient.id} canWrite={canClinical} works={works} currency={currency} />
-      </section>
-
-      {adHocWorkRows.length > 0 && (
-        <section>
-          <h2 className="mb-1 text-lg font-semibold">Trabajos sin plan</h2>
-          <p className="mb-3 text-xs text-slate-500">
-            Registrados directamente desde "Mis trabajos", sin vincular a un ítem del plan de tratamiento.
-          </p>
-          <AdHocWorkList works={adHocWorkRows} currency={currency} />
-        </section>
-      )}
-
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Evolución del paciente</h2>
-        <EvolutionPanel
-          patientId={patient.id}
-          notes={(evolutionNotes ?? []).map((n) => ({
-            id: n.id as string,
-            author_id: (n.author_id as string | null) ?? null,
-            author_name: platformAdminIdSet.has(n.author_id ?? "")
-              ? "Sistema"
-              : n.author_name as string,
-            body: n.body as string,
-            note_type: ((n.note_type as string) === "soap" ? "soap" : "free") as "free" | "soap",
-            appointment_id: (n.appointment_id as string | null) ?? null,
-            subjective: (n.subjective as string) ?? "",
-            objective: (n.objective as string) ?? "",
-            assessment: (n.assessment as string) ?? "",
-            plan: (n.plan as string) ?? "",
-            created_at: n.created_at as string,
-            updated_at: n.updated_at as string,
-          }))}
-          history={(evolutionHistory ?? []).map((h) => ({
-            id: h.id as string,
-            note_id: h.note_id as string,
-            author_name: platformAdminIdSet.has((h as { author_id?: string }).author_id ?? "")
-              ? "Sistema"
-              : h.author_name as string,
-            body: h.body as string,
-            note_type: (h.note_type as "free" | "soap" | null) ?? null,
-            subjective: (h.subjective as string | null) ?? null,
-            objective: (h.objective as string | null) ?? null,
-            assessment: (h.assessment as string | null) ?? null,
-            plan: (h.plan as string | null) ?? null,
-            action: h.action as "edited" | "deleted",
-            changed_at: h.changed_at as string,
-          }))}
-          legacyEvolution={(patient as { evolution?: string | null }).evolution ?? null}
-          canWrite={canEditClinical}
-          canSeeHistory={canSeeHistory}
-          currentUserId={profile?.userId ?? ""}
-          appointments={apptRows}
-        />
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Visitas</h2>
-        <VisitasPanel appointments={apptRows} />
-      </section>
-    </>
-  );
-
-  const cuenta = (
-    <>
-      {canBilling && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Cuenta del paciente</h2>
-          <div className="flex items-center justify-between rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="flex gap-8 text-sm">
-              <div>
-                <div className="text-xs text-slate-500">Total tratamiento</div>
-                <div className="mt-0.5 font-semibold tabular-nums">{money(totalQuoted, currency)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Total pagado</div>
-                <div className="mt-0.5 font-semibold tabular-nums text-emerald-600">{money(totalPaid, currency)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Saldo pendiente</div>
-                <div className={`mt-0.5 font-semibold tabular-nums ${totalQuoted - totalPaid > 0 ? "text-red-600" : "text-slate-800"}`}>
-                  {money(totalQuoted - totalPaid, currency)}
-                </div>
-              </div>
-            </div>
-            {canSeeCuentas && (
-              <Link
-                href={`/cuentas?p=${patient.id}`}
-                className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg transition-colors"
-              >
-                Gestionar cuenta →
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Doctores y colegas: versión acotada a sus propios tratamientos.
-          No ven el total del paciente ni lo de los demás doctores. */}
-      {!canBilling && isDoctor && (
-        <DoctorAccountPanel rows={doctorAccountRows} currency={currency} />
-      )}
-    </>
-  );
-
-  const documentos = (
-    <>
-      {fotosEnabled && (
-        <section>
-          <PhotosPanel
-            patientId={patient.id}
-            photos={photos}
-            canManage={canEditClinical}
-            configured={r2Ready}
-            atLimit={clinicPhotoCount >= fotosQuota}
-            clinicQuota={fotosQuota}
-            // El número de fotos solo se revela a la clínica si tiene el addon
-            // "Ver contador de fotos". El superadmin lo ve siempre desde su panel.
-            clinicUsed={features.fotos_contador ? clinicPhotoCount : undefined}
-            showCounter={features.fotos_contador}
-          />
-        </section>
-      )}
-
-      {recetasEnabled && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Recetas emitidas</h2>
-          <PrescriptionsPanel
-            patientId={patient.id}
-            prescriptions={prescriptionRows}
-            canWrite={canClinical}
-          />
-        </section>
-      )}
-
-      {consentimientosEnabled && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Consentimientos</h2>
-          <ConsentsPanel
-            patientId={patient.id}
-            patientName={patient.full_name}
-            doctorName={profile?.fullName ?? ""}
-            clinicName={clinicName}
-            consents={consentRows}
-            templates={consentTemplateList}
-            appointments={consentAppts}
-            canWrite={canClinical}
-          />
-        </section>
-      )}
-    </>
-  );
-
   const tabs: SettingsTab[] = [
     { id: "historia", label: "Historia clínica", content: historiaClinica },
-    { id: "tratamiento", label: "Tratamiento", content: tratamiento },
-    { id: "cuenta", label: "Cuenta", content: cuenta },
-    { id: "documentos", label: "Documentos", content: documentos },
+    {
+      id: "tratamiento",
+      label: "Tratamiento",
+      content: (
+        <TratamientoTab
+          patientId={patient.id}
+          legacyEvolution={(patient as { evolution?: string | null }).evolution ?? null}
+        />
+      ),
+    },
+    {
+      id: "cuenta",
+      label: "Cuenta",
+      content: <CuentaTab patientId={patient.id} canSeeCuentas={canSeeCuentas} />,
+    },
+    {
+      id: "documentos",
+      label: "Documentos",
+      content: <DocumentosTab patientId={patient.id} />,
+    },
   ];
 
   return (
