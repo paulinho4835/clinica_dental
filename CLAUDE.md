@@ -141,21 +141,15 @@ Maneja todos los eventos Vapi:
 4. **Odontograma rediseñado** — formas anatómicas con SVG clipPath, paleta de herramientas (`Tool` union type), etiquetas de cuadrante, línea de oclusión, leyenda agrupada.
 5. **Voseo corregido** — 4 archivos corregidos a español neutro.
 
-## Tarea pendiente principal: WhatsApp multi-clínica (Baileys)
-
-### Contexto
-- Actualmente hay una sola sesión Baileys global en `whatsapp-service/src/index.ts`.
-- Cada clínica necesita su propio número de WhatsApp.
-
-### Plan de implementación
-1. **`whatsapp-service/src/index.ts`** — refactorizar a `Map<clinicId, SessionState>`:
-   - `SessionState = { sock, isConnected, lastQR }`
-   - Auth por clínica en `auth_info/{clinicId}/`
-   - Endpoints: `/qr/:clinicId`, `/connect/:clinicId`, `/disconnect/:clinicId`, `/send-reminders/:clinicId`
-2. **`whatsapp-service/src/reminders.ts`** — agregar parámetro `clinicId`, filtrar recordatorios por clínica.
-3. **Migración SQL** — agregar `clinic_id uuid REFERENCES clinics(id)` a tabla `appointment_reminders`.
-4. **`app/api/whatsapp/send-reminders/route.ts`** — pasar `profile.clinic_id` al servicio Baileys.
-5. **Página de configuración de clínica** — sección WhatsApp con estado QR + botón conectar/desconectar.
+## WhatsApp multi-clínica (Baileys) — YA IMPLEMENTADO
+`whatsapp-service/src/index.ts` usa `Map<clinicId, SessionState>` con auth por
+clínica (`auth_info/{clinicId}/`) y endpoints `/qr/:id`, `/connect/:id`,
+`/disconnect/:id`, `/send-reminders/:id`, `/send-bulk/:id`, `/status/:id`.
+`reminders.ts` filtra por `clinic_id` (columna en `appointment_reminders`
+desde la migración `0001_schema.sql`, no fue necesaria migración nueva).
+`/ajustes` → `WhatsAppPanel` conecta/desconecta por clínica vía
+`/api/whatsapp/status|qr|connect` (resuelven `profile.clinicId`). No queda
+trabajo pendiente en este frente.
 
 ## Decisiones técnicas importantes
 - **CSS variables para dark mode**: `white` y `slate` redefinidos como `rgb(var(--name) / alpha)` en Tailwind → todas las clases invierten automáticamente en `.dark` sin tocar archivos individuales.
