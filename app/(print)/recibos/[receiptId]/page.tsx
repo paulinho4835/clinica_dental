@@ -80,7 +80,7 @@ export default async function PaymentReceiptPage({
         </table>
 
         <p className="mt-5 text-sm text-slate-600">Recibí conforme el monto indicado. Este documento es un recibo de pago y no constituye una factura fiscal.</p>
-        <div className="mt-20 flex justify-center"><div className="w-72 text-center text-sm text-slate-500"><div className="border-t border-slate-400 pt-2">Firma física del paciente</div><p className="mt-1 text-xs">{receipt.patient_name}</p></div></div>
+        <div className="mt-20 flex justify-center"><div className="w-72 text-center text-sm text-slate-500"><div className="border-t border-slate-400 pt-2">Firma del paciente</div><p className="mt-1 text-xs">{receipt.patient_name}</p></div></div>
       </div>
     </>
   );
