@@ -133,3 +133,16 @@ describe("odontograma_pediatrico (addon opt-in)", () => {
     expect(entry?.href).toBe("/pacientes");
   });
 });
+
+describe("recibos_pago (addon premium)", () => {
+  it("está apagado por defecto y solo se habilita explícitamente", () => {
+    expect((normalizeFeatures({}) as Record<string, boolean>).recibos_pago).toBe(false);
+    expect((normalizeFeatures({ recibos_pago: true }) as Record<string, boolean>).recibos_pago).toBe(true);
+  });
+
+  it("figura como add-on opt-in en el catálogo", () => {
+    const entry = FEATURES.find((feature) => feature.key === "recibos_pago");
+    expect(entry?.optIn).toBe(true);
+    expect(entry?.href).toBe("/mis-trabajos");
+  });
+});

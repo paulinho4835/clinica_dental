@@ -17,6 +17,7 @@ export type FeatureKey =
   | "whatsapp"
   | "whatsapp_manual"
   | "recetas"
+  | "recibos_pago"
   | "pagos"
   | "perfil"
   | "consentimientos"
@@ -66,6 +67,7 @@ export const FEATURES: FeatureMeta[] = [
   // cuando wa_masivo o recordatorios están activos (ver normalizeFeatures).
   { key: "whatsapp_manual", label: "WhatsApp Manual", href: "/agenda", optIn: true },
   { key: "recetas", label: "Recetas y Presupuesto", href: "/pacientes", optIn: true },
+  { key: "recibos_pago", label: "Recibos de pago", href: "/mis-trabajos", optIn: true },
   { key: "perfil", label: "Perfil de clínica", href: "/ajustes", optIn: true },
   { key: "consentimientos", label: "Consentimientos", href: "/pacientes", optIn: true },
   { key: "recordatorios", label: "Recordatorios Automáticos", href: "/ajustes", optIn: true },
@@ -125,7 +127,7 @@ export const FEATURES: FeatureMeta[] = [
 export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
   { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
-  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "odontogram_dictado_voz", "preguntas_registro"] },
+  { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "recibos_pago", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "odontogram_dictado_voz", "preguntas_registro"] },
   { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones", "google_calendar"] },
 ];
 

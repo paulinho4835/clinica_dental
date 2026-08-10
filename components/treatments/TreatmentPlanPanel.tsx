@@ -44,6 +44,7 @@ export function TreatmentPlanPanel({
   catalog,
   recetasEnabled,
   currency,
+  onWorkAdded,
 }: {
   patientId: string;
   canWrite: boolean;
@@ -59,12 +60,14 @@ export function TreatmentPlanPanel({
   catalog: CatalogOption[];
   recetasEnabled?: boolean;
   currency: string;
+  /** Recarga los datos locales de la pestaña después de insertar un trabajo. */
+  onWorkAdded?: () => void | Promise<void>;
 }) {
   const total = works.reduce((s, w) => s + w.price, 0);
 
   return (
     <div className="space-y-4">
-      {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} catalog={catalog} />}
+      {canWrite && <AddWorkForm patientId={patientId} dentists={dentists} catalog={catalog} onWorkAdded={onWorkAdded} />}
 
       {recetasEnabled && (
         <div className="flex items-center justify-end">
@@ -301,10 +304,12 @@ function AddWorkForm({
   patientId,
   dentists,
   catalog,
+  onWorkAdded,
 }: {
   patientId: string;
   dentists: Dentist[];
   catalog: CatalogOption[];
+  onWorkAdded?: () => void | Promise<void>;
 }) {
   const [state, formAction, pending] = useActionState(addPlanWork, initial);
   const router = useRouter();
@@ -339,9 +344,10 @@ function AddWorkForm({
       setDescVal("");
       setPriceVal("");
       setProcedureId("");
+      void onWorkAdded?.();
       router.refresh();
     }
-  }, [state, router]);
+  }, [state, router, onWorkAdded]);
 
   return (
     <form

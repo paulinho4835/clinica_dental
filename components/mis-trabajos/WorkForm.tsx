@@ -37,12 +37,14 @@ export function WorkForm({
   doctors,
   recepcionistas,
   currency,
+  receiptsEnabled = false,
 }: {
   patients: Patient[];
   today: string;
   doctors?: Doctor[];
   recepcionistas?: Recepcionista[];
   currency: string;
+  receiptsEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -83,6 +85,7 @@ export function WorkForm({
 
   // Si al paciente se le entregó factura (informativo, no afecta montos).
   const [invoiced, setInvoiced] = useState("false");
+  const [issueReceipt, setIssueReceipt] = useState(false);
 
   // Lab cost del tratamiento (para cálculo proporcional de comisión):
   // si hay plan item con lab ya registrado, se usa ese; si no, el campo manual.
@@ -147,6 +150,7 @@ export function WorkForm({
     setLabCost("");
     setAmountPaid("");
     setInvoiced("false");
+    setIssueReceipt(false);
     setBalance(null);
     setOpen(false);
   }
@@ -188,6 +192,7 @@ export function WorkForm({
       setLabCost("");
       setAmountPaid("");
       setInvoiced("false");
+      setIssueReceipt(false);
       // Refrescar barras de progreso inmediatamente.
       if (selectedId) {
         fetch(`/api/patients/${selectedId}/plan-items`)
@@ -392,6 +397,7 @@ export function WorkForm({
                 ))}
               </select>
             </label>
+
           )}
         </div>
 
@@ -549,6 +555,23 @@ export function WorkForm({
               </select>
             </label>
 
+            {receiptsEnabled && (
+              <label className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950 sm:col-span-2">
+                <input
+                  name="issue_receipt"
+                  type="checkbox"
+                  checked={issueReceipt}
+                  disabled={amountPaidN <= 0}
+                  onChange={(e) => setIssueReceipt(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Emitir recibo de pago</span>
+                  <span className="block text-xs text-violet-700">Documento no fiscal para imprimir y firmar físicamente.</span>
+                </span>
+              </label>
+            )}
+
             {/* Cobrado por */}
             {hasRecepcionistas && (
               <label className="block text-sm sm:col-span-2">
@@ -699,7 +722,7 @@ export function WorkForm({
             <div className="flex justify-between gap-2 px-3 py-2">
               <dt className="text-slate-500 dark:text-slate-400">Comprobante</dt>
               <dd className="text-right font-medium text-slate-800 dark:text-white">
-                {invoiced === "true" ? "Con factura" : "Sin factura"}
+                {issueReceipt ? "Recibo físico" : invoiced === "true" ? "Con factura" : "Sin factura"}
               </dd>
             </div>
             {pctN > 0 && (
@@ -728,11 +751,21 @@ export function WorkForm({
               disabled={pending}
               className="flex-1 rounded-lg bg-clinic px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              Sí, registrar
+              {issueReceipt ? "Registrar y generar recibo" : "Sí, registrar"}
             </button>
           </div>
         </div>
       </div>
+    )}
+    {state.receiptId && (
+      <a
+        href={`/recibos/${state.receiptId}`}
+        target="_blank"
+        rel="noreferrer"
+        className="fixed bottom-4 right-4 z-[70] rounded-md bg-violet-700 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-violet-800"
+      >
+        Abrir recibo para imprimir
+      </a>
     )}
     </>
   );

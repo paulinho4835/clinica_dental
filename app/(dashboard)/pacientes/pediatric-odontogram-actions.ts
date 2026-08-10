@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/auth";
 import { withinClinicalHours } from "@/lib/clinicalHours";
 import { getClinicFeatures } from "@/lib/superadmin";
 import type { TeethMap } from "@/lib/odontogram/types";
+import { diffToothNotes, validateToothNotes } from "@/lib/odontogram/notes";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -55,6 +56,7 @@ function diffTeeth(
       }
     }
   }
+  events.push(...diffToothNotes(prev, next).map((event) => ({ ...base, ...event })));
   return events;
 }
 
@@ -63,6 +65,8 @@ export async function savePediatricOdontogram(
   prevTeeth: TeethMap,
   nextTeeth: TeethMap,
 ): Promise<ActionState> {
+  const notesError = validateToothNotes(nextTeeth);
+  if (notesError) return { error: notesError };
   const profile = await getProfile();
   if (!profile) return { error: "Sesión expirada." };
   if (!canEditOdontogram(profile.role))

@@ -6,8 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { canSeeNav, isReceptionistLike } from "@/lib/rbac";
+import { getClinicCurrency, getClinicFeatures } from "@/lib/superadmin";
 
-export type ActionState = { error?: string; ok?: boolean };
+export type ActionState = { error?: string; ok?: boolean; receiptId?: string };
 
 const WorkSchema = z.object({
   patient_id: z.string().uuid({ message: "Selecciona un paciente registrado en el sistema." }),
@@ -21,6 +22,7 @@ const WorkSchema = z.object({
   payment_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
   // Informativo: si al paciente se le entregó factura (no afecta montos).
   invoiced: z.enum(["true", "false"]).default("false"),
+  issue_receipt: z.enum(["true", "false"]).default("false"),
   performed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   notes: z.string().trim().max(300).optional().nullable(),
   lab_work: z.string().trim().max(200).optional().nullable(),
@@ -53,6 +55,7 @@ export async function createDoctorWork(
     amount_paid: formData.get("amount_paid") || 0,
     payment_method: formData.get("payment_method") || null,
     invoiced: formData.get("invoiced") || "false",
+    issue_receipt: formData.get("issue_receipt") === "on" ? "true" : "false",
     performed_at: formData.get("performed_at"),
     notes: formData.get("notes") || null,
     lab_work: formData.get("lab_work") || null,
@@ -66,6 +69,11 @@ export async function createDoctorWork(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   const d = parsed.data;
+  if (d.issue_receipt === "true") {
+    const features = await getClinicFeatures();
+    if (!features.recibos_pago) return { error: "Los recibos de pago no están habilitados para esta clínica." };
+    if (d.amount_paid <= 0) return { error: "Solo puedes emitir un recibo para un pago mayor a cero." };
+  }
 
   // "Cobrado por" referencia clinic_receptionists (no profiles). Si no se
   // indicó recepcionista, queda null: NO se puede usar profile.userId (es un id
@@ -75,7 +83,7 @@ export async function createDoctorWork(
   const supabase = await createClient();
   const { data: patientRow } = await supabase
     .from("patients")
-    .select("id")
+    .select("id, full_name, national_id")
     .eq("id", d.patient_id)
     .eq("clinic_id", profile.clinicId)
     .maybeSingle();
@@ -84,6 +92,7 @@ export async function createDoctorWork(
 
   const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
   let payment: { id: string } | null = null;
+  let receiptId: string | undefined;
   let payError: { message: string } | null = null;
 
   const insertData = {
@@ -161,6 +170,36 @@ export async function createDoctorWork(
         error: `No se pudo registrar el cobro en la cuenta del paciente: ${payError.message}`,
       };
     }
+
+    if (d.issue_receipt === "true") {
+      const paymentId = payment?.id;
+      if (!paymentId) return { error: "No se pudo obtener el pago para emitir el recibo." };
+      const currency = await getClinicCurrency();
+      const { data: receipt, error: receiptError } = await supabase
+        .from("payment_receipts")
+        .insert({
+          clinic_id: profile.clinicId,
+          payment_id: paymentId,
+          patient_id: d.patient_id,
+          patient_name: patientRow.full_name,
+          patient_national_id: patientRow.national_id ?? null,
+          description: d.description,
+          amount: d.amount_paid,
+          currency,
+          payment_method: paymentMethod,
+          created_by: profile.userId,
+        })
+        .select("id")
+        .single();
+      if (receiptError || !receipt) {
+        await supabase.from("account_movements").delete()
+          .eq("clinic_id", profile.clinicId).eq("ref_type", "payment").eq("ref_id", paymentId);
+        await supabase.from("payments").delete().eq("id", paymentId);
+        await supabase.from("doctor_works").delete().eq("id", workId);
+        return { error: `No se pudo emitir el recibo: ${receiptError?.message ?? "error desconocido"}` };
+      }
+      receiptId = receipt.id as string;
+    }
   }
 
   // Persistir el % de comisión en el catálogo si aún no tenía uno definido.
@@ -209,7 +248,7 @@ export async function createDoctorWork(
 
   revalidatePath("/mis-trabajos");
   if (d.patient_id) revalidatePath(`/pacientes/${d.patient_id}`);
-  return { ok: true };
+  return { ok: true, receiptId };
 }
 
 const EditSchema = z.object({

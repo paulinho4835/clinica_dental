@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getTratamientoTabData } from "@/app/(dashboard)/pacientes/[id]/tab-data-actions";
 import { TreatmentPlanPanel } from "@/components/treatments/TreatmentPlanPanel";
 import { WorkStatusPanel, AdHocWorkList, VisitasPanel } from "@/components/history/PatientHistoryPanel";
@@ -20,6 +20,11 @@ export function TratamientoTab({
   legacyEvolution: string | null;
 }) {
   const [data, setData] = useState<Data | null>(null);
+
+  const refreshData = useCallback(async () => {
+    const nextData = await getTratamientoTabData(patientId);
+    setData(nextData);
+  }, [patientId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +55,7 @@ export function TratamientoTab({
           catalog={data.catalog}
           recetasEnabled={data.recetasEnabled}
           currency={data.currency}
+          onWorkAdded={refreshData}
         />
       </section>
 

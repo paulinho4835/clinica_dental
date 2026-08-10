@@ -376,6 +376,7 @@ export default async function MisTrabajosPage({
           doctors={canPickDoctor ? sortedDoctors : undefined}
           recepcionistas={canPickDoctor ? (recepData ?? []) : undefined}
           currency={currency}
+          receiptsEnabled={features.recibos_pago}
         />
       )}
 

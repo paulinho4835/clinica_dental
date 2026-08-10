@@ -23,6 +23,7 @@ const EMPTY: ToothState = { present: true, whole: null, surfaces: {} };
 // cuadrado redondeado. Los colores se adaptan a claro/oscuro vía variables.
 export function Tooth({ fdi, state = EMPTY, size = 46, onSurfaceClick, onWholeClick }: Props) {
   const s = state.surfaces ?? {};
+  const noteCount = state.notes?.length ?? 0;
   const absent = !state.present || state.whole === "ausente";
   const extract = state.whole === "extraccion_indicada";
   const markColor = markColorOf(state.whole); // X completa (rojo/azul) o null
@@ -51,7 +52,7 @@ export function Tooth({ fdi, state = EMPTY, size = 46, onSurfaceClick, onWholeCl
         height={c}
         viewBox={`0 0 ${c} ${c}`}
         role="img"
-        aria-label={`Diente ${fdi}`}
+        aria-label={`Diente ${fdi}${noteCount ? `, ${noteCount} nota${noteCount === 1 ? "" : "s"} personalizada${noteCount === 1 ? "" : "s"}` : ""}`}
         className="drop-shadow-sm"
       >
         <defs>
@@ -172,6 +173,14 @@ export function Tooth({ fdi, state = EMPTY, size = 46, onSurfaceClick, onWholeCl
             <g stroke={markColor} strokeWidth={3} strokeLinecap="round">
               <line x1={4} y1={4} x2={c - 4} y2={c - 4} />
               <line x1={c - 4} y1={4} x2={4} y2={c - 4} />
+            </g>
+          )}
+          {noteCount > 0 && (
+            <g>
+              <circle cx={c - 6} cy={6} r={5} fill="#7c3aed" />
+              <text x={c - 6} y={8.5} textAnchor="middle" fontSize={8} fontWeight="bold" fill="white">
+                {noteCount > 9 ? "9+" : noteCount}
+              </text>
             </g>
           )}
         </g>

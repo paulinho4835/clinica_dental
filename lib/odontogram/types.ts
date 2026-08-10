@@ -4,10 +4,19 @@ export type Surface = "O" | "M" | "D" | "V" | "L"; // Oclusal, Mesial, Distal, V
 export type SurfaceState = string; // code de dental_condition_catalog (scope='surface')
 export type WholeState = string | null; // code (scope='whole') o null
 
+// Hallazgo libre asociado a una cara concreta o al diente completo. Se guarda
+// separado de `surfaces` y `whole` para no reemplazar una condición clínica.
+export interface ToothNote {
+  id: string;
+  text: string;
+  surface?: Surface;
+}
+
 export interface ToothState {
   present: boolean;
   whole: WholeState;
   surfaces: Partial<Record<Surface, SurfaceState>>;
+  notes?: ToothNote[];
 }
 
 // teeth: mapa numeración FDI -> estado del diente
@@ -28,6 +37,8 @@ export const MARK_LABELS: Record<MarkColor, string> = {
   rojo: "Requerido",
   azul: "Existente",
 };
+
+export const CUSTOM_NOTE_COLOR = "#7c3aed";
 
 // Código de estado whole para cada marca: "x_rojo" | "x_azul".
 export function markWhole(color: MarkColor): string {

@@ -9,6 +9,7 @@ import {
   QUADRANTS,
   SURFACE_CONDITIONS,
   WHOLE_CONDITIONS,
+  CUSTOM_NOTE_COLOR,
   type Surface,
   type TeethMap,
 } from "@/lib/odontogram/types";
@@ -21,6 +22,8 @@ interface Props {
   quadrants?: string[][];
   /** Números FDI de cuadrante a mostrar, en orden [top-l, top-r, bottom-l, bottom-r]. */
   quadrantNumbers?: [number, number, number, number];
+  /** El editor muestra una versión con acciones para las notas. */
+  hideNotes?: boolean;
 }
 
 // Odontograma completo dibujado 100% en SVG desde el JSONB. Ninguna imagen.
@@ -30,6 +33,7 @@ export function Odontogram({
   onWholeClick,
   quadrants = QUADRANTS,
   quadrantNumbers = [1, 2, 4, 3],
+  hideNotes = false,
 }: Props) {
   const row = (fdis: string[]) => (
     <div className="flex gap-1">
@@ -98,6 +102,7 @@ export function Odontogram({
       </div>
 
       <Legend />
+      {!hideNotes && <NotesSummary teeth={teeth} />}
     </div>
   );
 }
@@ -152,6 +157,34 @@ function Legend() {
           </span>
         </div>
       </div>
+      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+        <span className="inline-block h-3.5 w-3.5 rounded-full" style={{ background: CUSTOM_NOTE_COLOR }} />
+        Nota personalizada (el número indica cuántas tiene el diente)
+      </div>
+    </div>
+  );
+}
+
+export function NotesSummary({ teeth }: { teeth: TeethMap }) {
+  const notes = Object.entries(teeth).flatMap(([fdi, tooth]) =>
+    (tooth.notes ?? []).map((note) => ({ fdi, ...note })),
+  );
+
+  if (notes.length === 0) return null;
+
+  return (
+    <div className="rounded-lg bg-violet-50 p-3 ring-1 ring-violet-200">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">
+        Notas personalizadas
+      </p>
+      <ul className="space-y-1 text-sm text-slate-700">
+        {notes.map((note) => (
+          <li key={`${note.fdi}-${note.id}`}>
+            <span className="font-medium">Diente {note.fdi}{note.surface ? ` · cara ${note.surface}` : " · diente completo"}:</span>{" "}
+            {note.text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
