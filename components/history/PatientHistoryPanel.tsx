@@ -246,7 +246,7 @@ export function PatientHistoryPanel({
             className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase text-slate-400 hover:text-slate-600"
           >
             <span>{showWorks ? "▼" : "▶"}</span>
-            Trabajos registrados ({works.length}) — detalle de lo facturado
+            Sesiones registradas ({works.length}) — referencia operativa
           </button>
           {showWorks && (
             <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
@@ -266,7 +266,7 @@ export function PatientHistoryPanel({
               </div>
               <div className="flex justify-end border-t border-slate-100 px-4 py-2.5">
                 <span className="text-xs text-slate-500">
-                  Total facturado: <span className="font-semibold text-slate-800">{money(totalQuoted, currency)}</span>
+                  Total del plan: <span className="font-semibold text-slate-800">{money(totalQuoted, currency)}</span>
                 </span>
               </div>
             </div>
@@ -745,7 +745,9 @@ function PaymentForm({
 
         {planItems.length > 0 && (
           <label className="text-xs">
-            <span className="mb-1 block text-slate-500">Aplicar a tratamiento (opcional)</span>
+            <span className="mb-1 block text-slate-500">
+              Aplicar a tratamiento {doctorId ? "*" : "(opcional)"}
+            </span>
             <select
               name="treatment_item_id"
               value={itemId}
@@ -805,7 +807,7 @@ function PaymentForm({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          disabled={pending || (hasRecepcionistas && !collectedById)}
+          disabled={pending || (hasRecepcionistas && !collectedById) || (!!doctorId && !itemId)}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
           {pending ? "…" : "Registrar pago"}

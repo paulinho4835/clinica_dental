@@ -49,6 +49,12 @@ export async function addPatientPayment(
 
   const d = parsed.data;
 
+  // Elegir doctor crea tambien una fila en Mis trabajos. Ese trabajo clinico
+  // debe pertenecer siempre a un tratamiento previamente planificado.
+  if (d.doctor_id && !d.treatment_item_id) {
+    return { error: "Selecciona un tratamiento del plan para asignar el pago a un doctor." };
+  }
+
   // Recepcionista debe indicar quién cobró.
   if (isRecepcionista && !d.collected_by_id)
     return { error: "Selecciona la recepcionista que realizó el cobro." };

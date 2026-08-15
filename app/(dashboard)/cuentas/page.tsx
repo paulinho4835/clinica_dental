@@ -13,6 +13,7 @@ import {
   type WorkDebtRow,
 } from "@/components/history/PatientHistoryPanel";
 import { fetchPatientPlanItems, type PlanItemRow } from "@/lib/treatments/planItems";
+import { calculateTreatmentTotal } from "@/lib/patientAccount";
 import { getClinicCurrency } from "@/lib/superadmin";
 
 export default async function CuentasPacientesPage({
@@ -142,20 +143,9 @@ export default async function CuentasPacientesPage({
 
       totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
 
-      // "Total facturado" = costo de sesiones ya registradas (doctor_works) +
-      // precio de tratamientos del plan que AÚN no tienen ninguna sesión
-      // registrada. Sin esto, un adelanto de pago sobre un tratamiento
-      // planificado pero no iniciado clínicamente mostraba "facturado" en
-      // Bs 0 y un "saldo pendiente" negativo.
-      const itemIdsWithWork = new Set(
-        (works ?? [])
-          .map((w) => w.treatment_item_id as string | null)
-          .filter((id): id is string => !!id),
-      );
-      const unstartedPlanItemsTotal = planItems
-        .filter((item) => !itemIdsWithWork.has(item.id))
-        .reduce((s, item) => s + item.price, 0);
-      totalQuoted = workRows.reduce((s, w) => s + w.cost, 0) + unstartedPlanItemsTotal;
+      // El total financiero proviene solo del plan. doctor_works conserva el
+      // detalle operativo de sesiones/cuotas y no agrega deuda por separado.
+      totalQuoted = calculateTreatmentTotal(planItems);
     }
   }
 

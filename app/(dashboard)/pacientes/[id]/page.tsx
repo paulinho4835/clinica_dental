@@ -22,6 +22,7 @@ import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { REFERRAL_SOURCE_LABEL } from "@/lib/schemas/patient-intake";
 import { CustomIntakeAnswers } from "@/components/patients/CustomIntakeAnswers";
 import { fetchPatientPlanItems } from "@/lib/treatments/planItems";
+import { calculateTreatmentTotal } from "@/lib/patientAccount";
 import { TratamientoTab } from "@/components/patients/lazy-tabs/TratamientoTab";
 import { CuentaTab } from "@/components/patients/lazy-tabs/CuentaTab";
 import { DocumentosTab } from "@/components/patients/lazy-tabs/DocumentosTab";
@@ -121,20 +122,11 @@ export default async function PatientPage({
   let totalQuoted = 0;
   let totalPaid = 0;
   if (canBilling) {
-    const [{ data: works }, { data: payments }, planItems] = await Promise.all([
-      supabase.from("doctor_works").select("cost, treatment_item_id").eq("patient_id", id),
+    const [{ data: payments }, planItems] = await Promise.all([
       supabase.from("payments").select("amount").eq("patient_id", id),
       fetchPatientPlanItems(supabase, id),
     ]);
-    const itemIdsWithWork = new Set(
-      (works ?? [])
-        .map((w) => w.treatment_item_id as string | null)
-        .filter((wid): wid is string => !!wid),
-    );
-    const unstartedPlanItemsTotal = planItems
-      .filter((item) => !itemIdsWithWork.has(item.id))
-      .reduce((s, item) => s + item.price, 0);
-    totalQuoted = (works ?? []).reduce((s, w) => s + Number(w.cost), 0) + unstartedPlanItemsTotal;
+    totalQuoted = calculateTreatmentTotal(planItems);
     totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
   }
 

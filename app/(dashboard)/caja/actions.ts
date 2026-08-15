@@ -30,6 +30,12 @@ export async function registerPayment(
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
+  if (parsed.data.doctor_id) {
+    return {
+      error: "Los pagos con doctor deben registrarse desde la cuenta del paciente y vincularse a su plan.",
+    };
+  }
+
   const supabase = await createClient();
   // Trigger en DB crea el account_movement (crédito) y actualiza el saldo.
   const { error } = await supabase.from("payments").insert({
@@ -43,20 +49,6 @@ export async function registerPayment(
     commission_pct: parsed.data.commission_pct,
   });
   if (error) return { error: error.message };
-
-  if (parsed.data.doctor_id) {
-    await supabase.from("doctor_works").insert({
-      clinic_id: profile.clinicId,
-      doctor_id: parsed.data.doctor_id,
-      patient_id: parsed.data.patient_id,
-      description: parsed.data.note ?? "Pago registrado en caja",
-      cost: parsed.data.amount,
-      commission_pct: parsed.data.commission_pct,
-      amount_paid: parsed.data.amount,
-      payment_method: parsed.data.method,
-      performed_at: new Date().toISOString().split("T")[0],
-    });
-  }
 
   revalidatePath("/caja");
   return { ok: true };

@@ -71,9 +71,9 @@ export function TratamientoTab({
 
       {data.adHocWorkRows.length > 0 && (
         <section>
-          <h2 className="mb-1 text-lg font-semibold">Trabajos sin plan</h2>
+          <h2 className="mb-1 text-lg font-semibold">Registros históricos por regularizar</h2>
           <p className="mb-3 text-xs text-slate-500">
-            Registrados directamente desde "Mis trabajos", sin vincular a un ítem del plan de tratamiento.
+            Fueron creados antes de exigir un tratamiento del plan. Deben vincularse o eliminarse tras revisión administrativa.
           </p>
           <AdHocWorkList works={data.adHocWorkRows} currency={data.currency} />
         </section>

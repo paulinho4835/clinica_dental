@@ -14,6 +14,7 @@ import { getClinicCurrency } from "@/lib/superadmin";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 import { fetchPatientPlanItems } from "@/lib/treatments/planItems";
+import { calculateTreatmentTotal } from "@/lib/patientAccount";
 import type { Work, Dentist } from "@/components/treatments/TreatmentPlanPanel";
 import type { ApptRow, WorkDebtRow } from "@/components/history/PatientHistoryPanel";
 import type { PrescriptionRow, Medication } from "@/app/(dashboard)/pacientes/prescription-actions";
@@ -210,21 +211,11 @@ export async function getCuentaTabData(patientId: string) {
   const currency = await getClinicCurrency();
 
   if (canBilling) {
-    const [{ data: works }, { data: payments }, planItems] = await Promise.all([
-      supabase.from("doctor_works").select("cost, treatment_item_id").eq("patient_id", patientId),
+    const [{ data: payments }, planItems] = await Promise.all([
       supabase.from("payments").select("amount").eq("patient_id", patientId),
       fetchPatientPlanItems(supabase, patientId),
     ]);
-    const itemIdsWithWork = new Set(
-      (works ?? [])
-        .map((w) => w.treatment_item_id as string | null)
-        .filter((wid): wid is string => !!wid),
-    );
-    const unstartedPlanItemsTotal = planItems
-      .filter((item) => !itemIdsWithWork.has(item.id))
-      .reduce((s, item) => s + item.price, 0);
-    const totalQuoted =
-      (works ?? []).reduce((s, w) => s + Number(w.cost), 0) + unstartedPlanItemsTotal;
+    const totalQuoted = calculateTreatmentTotal(planItems);
     const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
 
     return {

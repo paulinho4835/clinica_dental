@@ -249,7 +249,8 @@ function WorkRow({
             onClick={async () => {
               const ok = await confirm({
                 title: "Eliminar trabajo",
-                message: "¿Eliminar este trabajo?",
+                message:
+                  "Se eliminará del plan y también de las comisiones pendientes. Si la comisión ya fue pagada, primero debes revertir ese pago.",
                 confirmText: "Eliminar",
                 cancelText: "Cancelar",
                 tone: "danger",

@@ -237,6 +237,7 @@ export function WorkForm({
   const canSubmit =
     !pending &&
     selectedId &&
+    selectedPlanItemId &&
     (!doctors || selectedDoctorId) &&
     (!hasRecepcionistas || selectedCollectedById);
 
@@ -374,10 +375,16 @@ export function WorkForm({
               <input type="hidden" name="treatment_item_id" value={selectedPlanItemId} />
               {!selectedPlanItemId && (
                 <p className="mt-1.5 text-xs text-amber-600">
-                  Este trabajo no está vinculado a ningún tratamiento del plan — no se podrá ver el avance de pago del paciente en Pagos a personal. Si corresponde a uno de los de arriba, selecciónalo.
+                  Debes seleccionar el tratamiento del plan antes de registrar el trabajo.
                 </p>
               )}
             </div>
+          )}
+
+          {selectedId && planItems.length === 0 && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+              Este paciente no tiene tratamientos en su plan. Agrégalo primero desde su ficha.
+            </p>
           )}
 
           {/* Doctor (solo recepcionista/admin) */}

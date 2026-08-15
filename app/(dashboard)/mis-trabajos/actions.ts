@@ -69,6 +69,9 @@ export async function createDoctorWork(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   const d = parsed.data;
+  if (!d.treatment_item_id) {
+    return { error: "Selecciona un tratamiento del plan antes de registrar el trabajo." };
+  }
   if (d.issue_receipt === "true") {
     const features = await getClinicFeatures();
     if (!features.recibos_pago) return { error: "Los recibos de pago no están habilitados para esta clínica." };
@@ -89,6 +92,28 @@ export async function createDoctorWork(
     .maybeSingle();
   if (!patientRow)
     return { error: "Paciente no encontrado. Debe estar registrado en el módulo Pacientes antes de registrar un trabajo." };
+
+  const { data: selectedItem, error: itemError } = await supabase
+    .from("treatment_items")
+    .select("id, clinic_id, treatment_phases!inner(treatment_plans!inner(patient_id, clinic_id))")
+    .eq("id", d.treatment_item_id)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (itemError) return { error: itemError.message };
+
+  const phaseRelation = selectedItem?.treatment_phases as
+    | { treatment_plans?: { patient_id?: string; clinic_id?: string } | null }
+    | null
+    | undefined;
+  const selectedPlan = phaseRelation?.treatment_plans;
+  if (
+    !selectedItem ||
+    !selectedPlan ||
+    selectedPlan.patient_id !== d.patient_id ||
+    selectedPlan.clinic_id !== profile.clinicId
+  ) {
+    return { error: "El tratamiento seleccionado no pertenece a este paciente." };
+  }
 
   const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
   let payment: { id: string } | null = null;

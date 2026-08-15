@@ -290,11 +290,11 @@ export async function deleteWork(itemId: string, patientId: string): Promise<Act
     return { error: "Solo el administrador puede eliminar trabajos del plan." };
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("treatment_items")
-    .delete()
-    .eq("id", itemId)
-    .eq("clinic_id", profile.clinicId);
+  const { error } = await supabase.rpc("delete_treatment_item_with_pending_works", {
+    p_item_id: itemId,
+    p_patient_id: patientId,
+    p_clinic_id: profile.clinicId,
+  });
   if (error) return { error: error.message };
 
   revalidatePath(`/pacientes/${patientId}`);
