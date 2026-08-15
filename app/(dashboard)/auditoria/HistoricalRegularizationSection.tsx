@@ -14,18 +14,36 @@ export async function HistoricalRegularizationSection() {
     getClinicCurrency(),
   ]);
   const patientIds = [...new Set((rawWorks ?? []).map((w) => w.patient_id as string))];
-  const [{ data: plans }, { data: payments }] = patientIds.length ? await Promise.all([
-    supabase.from("treatment_plans").select("patient_id, treatment_phases(treatment_items(id, price, custom_name, status, procedure:procedure_catalog(name)))").in("patient_id", patientIds),
+  const [{ data: planRows }, { data: payments }] = patientIds.length ? await Promise.all([
+    supabase.from("treatment_plans").select("id, patient_id").in("patient_id", patientIds),
     supabase.from("payments").select("id, patient_id, amount, received_at").in("patient_id", patientIds).is("treatment_item_id", null).order("received_at", { ascending: false }),
   ]) : [{ data: [] }, { data: [] }];
+  // Se cargan las relaciones en consultas simples para que un fallo de una
+  // relación opcional del catálogo no deje vacío el selector completo.
+  const planIds = (planRows ?? []).map((p) => p.id as string);
+  const { data: phaseRows } = planIds.length
+    ? await supabase.from("treatment_phases").select("id, plan_id").in("plan_id", planIds)
+    : { data: [] };
+  const phaseIds = (phaseRows ?? []).map((p) => p.id as string);
+  const { data: itemRows } = phaseIds.length
+    ? await supabase.from("treatment_items").select("id, phase_id, price, custom_name, status, procedure_id").in("phase_id", phaseIds)
+    : { data: [] };
+  const procedureIds = [...new Set((itemRows ?? []).map((i) => i.procedure_id as string | null).filter(Boolean))] as string[];
+  const { data: procedureRows } = procedureIds.length
+    ? await supabase.from("procedure_catalog").select("id, name").in("id", procedureIds)
+    : { data: [] };
+  const planPatientById = new Map((planRows ?? []).map((p) => [p.id as string, p.patient_id as string]));
+  const phasePlanById = new Map((phaseRows ?? []).map((p) => [p.id as string, p.plan_id as string]));
+  const procedureNameById = new Map((procedureRows ?? []).map((p) => [p.id as string, p.name as string]));
   const itemsByPatient = new Map<string, HistoricalWorkRow["planItems"]>();
-  for (const plan of plans ?? []) {
-    const target = itemsByPatient.get(plan.patient_id as string) ?? [];
-    for (const phase of (plan.treatment_phases as Record<string, unknown>[]) ?? []) for (const item of (phase.treatment_items as Record<string, unknown>[]) ?? []) {
-      if (item.status === "cancelled") continue;
-      target.push({ id: item.id as string, name: ((item.procedure as { name?: string } | null)?.name ?? item.custom_name as string) || "Sin nombre", price: Number(item.price) });
-    }
-    itemsByPatient.set(plan.patient_id as string, target);
+  for (const item of itemRows ?? []) {
+    if (item.status === "cancelled") continue;
+    const planId = phasePlanById.get(item.phase_id as string);
+    const patientId = planId ? planPatientById.get(planId) : null;
+    if (!patientId) continue;
+    const target = itemsByPatient.get(patientId) ?? [];
+    target.push({ id: item.id as string, name: procedureNameById.get(item.procedure_id as string) ?? (item.custom_name as string) ?? "Sin nombre", price: Number(item.price) });
+    itemsByPatient.set(patientId, target);
   }
   const paymentByPatient = new Map<string, HistoricalWorkRow["payments"]>();
   for (const payment of payments ?? []) {
