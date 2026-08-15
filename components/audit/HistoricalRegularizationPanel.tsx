@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, Link2, Plus, Trash2 } from "lucide-react";
 import { regularizeHistoricalWork } from "@/app/(dashboard)/auditoria/regularization-actions";
-import { money } from "@/lib/format";
+import { BOLIVIA_TZ, money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
 export type HistoricalWorkRow = {
@@ -15,6 +15,10 @@ export type HistoricalWorkRow = {
   planItems: Array<{ id: string; name: string; price: number }>;
   payments: Array<{ id: string; amount: number; receivedAt: string }>;
 };
+
+function clinicDate(value: string): string {
+  return new Date(value).toLocaleDateString("es-BO", { timeZone: BOLIVIA_TZ });
+}
 
 export function HistoricalRegularizationPanel({ rows, currency }: { rows: HistoricalWorkRow[]; currency: string }) {
   const router = useRouter();
@@ -63,7 +67,7 @@ export function HistoricalRegularizationPanel({ rows, currency }: { rows: Histor
                 <div>
                   <Link href={`/pacientes/${row.patientId}`} className="font-semibold text-clinic hover:underline">{row.patientName}</Link>
                   <div className="font-medium text-slate-800">{row.description}</div>
-                  <div className="text-xs text-slate-500">{new Date(row.performedAt).toLocaleDateString("es-BO")} · {row.doctorName} · referencia {money(row.cost, currency)}</div>
+                  <div className="text-xs text-slate-500">{clinicDate(row.performedAt)} · {row.doctorName} · referencia {money(row.cost, currency)}</div>
                 </div>
                 <button onClick={() => setOpenId(openId === row.id ? null : row.id)} className="rounded-md bg-clinic px-3 py-2 font-medium text-white">{openId === row.id ? "Cerrar" : "Resolver"}</button>
               </div>
@@ -76,7 +80,7 @@ export function HistoricalRegularizationPanel({ rows, currency }: { rows: Histor
                   </div>
                   {mode === "link" && <select name="treatmentItemId" required className="w-full rounded-md border px-3 py-2"><option value="">Selecciona un item existente...</option>{row.planItems.map((i) => <option key={i.id} value={i.id}>{i.name} — {money(i.price, currency)}</option>)}</select>}
                   {mode === "create" && <div className="grid gap-2 sm:grid-cols-[1fr_10rem]"><input name="name" required defaultValue={row.description} className="rounded-md border px-3 py-2" /><input name="price" required min="0" step="0.01" type="number" defaultValue={row.cost} className="rounded-md border px-3 py-2" /></div>}
-                  {mode !== "delete_duplicate" && row.payments.length > 0 && <select name="paymentId" className="w-full rounded-md border px-3 py-2"><option value="">No vincular pago automaticamente</option>{row.payments.map((p) => <option key={p.id} value={p.id}>{new Date(p.receivedAt).toLocaleDateString("es-BO")} — {money(p.amount, currency)}</option>)}</select>}
+                  {mode !== "delete_duplicate" && row.payments.length > 0 && <select name="paymentId" className="w-full rounded-md border px-3 py-2"><option value="">No vincular pago automaticamente</option>{row.payments.map((p) => <option key={p.id} value={p.id}>{clinicDate(p.receivedAt)} — {money(p.amount, currency)}</option>)}</select>}
                   <textarea name="reason" required minLength={5} placeholder="Motivo y evidencia de la decision..." className="min-h-20 w-full rounded-md border px-3 py-2" />
                   {row.commissionBlocked && <p className="text-xs font-medium text-red-600">Tiene comision abonada: no puede eliminarse hasta revertir el pago al doctor.</p>}
                   <button disabled={isPending || (mode === "link" && row.planItems.length === 0)} className="rounded-md bg-clinic px-4 py-2 font-medium text-white disabled:opacity-50">{isPending ? "Guardando..." : "Confirmar regularizacion"}</button>
