@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { BOLIVIA_TZ, money } from "@/lib/format";
 import { ShieldCheck, Pencil, Trash2 } from "lucide-react";
 import { getClinicCurrency } from "@/lib/superadmin";
+import { HistoricalRegularizationSection } from "./HistoricalRegularizationSection";
 
 // Auditoría: historial inmutable de acciones sensibles.
 // - Pagos: cada edición o eliminación (solo admin) queda en audit_log con la
@@ -125,6 +126,8 @@ export default async function AuditoriaPage() {
         title="Auditoría"
         subtitle="Historial inmutable de acciones sensibles: correcciones de pagos y cambios en notas de evolución."
       />
+
+      <HistoricalRegularizationSection />
 
       {rows.length === 0 && paymentRows.length === 0 && (
         <EmptyState

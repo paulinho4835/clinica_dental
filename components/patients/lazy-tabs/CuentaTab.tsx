@@ -42,7 +42,7 @@ export function CuentaTab({ patientId, canSeeCuentas }: { patientId: string; can
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Saldo pendiente</div>
+              <div className="text-xs text-slate-500">{data.isProvisional ? "Saldo provisional" : "Saldo pendiente"}</div>
               <div className={`mt-0.5 font-semibold tabular-nums ${pending > 0 ? "text-red-600" : "text-slate-800"}`}>
                 {money(pending, data.currency)}
               </div>
@@ -57,6 +57,12 @@ export function CuentaTab({ patientId, canSeeCuentas }: { patientId: string; can
             </Link>
           )}
         </div>
+        {data.isProvisional && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Hay <strong>{data.historicalCount}</strong> trabajo(s) historico(s) sin plan por un importe de referencia de <strong>{money(data.historicalReferenceTotal, data.currency)}</strong>. Ese importe no se suma al saldo hasta que un administrador revise cada registro.
+            {data.canRegularize && <Link href="/auditoria" className="ml-2 font-semibold underline">Regularizar ahora</Link>}
+          </div>
+        )}
       </section>
     );
   }

@@ -14,7 +14,7 @@ import { getClinicCurrency } from "@/lib/superadmin";
 import { normalizeFeatures, fotosEnabled as fotosFeatureEnabled, photoQuota } from "@/lib/features";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 import { fetchPatientPlanItems } from "@/lib/treatments/planItems";
-import { calculateTreatmentTotal } from "@/lib/patientAccount";
+import { calculateTreatmentTotal, summarizePatientAccount } from "@/lib/patientAccount";
 import type { Work, Dentist } from "@/components/treatments/TreatmentPlanPanel";
 import type { ApptRow, WorkDebtRow } from "@/components/history/PatientHistoryPanel";
 import type { PrescriptionRow, Medication } from "@/app/(dashboard)/pacientes/prescription-actions";
@@ -211,18 +211,28 @@ export async function getCuentaTabData(patientId: string) {
   const currency = await getClinicCurrency();
 
   if (canBilling) {
-    const [{ data: payments }, planItems] = await Promise.all([
+    const [{ data: payments }, planItems, { data: historicalWorks }] = await Promise.all([
       supabase.from("payments").select("amount").eq("patient_id", patientId),
       fetchPatientPlanItems(supabase, patientId),
+      supabase.from("doctor_works").select("cost").eq("patient_id", patientId).is("treatment_item_id", null),
     ]);
     const totalQuoted = calculateTreatmentTotal(planItems);
     const totalPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount), 0);
+    const summary = summarizePatientAccount({
+      planTotal: totalQuoted,
+      paidTotal: totalPaid,
+      historicalWorks: (historicalWorks ?? []).map((w) => ({ cost: Number(w.cost) })),
+    });
 
     return {
       view: "billing" as const,
       currency,
       totalQuoted,
       totalPaid,
+      historicalCount: summary.historicalCount,
+      historicalReferenceTotal: summary.historicalReferenceTotal,
+      isProvisional: summary.isProvisional,
+      canRegularize: profile?.role === "admin",
     };
   }
 
