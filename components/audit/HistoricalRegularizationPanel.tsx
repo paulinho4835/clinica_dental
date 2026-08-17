@@ -11,8 +11,10 @@ import { toast } from "@/lib/toast";
 export type HistoricalWorkRow = {
   id: string; patientId: string; patientName: string; doctorName: string;
   description: string; cost: number; performedAt: string;
-  commissionBlocked: boolean;
-  planItems: Array<{ id: string; name: string; price: number }>;
+  commissionState: "paid" | "partial" | "unpaid";
+  commissionPaidAmount: number;
+  commissionTotal: number;
+  planItems: Array<{ id: string; name: string; price: number; linkedWorkCount: number }>;
   payments: Array<{ id: string; amount: number; receivedAt: string }>;
 };
 
@@ -32,6 +34,14 @@ export function HistoricalRegularizationPanel({ rows, currency }: { rows: Histor
   }, [query, rows]);
 
   function submit(row: HistoricalWorkRow, form: HTMLFormElement) {
+    if (mode !== "delete_duplicate" && row.commissionState !== "paid") {
+      toast("Solo se pueden vincular trabajos con la comisión completamente abonada.", "error");
+      return;
+    }
+    if (mode === "delete_duplicate" && row.commissionState !== "unpaid") {
+      toast("No se puede eliminar un trabajo que tiene abonos de comisión.", "error");
+      return;
+    }
     const fd = new FormData(form);
     const reason = String(fd.get("reason") ?? "");
     const paymentId = String(fd.get("paymentId") ?? "") || null;
@@ -68,22 +78,30 @@ export function HistoricalRegularizationPanel({ rows, currency }: { rows: Histor
                   <Link href={`/pacientes/${row.patientId}`} className="font-semibold text-clinic hover:underline">{row.patientName}</Link>
                   <div className="font-medium text-slate-800">{row.description}</div>
                   <div className="text-xs text-slate-500">{clinicDate(row.performedAt)} · {row.doctorName} · referencia {money(row.cost, currency)}</div>
+                  <div className={`mt-1 text-xs font-medium ${row.commissionState === "paid" ? "text-emerald-700" : row.commissionState === "partial" ? "text-amber-700" : "text-slate-500"}`}>
+                    {row.commissionState === "paid"
+                      ? `Comisión abonada: ${money(row.commissionPaidAmount, currency)}`
+                      : row.commissionState === "partial"
+                        ? `Abono parcial: ${money(row.commissionPaidAmount, currency)} de ${money(row.commissionTotal, currency)}`
+                        : "Comisión sin abonos"}
+                  </div>
                 </div>
                 <button onClick={() => setOpenId(openId === row.id ? null : row.id)} className="rounded-md bg-clinic px-3 py-2 font-medium text-white">{openId === row.id ? "Cerrar" : "Resolver"}</button>
               </div>
               {openId === row.id && (
                 <form className="mt-3 space-y-3 border-t pt-3" onSubmit={(e) => { e.preventDefault(); submit(row, e.currentTarget); }}>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setMode("link")} className={`rounded-md px-3 py-2 ${mode === "link" ? "bg-slate-900 text-white" : "bg-slate-100"}`}><Link2 className="mr-1 inline h-4 w-4" />Vincular al plan</button>
-                    <button type="button" onClick={() => setMode("create")} className={`rounded-md px-3 py-2 ${mode === "create" ? "bg-slate-900 text-white" : "bg-slate-100"}`}><Plus className="mr-1 inline h-4 w-4" />Crear item aprobado</button>
-                    <button type="button" disabled={row.commissionBlocked} onClick={() => setMode("delete_duplicate")} className={`rounded-md px-3 py-2 disabled:opacity-40 ${mode === "delete_duplicate" ? "bg-red-600 text-white" : "bg-red-50 text-red-700"}`}><Trash2 className="mr-1 inline h-4 w-4" />Eliminar duplicado</button>
+                    <button type="button" disabled={row.commissionState !== "paid"} onClick={() => setMode("link")} className={`rounded-md px-3 py-2 disabled:opacity-40 ${mode === "link" ? "bg-slate-900 text-white" : "bg-slate-100"}`}><Link2 className="mr-1 inline h-4 w-4" />Vincular al plan</button>
+                    <button type="button" disabled={row.commissionState !== "paid"} onClick={() => setMode("create")} className={`rounded-md px-3 py-2 disabled:opacity-40 ${mode === "create" ? "bg-slate-900 text-white" : "bg-slate-100"}`}><Plus className="mr-1 inline h-4 w-4" />Crear item aprobado</button>
+                    <button type="button" disabled={row.commissionState !== "unpaid"} onClick={() => setMode("delete_duplicate")} className={`rounded-md px-3 py-2 disabled:opacity-40 ${mode === "delete_duplicate" ? "bg-red-600 text-white" : "bg-red-50 text-red-700"}`}><Trash2 className="mr-1 inline h-4 w-4" />Eliminar duplicado</button>
                   </div>
-                  {mode === "link" && <select name="treatmentItemId" required className="w-full rounded-md border px-3 py-2"><option value="">Selecciona un item existente...</option>{row.planItems.map((i) => <option key={i.id} value={i.id}>{i.name} — {money(i.price, currency)}</option>)}</select>}
+                  {mode === "link" && <select name="treatmentItemId" required className="w-full rounded-md border px-3 py-2"><option value="">Selecciona un item existente...</option>{row.planItems.map((i) => <option key={i.id} value={i.id} disabled={i.linkedWorkCount > 0}>{i.name} — {money(i.price, currency)}{i.linkedWorkCount > 0 ? ` — ya tiene ${i.linkedWorkCount} trabajo${i.linkedWorkCount === 1 ? "" : "s"}` : ""}</option>)}</select>}
                   {mode === "create" && <div className="grid gap-2 sm:grid-cols-[1fr_10rem]"><input name="name" required defaultValue={row.description} className="rounded-md border px-3 py-2" /><input name="price" required min="0" step="0.01" type="number" defaultValue={row.cost} className="rounded-md border px-3 py-2" /></div>}
                   {mode !== "delete_duplicate" && row.payments.length > 0 && <select name="paymentId" className="w-full rounded-md border px-3 py-2"><option value="">No vincular pago automaticamente</option>{row.payments.map((p) => <option key={p.id} value={p.id}>{clinicDate(p.receivedAt)} — {money(p.amount, currency)}</option>)}</select>}
                   <textarea name="reason" required minLength={5} placeholder="Motivo y evidencia de la decision..." className="min-h-20 w-full rounded-md border px-3 py-2" />
-                  {row.commissionBlocked && <p className="text-xs font-medium text-red-600">Tiene comision abonada: no puede eliminarse hasta revertir el pago al doctor.</p>}
-                  <button disabled={isPending || (mode === "link" && row.planItems.length === 0)} className="rounded-md bg-clinic px-4 py-2 font-medium text-white disabled:opacity-50">{isPending ? "Guardando..." : "Confirmar regularizacion"}</button>
+                  {row.commissionState === "paid" && <p className="text-xs font-medium text-emerald-700">Autorizado para vincular: la comisión está completamente abonada y conservará su historial.</p>}
+                  {row.commissionState === "partial" && <p className="text-xs font-medium text-amber-700">Revisión manual: la comisión tiene un abono parcial. No se puede vincular ni eliminar desde este flujo.</p>}
+                  <button disabled={isPending || (mode !== "delete_duplicate" && row.commissionState !== "paid") || (mode === "delete_duplicate" && row.commissionState !== "unpaid") || (mode === "link" && row.planItems.every((item) => item.linkedWorkCount > 0))} className="rounded-md bg-clinic px-4 py-2 font-medium text-white disabled:opacity-50">{isPending ? "Guardando..." : "Confirmar regularizacion"}</button>
                 </form>
               )}
             </article>
