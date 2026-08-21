@@ -90,6 +90,7 @@ export function TratamientoTab({
           canSeeHistory={permissions.canSeeHistory}
           currentUserId={permissions.currentUserId}
           appointments={data.apptRows}
+          onChanged={refreshData}
         />
       </section>
 

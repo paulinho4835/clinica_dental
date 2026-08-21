@@ -52,6 +52,7 @@ export function EvolutionPanel({
   canSeeHistory,
   currentUserId,
   appointments,
+  onChanged,
 }: {
   patientId: string;
   notes: EvolutionNote[];
@@ -61,6 +62,7 @@ export function EvolutionPanel({
   canSeeHistory: boolean;
   currentUserId: string;
   appointments: ApptRow[];
+  onChanged?: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -80,7 +82,11 @@ export function EvolutionPanel({
     start(async () => {
       const res = await deleteEvolutionNote(noteId, patientId);
       if (res.error) toast(res.error, "error");
-      else { router.refresh(); toast("Nota borrada", "success"); }
+      else {
+        await onChanged?.();
+        router.refresh();
+        toast("Nota borrada", "success");
+      }
     });
   }
 
@@ -111,7 +117,11 @@ export function EvolutionPanel({
         <NoteForm
           patientId={patientId}
           appointments={appointments}
-          onDone={() => { setAdding(false); router.refresh(); }}
+          onDone={async () => {
+            setAdding(false);
+            await onChanged?.();
+            router.refresh();
+          }}
           onCancel={() => setAdding(false)}
         />
       )}
@@ -170,7 +180,11 @@ export function EvolutionPanel({
                     <EditNoteForm
                       note={n}
                       patientId={patientId}
-                      onDone={() => { setEditingId(null); router.refresh(); }}
+                      onDone={async () => {
+                        setEditingId(null);
+                        await onChanged?.();
+                        router.refresh();
+                      }}
                       onCancel={() => setEditingId(null)}
                     />
                   ) : n.note_type === "soap" ? (
