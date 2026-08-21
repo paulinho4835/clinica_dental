@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus, CalendarClock } from "lucide-react";
 import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR, boliviaMinutesOfDay } from "@/lib/agenda";
 import { boliviaTodayISO, boliviaDateISO } from "@/lib/format";
@@ -29,6 +28,7 @@ import {
 } from "@/lib/agenda/doctorColor";
 import { toast } from "@/lib/toast";
 import { type AvailabilityBlock } from "@/lib/availability";
+import { reconcileSelectedDay } from "@/lib/agenda/client-state";
 
 export type AgendaView = "day" | "week" | "month" | "overview";
 
@@ -76,6 +76,7 @@ export function AgendaShell({
   disponibilidadEnabled = false,
   availability = [],
   currency,
+  onNavigate,
 }: {
   patients: PatientOption[];
   appts: MonthAppt[];
@@ -95,11 +96,12 @@ export function AgendaShell({
   /** Addon "Disponibilidad": bloques de no disponibilidad para pintar en gris. */
   availability?: AvailabilityBlock[];
   currency: string;
+  onNavigate: (date: string, view: AgendaView) => void;
 }) {
-  const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<string | null>(
     view === "day" ? date : null,
   );
+  const previousDateRef = useRef(date);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [linkAppt, setLinkAppt] = useState<MonthAppt | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -113,6 +115,13 @@ export function AgendaShell({
   const [activeDoctor, setActiveDoctor] = useState<string>(myName);
   // Filtro por estado (multi-selección). Vacío = se muestran todos los estados.
   const [activeStatuses, setActiveStatuses] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelectedDay((current) =>
+      reconcileSelectedDay(current, previousDateRef.current, date, view),
+    );
+    previousDateRef.current = date;
+  }, [date, view]);
 
   function toggleStatus(status: string) {
     setActiveStatuses((prev) => {
@@ -200,7 +209,7 @@ export function AgendaShell({
   const views: AgendaView[] = ["day", "week", "month"];
 
   function setView(next: AgendaView) {
-    router.push(`/agenda?date=${date}&view=${next}`);
+    onNavigate(date, next);
   }
 
   function shift(delta: number) {
@@ -208,11 +217,11 @@ export function AgendaShell({
     if (view === "month") d.setMonth(d.getMonth() + delta);
     else if (view === "week") d.setDate(d.getDate() + delta * 7);
     else d.setDate(d.getDate() + delta);
-    router.push(`/agenda?date=${dayKey(d)}&view=${view}`);
+    onNavigate(dayKey(d), view);
   }
 
   function goToday() {
-    router.push(`/agenda?date=${boliviaTodayISO()}&view=${view}`);
+    onNavigate(boliviaTodayISO(), view);
   }
 
   // Abre la hoja imprimible del día enfocado (en mes, el día seleccionado).
@@ -241,7 +250,7 @@ export function AgendaShell({
     const k = boliviaDateISO(new Date(hit.starts_at));
     setSelectedDay(k);
     setHighlightId(hit.id);
-    if (view !== "day") router.push(`/agenda?date=${k}&view=day`);
+    if (view !== "day") onNavigate(k, "day");
   }
 
   useEffect(() => {
@@ -587,7 +596,7 @@ export function AgendaShell({
           doctors={doctors}
           availability={availability}
           selectedDoctor={activeDoctor === ALL_DOCTORS ? null : activeDoctor}
-          onOpenDay={(k) => router.push(`/agenda?date=${k}&view=day`)}
+          onOpenDay={(k) => onNavigate(k, "day")}
           onPick={openFullModal}
           onEdit={(a) =>
             setModal({

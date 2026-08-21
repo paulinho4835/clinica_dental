@@ -1,13 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition, useState } from "react";
+import { useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import {
-  addPatientPayment,
   deletePatientPayment,
   updatePatientPayment,
-  type ActionState,
 } from "@/app/(dashboard)/pacientes/history-actions";
 import { Modal } from "@/components/ui/Modal";
 import { setWorkDone } from "@/app/(dashboard)/pacientes/treatment-actions";
@@ -18,6 +16,7 @@ import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
 import type { PlanItemRow } from "@/lib/treatments/planItems";
+import { submitPatientPayment } from "@/lib/clinic-direct-operations";
 
 export type PaymentRow = {
   id: string;
@@ -46,8 +45,6 @@ export type ApptRow = {
 };
 
 type Recepcionista = { id: string; full_name: string };
-
-const initial: ActionState = {};
 
 const PAY_GRID = "grid grid-cols-[10rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_6rem_7rem] items-center gap-x-3";
 
@@ -600,7 +597,9 @@ function PaymentForm({
   planItems: PlanItemRow[];
   currency: string;
 }) {
-  const [state, formAction, pending] = useActionState(addPatientPayment, initial);
+  const [pending, startSubmission] = useTransition();
+  const [error, setError] = useState("");
+  const idempotencyKeyRef = useRef<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -625,8 +624,28 @@ function PaymentForm({
   // Fecha de hoy en formato YYYY-MM-DD para el default del input date
   const today = new Date().toLocaleDateString("en-CA"); // en-CA da YYYY-MM-DD
 
-  useEffect(() => {
-    if (state.ok) {
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setError("");
+    idempotencyKeyRef.current ??= crypto.randomUUID();
+    startSubmission(async () => {
+      try {
+        await submitPatientPayment({
+          idempotencyKey: idempotencyKeyRef.current!,
+          input: {
+            patient_id: patientId,
+            amount: amountN,
+            method: String(formData.get("method")) as "cash" | "qr" | "card",
+            doctor_id: doctorId || null,
+            commission_pct: pctN,
+            note: String(formData.get("note") ?? "") || null,
+            collected_by_id: collectedById || null,
+            received_at: String(formData.get("received_at") ?? "") || null,
+            treatment_item_id: itemId,
+          },
+        });
+        idempotencyKeyRef.current = null;
       formRef.current?.reset();
       setAmount("");
       setPct("");
@@ -635,13 +654,17 @@ function PaymentForm({
       setItemId("");
       setLockedDoctor(false);
       router.refresh();
-    }
-  }, [state, router]);
+      } catch (submissionError) {
+        setError(submissionError instanceof Error ? submissionError.message : "No se pudo registrar el pago");
+      }
+    });
+  }
 
   return (
     <form
       ref={formRef}
-      action={formAction}
+      onSubmit={submit}
+      onChangeCapture={() => { idempotencyKeyRef.current = null; }}
       className="space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
       <input type="hidden" name="patient_id" value={patientId} />
@@ -838,7 +861,7 @@ function PaymentForm({
           + Cuota
         </button>
       </div>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }

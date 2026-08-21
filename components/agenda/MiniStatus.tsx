@@ -1,9 +1,9 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setAppointmentStatus } from "@/app/(dashboard)/agenda/actions";
 import { toast } from "@/lib/toast";
+import { requestAgendaRefresh } from "@/lib/agenda/client-events";
 import { RotateCcw, Check, X, Armchair, DoorOpen } from "lucide-react";
 
 // ─── Control de flujo de la cita ─────────────────────────────────────────────
@@ -24,14 +24,13 @@ export function MiniStatus({
   canWrite: boolean;
   iconOnly?: boolean;
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
 
   function set(next: string) {
     start(async () => {
       const res = await setAppointmentStatus(id, next);
       if (res.error) toast(res.error, "error");
-      else router.refresh();
+      else requestAgendaRefresh();
     });
   }
 

@@ -1,13 +1,27 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 // Escucha cambios en la tabla appointments y refresca el tablero en vivo.
 // RLS aplica al stream: solo llegan eventos de la clínica del usuario.
-export function RealtimeAppointments() {
-  const router = useRouter();
+export type AppointmentRealtimePayload = {
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new: Record<string, unknown>;
+  old: Record<string, unknown>;
+};
+
+export function RealtimeAppointments({
+  clinicId,
+  userId,
+  canViewAll,
+  onChange,
+}: {
+  clinicId: string;
+  userId: string;
+  canViewAll: boolean;
+  onChange: (payload: AppointmentRealtimePayload) => void;
+}) {
 
   useEffect(() => {
     const supabase = createClient();
@@ -15,15 +29,22 @@ export function RealtimeAppointments() {
       .channel("agenda-citas")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "appointments" },
-        () => router.refresh(),
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: canViewAll
+            ? `clinic_id=eq.${clinicId}`
+            : `dentist_id=eq.${userId}`,
+        },
+        (payload) => onChange(payload as AppointmentRealtimePayload),
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, [canViewAll, clinicId, onChange, userId]);
 
   return null;
 }

@@ -1,17 +1,22 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  loadPatientFinancialSummary: vi.fn(),
+}));
 
 vi.mock("@/app/(dashboard)/mis-trabajos/actions", () => ({
   createDoctorWork: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/lib/clinic-direct-operations", () => ({
+  loadPatientFinancialSummary: mocks.loadPatientFinancialSummary,
+}));
 
 import { WorkForm } from "@/components/mis-trabajos/WorkForm";
 
 describe("WorkForm con add-on de recibos", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
   it("ofrece emitir un recibo físico solo cuando el add-on está habilitado", () => {
     render(
       <WorkForm
@@ -28,28 +33,22 @@ describe("WorkForm con add-on de recibos", () => {
   });
 
   it("mantiene bloqueado Registrar hasta elegir un tratamiento del plan", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string) => ({
-        json: async () =>
-          input.includes("plan-items")
-            ? {
-                items: [
-                  {
-                    id: "66666666-6666-4666-8666-666666666666",
-                    name: "Endodoncia",
-                    price: 1000,
-                    paidAmount: 0,
-                    labCost: 0,
-                    doctorId: null,
-                    doctorName: null,
-                    defaultCommissionPct: 0,
-                  },
-                ],
-              }
-            : { totalWorked: 1000, totalPaid: 0 },
-      })),
-    );
+    mocks.loadPatientFinancialSummary.mockResolvedValue({
+      items: [
+        {
+          id: "66666666-6666-4666-8666-666666666666",
+          name: "Endodoncia",
+          price: 1000,
+          paidAmount: 0,
+          labCost: 0,
+          doctorId: null,
+          doctorName: null,
+          defaultCommissionPct: 0,
+        },
+      ],
+      totalWorked: 1000,
+      totalPaid: 0,
+    });
 
     render(
       <WorkForm

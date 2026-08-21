@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   createAppointment,
   updateAppointment,
@@ -20,6 +19,7 @@ import {
   isQuickConsult,
 } from "./apptHelpers";
 import { findAvailabilityConflict, type AvailabilityBlock } from "@/lib/availability";
+import { requestAgendaRefresh } from "@/lib/agenda/client-events";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmmInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -55,7 +55,6 @@ export function ApptModal({
   availability?: AvailabilityBlock[];
   currency: string;
 }) {
-  const router = useRouter();
   const isEditing = !!appt;
   const [state, formAction, pending] = useActionState(
     isEditing ? updateAppointment : createAppointment,
@@ -106,10 +105,10 @@ export function ApptModal({
 
   useEffect(() => {
     if (state.ok) {
-      router.refresh();
+      requestAgendaRefresh();
       onClose();
     }
-  }, [state.ok, router, onClose]);
+  }, [state.ok, onClose]);
 
   const dateKey = dayKey(start); // mismo día de la cita / hueco elegido
   // Offset Bolivia (-04:00, sin horario de verano) explícito: así el instante es
@@ -144,7 +143,7 @@ export function ApptModal({
       const res = await cancelAppointment(appt.id);
       if (res.error) setCancelErr(res.error);
       else {
-        router.refresh();
+        requestAgendaRefresh();
         onClose();
       }
     });

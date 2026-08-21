@@ -2,12 +2,12 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { createAppointment, type ActionState } from "@/app/(dashboard)/agenda/actions";
 import { PatientPicker, type PatientOption } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 import { mins } from "@/lib/agenda";
 import { findAvailabilityConflict, type AvailabilityBlock } from "@/lib/availability";
+import { requestAgendaRefresh } from "@/lib/agenda/client-events";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmmInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -52,7 +52,6 @@ export function QuickCreatePopover({
   availability?: AvailabilityBlock[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(createAppointment, initial);
 
   const [selected, setSelected] = useState<PatientOption | null>(null);
@@ -83,10 +82,10 @@ export function QuickCreatePopover({
 
   useEffect(() => {
     if (state.ok) {
-      router.refresh();
+      requestAgendaRefresh();
       onClose();
     }
-  }, [state.ok, router, onClose]);
+  }, [state.ok, onClose]);
 
   // Cerrar al hacer clic fuera. El retraso evita que el mismo clic que abrió el
   // popover lo cierre de inmediato.

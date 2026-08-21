@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { type MonthAppt, apptName, apptCI, isQuickConsult } from "./apptHelpers";
 import { STEP_MIN } from "@/lib/agenda";
 import { MiniStatus } from "./MiniStatus";
 import { cancelAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
+import { requestAgendaRefresh } from "@/lib/agenda/client-events";
 import { Pencil, Link, Trash2 } from "lucide-react";
 
 const hhmm = (d: Date) =>
@@ -35,7 +35,6 @@ export function ApptPopover({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const [canceling, startCancel] = useTransition();
 
   async function handleCancel() {
@@ -52,7 +51,7 @@ export function ApptPopover({
       if (res.error) toast(res.error, "error");
       else {
         toast("Cita cancelada", "success");
-        router.refresh();
+        requestAgendaRefresh();
         onClose();
       }
     });

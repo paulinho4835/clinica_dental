@@ -10,7 +10,10 @@ import { computeCommission, netRate as netRateFn } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import type { PlanItemRow } from "@/app/api/patients/[id]/plan-items/route";
+import {
+  loadPatientFinancialSummary,
+  type DirectPlanItemRow as PlanItemRow,
+} from "@/lib/clinic-direct-operations";
 
 const initial: ActionState = {};
 
@@ -126,14 +129,19 @@ export function WorkForm({
       setBalance(null);
       return;
     }
-    fetch(`/api/patients/${selectedId}/plan-items`)
-      .then((r) => r.json())
-      .then((d) => setPlanItems(d.items ?? []))
-      .catch(() => setPlanItems([]));
-    fetch(`/api/patients/${selectedId}/balance`)
-      .then((r) => r.json())
-      .then((d) => setBalance(d.totalWorked != null ? d : null))
-      .catch(() => setBalance(null));
+    let cancelled = false;
+    loadPatientFinancialSummary(selectedId)
+      .then((data) => {
+        if (cancelled) return;
+        setPlanItems(data.items);
+        setBalance({ totalWorked: data.totalWorked, totalPaid: data.totalPaid });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPlanItems([]);
+        setBalance(null);
+      });
+    return () => { cancelled = true; };
   }, [selectedId]);
 
   function resetForm() {
@@ -195,13 +203,11 @@ export function WorkForm({
       setIssueReceipt(false);
       // Refrescar barras de progreso inmediatamente.
       if (selectedId) {
-        fetch(`/api/patients/${selectedId}/plan-items`)
-          .then((r) => r.json())
-          .then((d) => setPlanItems(d.items ?? []))
-          .catch(() => {});
-        fetch(`/api/patients/${selectedId}/balance`)
-          .then((r) => r.json())
-          .then((d) => setBalance(d.totalWorked != null ? d : null))
+        loadPatientFinancialSummary(selectedId)
+          .then((data) => {
+            setPlanItems(data.items);
+            setBalance({ totalWorked: data.totalWorked, totalPaid: data.totalPaid });
+          })
           .catch(() => {});
       }
       router.refresh();

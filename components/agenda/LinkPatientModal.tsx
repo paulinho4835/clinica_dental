@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, useTransition } from "react";
 import { linkAppointmentPatient } from "@/app/(dashboard)/agenda/actions";
-import { createPatientQuick } from "@/app/(dashboard)/pacientes/actions";
+import { submitPatient } from "@/lib/clinic-direct-operations";
+import { requestAgendaRefresh } from "@/lib/agenda/client-events";
 import { PatientPicker, type PatientOption } from "./PatientPicker";
 import { Modal } from "@/components/ui/Modal";
 import { type MonthAppt } from "./apptHelpers";
@@ -20,7 +20,6 @@ export function LinkPatientModal({
   appt: MonthAppt;
   onClose: () => void;
 }) {
-  const router = useRouter();
   const [tab, setTab] = useState<"existing" | "quick">("existing");
   const [selected, setSelected] = useState<PatientOption | null>(null);
   // Registro rápido: prellena el nombre con el de la consulta suelta.
@@ -29,6 +28,7 @@ export function LinkPatientModal({
   const [phone, setPhone] = useState("");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const patientIdempotencyKeyRef = useRef<string | null>(null);
 
   const canConfirm = tab === "existing" ? !!selected : name.trim().length > 0;
 
@@ -39,23 +39,29 @@ export function LinkPatientModal({
       // En modo rápido: crea el paciente y usa su id; si no, el ya elegido.
       let patientId = selected?.id;
       if (tab === "quick") {
-        const created = await createPatientQuick({
-          full_name: name.trim(),
-          national_id: ci.trim() || null,
-          phone: phone.trim() || null,
-        });
-        if (created.error || !created.patientId) {
-          setError(created.error ?? "No se pudo registrar.");
+        patientIdempotencyKeyRef.current ??= crypto.randomUUID();
+        try {
+          const created = await submitPatient({
+            idempotencyKey: patientIdempotencyKeyRef.current,
+            input: {
+              full_name: name.trim(),
+              national_id: ci.trim() || null,
+              phone: phone.trim() || null,
+            },
+          });
+          patientId = created.patientId;
+        } catch (submissionError) {
+          setError(submissionError instanceof Error ? submissionError.message : "No se pudo registrar.");
           return;
         }
-        patientId = created.patientId;
       }
       if (!patientId) return;
 
       const res = await linkAppointmentPatient(appt.id, patientId);
       if (res.error) setError(res.error);
       else {
-        router.refresh();
+        patientIdempotencyKeyRef.current = null;
+        requestAgendaRefresh();
         onClose();
       }
     });
@@ -111,7 +117,7 @@ export function LinkPatientModal({
                 type="text"
                 autoFocus
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); patientIdempotencyKeyRef.current = null; }}
                 placeholder="Nombre y apellido"
                 className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
               />
@@ -122,7 +128,7 @@ export function LinkPatientModal({
                 <input
                   type="text"
                   value={ci}
-                  onChange={(e) => setCi(e.target.value)}
+                  onChange={(e) => { setCi(e.target.value); patientIdempotencyKeyRef.current = null; }}
                   placeholder="Cédula"
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
@@ -132,7 +138,7 @@ export function LinkPatientModal({
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); patientIdempotencyKeyRef.current = null; }}
                   placeholder="Celular"
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic"
                 />
