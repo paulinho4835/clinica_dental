@@ -72,6 +72,7 @@ export function StaffPaymentForm({
   today,
   currency,
   selectedMonth,
+  patientQuery = "",
 }: {
   payee: Payee;
   today: string;
@@ -80,6 +81,8 @@ export function StaffPaymentForm({
    *  trabajos pendientes por su fecha: los doctores llevan un cuaderno por mes,
    *  así el admin ve "qué le debo a este doctor de tal mes" y cuadra con él. */
   selectedMonth: string;
+  /** Filtro opcional del paciente, compartido con el historial de pagos. */
+  patientQuery?: string;
 }) {
   const [state, formAction, pending] = useActionState(createStaffPayment, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -136,12 +139,28 @@ export function StaffPaymentForm({
 
   // Filtrar NO deselecciona: si el admin marcó trabajos de junio y luego mira
   // julio, esos abonos siguen contando (el total y el aviso lo dejan claro).
+  const patientRows = useMemo(() => {
+    const normalizedQuery = patientQuery
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("es");
+    if (!normalizedQuery) return rows;
+    return rows.filter((row) =>
+      (row.patient_name ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("es")
+        .includes(normalizedQuery),
+    );
+  }, [rows, patientQuery]);
+
   const visibleRows = useMemo(
     () =>
       selectedMonth === "all"
-        ? rows
-        : rows.filter((r) => r.performed_at.startsWith(selectedMonth)),
-    [rows, selectedMonth],
+        ? patientRows
+        : patientRows.filter((r) => r.performed_at.startsWith(selectedMonth)),
+    [patientRows, selectedMonth],
   );
 
   // Comisión pendiente que el filtro de mes dejó fuera. Se avisa siempre: con un
@@ -151,12 +170,12 @@ export function StaffPaymentForm({
     if (selectedMonth === "all") return 0;
     return (
       Math.round(
-        rows
+        patientRows
           .filter((r) => !r.performed_at.startsWith(selectedMonth))
           .reduce((s, r) => s + r.remaining, 0) * 100,
       ) / 100
     );
-  }, [rows, selectedMonth]);
+  }, [patientRows, selectedMonth]);
 
   // Pares work_ids/work_amounts que viajan como hidden inputs al server action.
   // Ahora es directo: un trabajo marcado = un abono a ese trabajo.
@@ -353,7 +372,13 @@ export function StaffPaymentForm({
             <p className="py-1 text-xs text-slate-400">Sin comisiones pendientes.</p>
           )}
 
-          {!fetching && rows.length > 0 && visibleRows.length === 0 && (
+          {!fetching && patientQuery && patientRows.length === 0 && (
+            <p className="py-1 text-xs text-slate-400">
+              No hay trabajos de paciente que coincidan con “{patientQuery}”.
+            </p>
+          )}
+
+          {!fetching && patientRows.length > 0 && visibleRows.length === 0 && (
             <p className="py-1 text-xs capitalize text-slate-400">
               Sin trabajos en {monthLabel(selectedMonth)}.
             </p>

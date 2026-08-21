@@ -2,8 +2,8 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-// Filtro de mes del historial de pagos. El filtro por persona ya no existe:
-// la persona se elige en el panel izquierdo (layout maestro-detalle).
+// Filtro de mes del historial de pagos. El profesional se elige en el panel
+// izquierdo y el paciente se filtra dentro de su detalle.
 export function PagosFilter({ selectedMonth }: { selectedMonth: string }) {
   const router = useRouter();
   const pathname = usePathname();

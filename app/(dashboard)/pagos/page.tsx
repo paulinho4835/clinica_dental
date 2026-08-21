@@ -93,14 +93,15 @@ function resolveWorkPatientName(w: {
 export default async function PagosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; p?: string; month?: string; view?: string }>;
+  searchParams: Promise<{ q?: string; p?: string; month?: string; patient?: string; view?: string }>;
 }) {
   await requireNavAccess("pagos");
   const supabase = await createClient();
   const profile = await getProfile();
   const currency = await getClinicCurrency();
 
-  const { q = "", p: selectedKey, month, view } = await searchParams;
+  const { q = "", p: selectedKey, month, patient = "", view } = await searchParams;
+  const patientQuery = patient.trim();
   const showOverdueView = view === "pendientes";
   const today = boliviaTodayISO();
   const currentMonth = today.slice(0, 7);
@@ -308,6 +309,23 @@ export default async function PagosPage({
     rows = baseRows.map((r) => ({ ...r, works: worksByPayment.get(r.id) ?? [] }));
     paidMonth = rows.filter((p) => p.disbursed).reduce((s, p) => s + p.amount, 0);
     pendingDisburse = rows.filter((p) => !p.disbursed).reduce((s, p) => s + p.amount, 0);
+
+    if (patientQuery) {
+      const normalizedQuery = patientQuery
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("es");
+      rows = rows.flatMap((row) => {
+        const matchingWorks = row.works.filter((work) =>
+          (work.patient_name ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLocaleLowerCase("es")
+            .includes(normalizedQuery),
+        );
+        return matchingWorks.length > 0 ? [{ ...row, works: matchingWorks }] : [];
+      });
+    }
   }
 
   const monthLabel = isAllMonths
@@ -334,7 +352,13 @@ export default async function PagosPage({
     works: r.works,
   }));
 
-  const qParam = q.trim() ? `q=${encodeURIComponent(q.trim())}&` : "";
+  const qParam =
+    (q.trim() ? `q=${encodeURIComponent(q.trim())}&` : "") +
+    (patientQuery ? `patient=${encodeURIComponent(patientQuery)}&` : "");
+  const patientFormParams = new URLSearchParams();
+  if (q.trim()) patientFormParams.set("q", q.trim());
+  if (selectedKey) patientFormParams.set("p", selectedKey);
+  if (month) patientFormParams.set("month", selectedMonth);
 
   return (
     <div className="space-y-6">
@@ -499,8 +523,37 @@ export default async function PagosPage({
                     {ROLE_LABEL[selectedPayee.role] ?? selectedPayee.role}
                   </p>
                 </div>
-                <PagosFilter selectedMonth={selectedMonth} />
+                <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+                  <form method="get" className="relative">
+                    <input type="hidden" name="q" value={q} />
+                    <input type="hidden" name="p" value={selectedKey ?? ""} />
+                    <input type="hidden" name="month" value={selectedMonth} />
+                    <input
+                      name="patient"
+                      defaultValue={patientQuery}
+                      placeholder="Buscar paciente…"
+                      autoComplete="off"
+                      aria-label="Buscar paciente en los registros"
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic sm:w-56"
+                    />
+                  </form>
+                  {patientQuery && (
+                    <Link
+                      href={`/pagos?${patientFormParams.toString()}`}
+                      className="text-xs font-medium text-slate-500 hover:text-clinic sm:px-1"
+                    >
+                      Limpiar paciente
+                    </Link>
+                  )}
+                  <PagosFilter selectedMonth={selectedMonth} />
+                </div>
               </div>
+
+              {patientQuery && (
+                <div className="rounded-lg border border-clinic/20 bg-clinic/5 px-3 py-2 text-sm text-slate-700">
+                  Mostrando registros de <strong>{patientQuery}</strong>. Las fechas se mantienen separadas para compararlas con el cuaderno.
+                </div>
+              )}
 
               {/* Tarjetas de resumen */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -536,6 +589,7 @@ export default async function PagosPage({
                 today={today}
                 currency={currency}
                 selectedMonth={selectedMonth}
+                patientQuery={patientQuery}
               />
 
               {/* Historial de pagos de la persona */}
@@ -604,8 +658,12 @@ export default async function PagosPage({
                   {rows.length === 0 && (
                     <EmptyState
                       icon={<Receipt className="h-6 w-6" />}
-                      title="Sin pagos en este período"
-                      description="Ajusta el mes o registra un pago con el formulario."
+                      title={patientQuery ? "Sin coincidencias" : "Sin pagos en este período"}
+                      description={
+                        patientQuery
+                          ? "Prueba con otro nombre de paciente o limpia el filtro."
+                          : "Ajusta el mes o registra un pago con el formulario."
+                      }
                     />
                   )}
                 </div>
@@ -687,8 +745,12 @@ export default async function PagosPage({
                       {rows.length === 0 && (
                         <EmptyState
                           icon={<Receipt className="h-6 w-6" />}
-                          title="Sin pagos en este período"
-                          description="Ajusta el mes o registra un pago con el formulario."
+                          title={patientQuery ? "Sin coincidencias" : "Sin pagos en este período"}
+                          description={
+                            patientQuery
+                              ? "Prueba con otro nombre de paciente o limpia el filtro."
+                              : "Ajusta el mes o registra un pago con el formulario."
+                          }
                         />
                       )}
                     </div>
