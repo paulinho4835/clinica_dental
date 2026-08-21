@@ -57,6 +57,9 @@ export async function submitPublicAnamnesis(
   }
 
   const parsed = AnamnesisSchema.safeParse(raw);
+  if (invite.kind === "new" && parsed.success && !parsed.data.firma.trim()) {
+    return { error: "La firma es obligatoria para enviar el registro del paciente." };
+  }
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 

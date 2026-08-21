@@ -49,10 +49,11 @@ export async function addPatientPayment(
 
   const d = parsed.data;
 
-  // Elegir doctor crea tambien una fila en Mis trabajos. Ese trabajo clinico
-  // debe pertenecer siempre a un tratamiento previamente planificado.
-  if (d.doctor_id && !d.treatment_item_id) {
-    return { error: "Selecciona un tratamiento del plan para asignar el pago a un doctor." };
+  // Todo pago debe imputarse a un tratamiento del plan, aunque no genere
+  // comisión para un doctor. Esto evita pagos huérfanos o saldos imposibles de
+  // conciliar contra la ficha del paciente.
+  if (!d.treatment_item_id) {
+    return { error: "Selecciona un tratamiento del plan antes de registrar el pago." };
   }
 
   // Recepcionista debe indicar quién cobró.
@@ -60,6 +61,30 @@ export async function addPatientPayment(
     return { error: "Selecciona la recepcionista que realizó el cobro." };
 
   const supabase = await createClient();
+
+  // No confiar en el treatment_item_id enviado por el navegador: comprobar que
+  // el ítem existe en esta clínica y pertenece al paciente de la ficha.
+  const { data: selectedItem, error: itemError } = await supabase
+    .from("treatment_items")
+    .select("id, treatment_phases!inner(treatment_plans!inner(patient_id, clinic_id))")
+    .eq("id", d.treatment_item_id)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (itemError) return { error: itemError.message };
+
+  const phaseRelation = selectedItem?.treatment_phases as
+    | { treatment_plans?: { patient_id?: string; clinic_id?: string } | null }
+    | null
+    | undefined;
+  const selectedPlan = phaseRelation?.treatment_plans;
+  if (
+    !selectedItem ||
+    !selectedPlan ||
+    selectedPlan.patient_id !== d.patient_id ||
+    selectedPlan.clinic_id !== profile.clinicId
+  ) {
+    return { error: "El tratamiento seleccionado no pertenece a este paciente." };
+  }
 
   // Un solo RPC transaccional (migración 0103): si hay doctor, el pago y su
   // comisión en Mis trabajos se crean juntos o no se crea ninguno. Antes eran

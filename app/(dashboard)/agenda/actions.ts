@@ -458,9 +458,10 @@ async function migrateAppointmentFinance(appointmentId: string, profile: Profile
   const price = Number(appt.consult_price ?? 0);
   const deposit = Number(appt.deposit ?? 0);
   if (price <= 0 && deposit <= 0) return;
+  let treatmentItemId: string | undefined;
 
   // 1) Cotización -> trabajo en el plan (crea plan + fase si no existen).
-  if (price > 0) {
+  if (price > 0 || deposit > 0) {
     let planId: string | undefined;
     const { data: plan } = await supabase
       .from("treatment_plans")
@@ -505,26 +506,30 @@ async function migrateAppointmentFinance(appointmentId: string, profile: Profile
     }
 
     if (phaseId) {
-      await supabase.from("treatment_items").insert({
+      const { data: treatmentItem } = await supabase.from("treatment_items").insert({
         clinic_id: profile.clinicId,
         phase_id: phaseId,
         custom_name: appt.reason?.trim() || "Consulta / cotización inicial",
-        price,
-        status: "done",
-        done_at: new Date().toISOString(),
-      });
+        price: price > 0 ? price : deposit,
+        status: price > 0 ? "done" : "active",
+        done_at: price > 0 ? new Date().toISOString() : null,
+      }).select("id").single();
+      treatmentItemId = treatmentItem?.id as string | undefined;
     }
   }
 
   // 2) Adelanto -> pago real del paciente.
   if (deposit > 0) {
-    await supabase.from("payments").insert({
+    if (!treatmentItemId) return;
+    const { error: paymentError } = await supabase.from("payments").insert({
       clinic_id: profile.clinicId,
       patient_id: appt.patient_id,
       amount: deposit,
       method: appt.deposit_method ?? "cash",
       kind: "payment",
+      treatment_item_id: treatmentItemId,
     });
+    if (paymentError) return;
   }
 
   // 3) Marca como migrado para no duplicar.

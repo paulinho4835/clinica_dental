@@ -25,7 +25,7 @@ describe("addPatientPayment", () => {
     mocks.createClient.mockResolvedValue({ rpc: mocks.rpc });
   });
 
-  it("no crea un trabajo para un doctor si el pago no apunta a un item del plan", async () => {
+  it("rechaza cualquier pago que no apunte a un item del plan", async () => {
     const form = new FormData();
     form.set("patient_id", "33333333-3333-4333-8333-333333333333");
     form.set("amount", "500");
@@ -36,7 +36,7 @@ describe("addPatientPayment", () => {
     const state = await addPatientPayment({}, form);
 
     expect(state).toEqual({
-      error: "Selecciona un tratamiento del plan para asignar el pago a un doctor.",
+      error: "Selecciona un tratamiento del plan antes de registrar el pago.",
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });

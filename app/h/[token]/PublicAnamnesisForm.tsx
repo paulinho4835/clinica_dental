@@ -68,6 +68,10 @@ export function PublicAnamnesisForm({
       setLocalError("Por favor escriba su nombre completo.");
       return;
     }
+    if (isNew && !a.firma.trim()) {
+      setLocalError("Por favor agregue su firma para enviar el registro.");
+      return;
+    }
     if (isNew) {
       const missing = customQuestions.find((q) => {
         if (!q.required) return false;
@@ -495,11 +499,15 @@ export function PublicAnamnesisForm({
         </label>
       </section>
 
-      {/* Firma digital (opcional) */}
+      {/* Firma digital: obligatoria para altas nuevas, opcional para historiales existentes. */}
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold text-slate-800">Firma (opcional)</h2>
+        <h2 className="font-semibold text-slate-800">
+          Firma {isNew ? "*" : "(opcional)"}
+        </h2>
         <p className="mb-3 text-xs text-slate-400">
-          Si lo desea, firme con el dedo o el mouse para dejar constancia.
+          {isNew
+            ? "Firme con el dedo o el mouse para enviar su registro."
+            : "Si lo desea, firme con el dedo o el mouse para dejar constancia."}
         </p>
         <FirmaField
           value={a.firma}

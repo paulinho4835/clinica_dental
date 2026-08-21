@@ -96,7 +96,7 @@ export async function HistoricalRegularizationSection() {
   });
   return <>
     <HistoricalRegularizationPanel rows={rows} currency={currency} />
-    {(decisions ?? []).length > 0 && <section className="space-y-2">
+    {false && (decisions ?? []).length > 0 && <section className="space-y-2">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Decisiones de regularizacion</h2>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="w-full min-w-[48rem] text-sm">

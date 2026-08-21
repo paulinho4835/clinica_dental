@@ -37,9 +37,11 @@ const { submitPublicAnamnesis } = await import("@/app/h/[token]/submit-action");
 
 const NOW = Date.now();
 
-function form(overrides: { custom?: unknown; personal?: Record<string, unknown> } = {}) {
+function form(
+  overrides: { custom?: unknown; personal?: Record<string, unknown>; firma?: string } = {},
+) {
   const fd = new FormData();
-  fd.set("anamnesis", JSON.stringify({}));
+  fd.set("anamnesis", JSON.stringify({ firma: overrides.firma ?? "data:image/png;base64,test" }));
   fd.set("allergies", "");
   fd.set("medical_alerts", "");
   fd.set("personal", JSON.stringify({ full_name: "Paciente Test", ...(overrides.personal ?? {}) }));
@@ -77,6 +79,12 @@ describe("submitPublicAnamnesis — preguntas adicionales (kind: new)", () => {
   it("rechaza si falta una pregunta obligatoria", async () => {
     const result = await submitPublicAnamnesis("tok", {}, form({ custom: {} }));
     expect(result.error).toContain("Falta responder");
+    expect(updatePayload).toBeNull();
+  });
+
+  it("rechaza el registro si falta la firma", async () => {
+    const result = await submitPublicAnamnesis("tok", {}, form({ custom: { seguro: true }, firma: "" }));
+    expect(result.error).toContain("firma es obligatoria");
     expect(updatePayload).toBeNull();
   });
 

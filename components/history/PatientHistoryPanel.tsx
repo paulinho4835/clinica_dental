@@ -743,14 +743,15 @@ function PaymentForm({
           </label>
         )}
 
-        {planItems.length > 0 && (
-          <label className="text-xs">
+        <label className="text-xs">
             <span className="mb-1 block text-slate-500">
-              Aplicar a tratamiento {doctorId ? "*" : "(opcional)"}
+              Aplicar a tratamiento *
             </span>
             <select
               name="treatment_item_id"
               value={itemId}
+              required
+              disabled={planItems.length === 0}
               onChange={(e) => {
                 const id = e.target.value;
                 setItemId(id);
@@ -782,8 +783,12 @@ function PaymentForm({
                 );
               })}
             </select>
-          </label>
-        )}
+          {planItems.length === 0 && (
+            <span className="mt-0.5 block text-[11px] text-amber-600">
+              Primero agrega un tratamiento al plan del paciente.
+            </span>
+          )}
+        </label>
 
         <label className="flex-1 text-xs">
           <span className="mb-1 block text-slate-500">Concepto del pago</span>
@@ -807,7 +812,7 @@ function PaymentForm({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="submit"
-          disabled={pending || (hasRecepcionistas && !collectedById) || (!!doctorId && !itemId)}
+          disabled={pending || planItems.length === 0 || !itemId || (hasRecepcionistas && !collectedById)}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
           {pending ? "…" : "Registrar pago"}

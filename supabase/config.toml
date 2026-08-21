@@ -2,19 +2,19 @@ project_id = "dentalsaas"
 
 [api]
 enabled = true
-port = 54321
+port = 56121
 schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
-shadow_port = 54320
+port = 56122
+shadow_port = 56120
 major_version = 15
 
 [db.pooler]
 enabled = true
-port = 54329
+port = 56129
 # Modo transacción: óptimo para serverless (Vercel Fluid Compute) — evita agotar conexiones.
 pool_mode = "transaction"
 default_pool_size = 20
@@ -22,7 +22,13 @@ max_client_conn = 200
 
 [studio]
 enabled = true
-port = 54323
+port = 56123
+
+[analytics]
+port = 56127
+
+[inbucket]
+port = 56124
 
 [auth]
 enabled = true

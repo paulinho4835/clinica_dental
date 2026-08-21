@@ -36,6 +36,13 @@ export async function registerPayment(
     };
   }
 
+  // Caja ya no registra pagos genéricos: todo cobro debe salir desde la ficha
+  // del paciente y quedar asociado a un ítem concreto de su plan.
+  return {
+    error: "Los pagos deben registrarse desde la ficha del paciente y vincularse a un tratamiento del plan.",
+  };
+
+  /*
   const supabase = await createClient();
   // Trigger en DB crea el account_movement (crédito) y actualiza el saldo.
   const { error } = await supabase.from("payments").insert({
@@ -52,6 +59,7 @@ export async function registerPayment(
 
   revalidatePath("/caja");
   return { ok: true };
+  */
 }
 
 const ExpenseSchema = z.object({

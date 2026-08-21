@@ -38,4 +38,19 @@ describe("registerPayment de Caja", () => {
       error: "Los pagos con doctor deben registrarse desde la cuenta del paciente y vincularse a su plan.",
     });
   });
+
+  it("rechaza pagos genéricos sin tratamiento del plan", async () => {
+    const form = new FormData();
+    form.set("patient_id", "33333333-3333-4333-8333-333333333333");
+    form.set("amount", "500");
+    form.set("method", "cash");
+    form.set("kind", "payment");
+
+    const state = await registerPayment({}, form);
+
+    expect(state).toEqual({
+      error: "Los pagos deben registrarse desde la ficha del paciente y vincularse a un tratamiento del plan.",
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
 });
