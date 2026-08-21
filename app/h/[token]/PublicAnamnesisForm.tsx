@@ -320,7 +320,7 @@ export function PublicAnamnesisForm({
         </h2>
         <p className="mb-3 text-xs text-slate-400">Marque las que apliquen.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {ANTECEDENTES_FIELDS.map((f) => {
+          {ANTECEDENTES_FIELDS.filter((f) => f.key === "epilepsia" || f.key === "herpes").map((f) => {
             const checked = (a.antecedentes as unknown as Record<string, boolean>)[f.key];
             return (
               <label
@@ -430,37 +430,10 @@ export function PublicAnamnesisForm({
             }
           />
         </label>
-        <label className="block text-sm text-slate-600">
-          Embarazo / lactancia
-          <select
-            className={inputClass}
-            value={a.embarazo}
-            onChange={(e) =>
-              setA((p) => ({
-                ...p,
-                embarazo: e.target.value as Anamnesis["embarazo"],
-              }))
-            }
-          >
-            <option value="no_aplica">No aplica</option>
-            <option value="embarazada">Embarazada</option>
-            <option value="lactancia">En lactancia</option>
-          </select>
-        </label>
       </section>
 
       {/* Otros datos */}
       <section className="mb-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5">
-        <label className="block text-sm text-slate-600">
-          Antecedentes familiares relevantes
-          <input
-            className={inputClass}
-            value={a.antecedentes_familiares}
-            onChange={(e) =>
-              setA((p) => ({ ...p, antecedentes_familiares: e.target.value }))
-            }
-          />
-        </label>
         <label className="block text-sm text-slate-600">
           Motivo de su consulta
           <input

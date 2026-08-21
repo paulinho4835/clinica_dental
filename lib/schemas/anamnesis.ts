@@ -10,6 +10,7 @@ export const ANTECEDENTES_FIELDS = [
   { key: "vih", label: "VIH" },
   { key: "asma", label: "Asma" },
   { key: "epilepsia", label: "Epilepsia" },
+  { key: "herpes", label: "Herpes" },
   { key: "tiroides", label: "Problemas de tiroides" },
   { key: "artritis", label: "Artritis / reumatismo" },
   { key: "osteoporosis", label: "Osteoporosis" },
