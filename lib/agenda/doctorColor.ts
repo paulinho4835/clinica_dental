@@ -54,13 +54,23 @@ export type DoctorColorResolver = (name: string | null | undefined) => DoctorCol
 // Construye un resolver que asigna a cada doctor un color DISTINTO según su
 // posición en la lista (ordenada por nombre para que sea estable). Dos doctores
 // nunca comparten color mientras haya entradas libres en la paleta.
-export function buildDoctorColorResolver(names: string[]): DoctorColorResolver {
+export function buildDoctorColorResolver(
+  doctors: (string | { full_name: string; agenda_color?: string | null })[],
+): DoctorColorResolver {
   const map = new Map<string, DoctorColor>();
-  const unique = [...new Set(names.map((n) => n?.trim()).filter(Boolean))].sort(
+  const assignments = doctors.map((doctor) =>
+    typeof doctor === "string" ? { full_name: doctor } : doctor,
+  );
+  const unique = [...new Set(assignments.map((doctor) => doctor.full_name?.trim()).filter(Boolean))].sort(
     (a, b) => a!.localeCompare(b!),
   ) as string[];
   unique.forEach((name, i) => {
-    map.set(name, DOCTOR_PALETTE[i % DOCTOR_PALETTE.length]);
+    const assigned = assignments.find((doctor) => doctor.full_name.trim() === name)?.agenda_color;
+    map.set(
+      name,
+      DOCTOR_PALETTE.find((color) => color.dot === `bg-${assigned}-500` || color.dot === `bg-${assigned}-600`) ??
+        DOCTOR_PALETTE[i % DOCTOR_PALETTE.length],
+    );
   });
 
   return (name) => {

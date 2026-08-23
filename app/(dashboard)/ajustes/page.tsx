@@ -28,6 +28,7 @@ import { isR2Configured, presignDownload } from "@/lib/r2";
 import { IntakeQuestionsPanel } from "@/components/ajustes/IntakeQuestionsPanel";
 import { getIntakeQuestions } from "@/lib/intakeQuestions";
 import { SettingsTabs, type SettingsTab } from "@/components/ui/SettingsTabs";
+import { ProfessionalColorsPanel } from "@/components/ajustes/ProfessionalColorsPanel";
 
 export default async function SettingsPage() {
   await requireNavAccess("ajustes");
@@ -187,6 +188,7 @@ export default async function SettingsPage() {
 
   // Equipo (cuentas con login): solo lo gestiona el admin de la clínica.
   let team: TeamMember[] = [];
+  let professionalColors: { id: string; full_name: string; agenda_color: string | null }[] = [];
   if (isClinicAdmin && profile) {
     const [platformAdminIds, { data: profiles }] = await Promise.all([
       getPlatformAdminIds(),
@@ -199,6 +201,15 @@ export default async function SettingsPage() {
         .eq("active", true)
         .order("full_name"),
     ]);
+
+    const { data: colorRows } = await supabase
+      .from("profiles")
+      .select("id, full_name, agenda_color")
+      .eq("clinic_id", profile.clinicId)
+      .eq("active", true)
+      .in("role", ["admin", "odontologo_general", "especialista", "colega"])
+      .order("full_name");
+    professionalColors = (colorRows ?? []).filter((row) => !platformAdminIds.includes(row.id)) as typeof professionalColors;
 
     const platformAdminSet = new Set(platformAdminIds);
 
@@ -379,6 +390,16 @@ export default async function SettingsPage() {
 
   const equipoYAccesos = (
     <>
+      {isClinicAdmin && profile && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800">Colores de agenda</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Asigna un color fijo a cada profesional para identificar sus citas en la agenda.
+          </p>
+          <ProfessionalColorsPanel professionals={professionalColors} />
+        </section>
+      )}
+
       {isClinicAdmin && profile && (
         <section>
           <h2 className="text-lg font-semibold text-slate-800">Recepcionistas</h2>

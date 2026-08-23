@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import {
   createTeamUser,
   updateTeamUserRole,
@@ -201,10 +202,14 @@ function AddUserForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [creationMode, setCreationMode] = useState<"invite" | "direct">("invite");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
+      setCreationMode("invite");
+      setShowPassword(false);
       router.refresh();
     }
   }, [state.ok, router]);
@@ -226,6 +231,15 @@ function AddUserForm() {
       action={formAction}
       className="space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
     >
+      <input type="hidden" name="creation_mode" value={creationMode} />
+      <div className="flex flex-wrap gap-2 text-sm">
+        <button type="button" onClick={() => setCreationMode("invite")} className={`rounded-md border px-3 py-2 ${creationMode === "invite" ? "border-clinic bg-clinic/10 font-medium text-clinic-fg" : "border-slate-200 text-slate-600"}`}>
+          Enviar invitación
+        </button>
+        <button type="button" onClick={() => setCreationMode("direct")} className={`rounded-md border px-3 py-2 ${creationMode === "direct" ? "border-clinic bg-clinic/10 font-medium text-clinic-fg" : "border-slate-200 text-slate-600"}`}>
+          Crear acceso ahora
+        </button>
+      </div>
       <div className="flex flex-wrap gap-2">
         <label className="flex-1 text-xs" style={{ minWidth: "160px" }}>
           <span className="mb-1 block text-slate-500">Nombre completo *</span>
@@ -265,8 +279,21 @@ function AddUserForm() {
           </select>
         </label>
       </div>
+      {creationMode === "direct" && (
+        <label className="block text-xs">
+          <span className="mb-1 block text-slate-500">Contraseña inicial *</span>
+          <div className="relative">
+            <input name="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres, con letra y número" className="w-full rounded border border-slate-300 bg-white px-3 py-2 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-clinic focus:outline-none focus:ring-1 focus:ring-clinic" />
+            <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 hover:text-slate-600">
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </label>
+      )}
       <p className="text-xs text-slate-500">
-        Le enviaremos un correo de invitación para que cree su propia contraseña.
+        {creationMode === "direct"
+          ? "La cuenta quedará activa inmediatamente. Entrega la contraseña al usuario por un canal seguro."
+          : "Le enviaremos un correo de invitación para que cree su propia contraseña."}
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -274,7 +301,7 @@ function AddUserForm() {
           disabled={pending}
           className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50"
         >
-          {pending ? "Enviando…" : "Enviar invitación"}
+          {pending ? "Procesando…" : creationMode === "direct" ? "Crear usuario" : "Enviar invitación"}
         </button>
         <button
           type="button"

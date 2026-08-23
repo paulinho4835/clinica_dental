@@ -15,7 +15,7 @@ export type MonthAppt = {
   patients: { full_name?: string; national_id?: string | null } | null;
 };
 
-export type DoctorOption = { id: string; full_name: string };
+export type DoctorOption = { id: string; full_name: string; agenda_color?: string | null };
 
 // Nombre a mostrar: paciente registrado o, si no, el nombre suelto.
 export const apptName = (a: MonthAppt) =>

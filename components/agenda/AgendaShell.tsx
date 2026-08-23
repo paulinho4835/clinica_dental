@@ -135,7 +135,7 @@ export function AgendaShell({
   // Resolver de color por doctor SIN colisiones: cada doctor recibe un color
   // distinto según su posición (ordenado por nombre). Compartido vía contexto.
   const doctorColor = useMemo(
-    () => buildDoctorColorResolver(doctors.map((d) => d.full_name)),
+    () => buildDoctorColorResolver(doctors),
     [doctors],
   );
 

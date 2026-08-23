@@ -110,12 +110,20 @@ export function AgendaClient({
       const doctorRequest = canViewAll
         ? supabase
             .from("profiles")
-            .select("id, full_name")
+            .select("id, full_name, agenda_color")
             .in("role", ["odontologo_general", "especialista", "colega", "admin"])
             .eq("clinic_id", clinicId)
             .eq("active", true)
             .order("full_name")
-        : Promise.resolve({ data: [{ id: userId, full_name: myName }], error: null });
+        : supabase
+            .from("profiles")
+            .select("id, full_name, agenda_color")
+            .eq("id", userId)
+            .maybeSingle()
+            .then((result) => ({
+              data: result.data ? [result.data] : [{ id: userId, full_name: myName }],
+              error: result.error,
+            }));
 
       const [patientResult, doctorResult] = await Promise.all([patientRequest, doctorRequest]);
       if (!active) return;

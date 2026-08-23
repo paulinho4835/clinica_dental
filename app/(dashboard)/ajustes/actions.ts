@@ -15,6 +15,34 @@ import {
 
 export type ActionState = { error?: string; ok?: boolean };
 
+const AGENDA_COLORS = [
+  "blue", "red", "emerald", "amber", "violet",
+  "pink", "cyan", "lime", "orange", "fuchsia",
+] as const;
+
+export async function updateProfessionalAgendaColor(formData: FormData): Promise<void> {
+  const auth = await assertClinicAdmin();
+  if ("error" in auth) return;
+  const { profile } = auth;
+  if ((await getPlatformAdminIds()).includes(profile.userId)) return;
+
+  const professionalId = String(formData.get("professional_id") ?? "");
+  const color = String(formData.get("color") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(professionalId)) return;
+  if (!AGENDA_COLORS.includes(color as (typeof AGENDA_COLORS)[number])) return;
+
+  const admin = createAdminClient();
+  await admin
+    .from("profiles")
+    .update({ agenda_color: color })
+    .eq("id", professionalId)
+    .eq("clinic_id", profile.clinicId)
+    .in("role", ["admin", "odontologo_general", "especialista", "colega"]);
+
+  revalidatePath("/ajustes");
+  revalidatePath("/agenda");
+}
+
 const DoctorSchema = z.object({
   full_name: z.string().trim().min(1, "Nombre requerido"),
   specialty: z.string().trim().optional().nullable(),
@@ -117,6 +145,11 @@ export async function createTeamUser(
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   const { email, full_name, role } = parsed.data;
+  const creationMode = formData.get("creation_mode") === "direct" ? "direct" : "invite";
+  const password = String(formData.get("password") ?? "");
+  if (creationMode === "direct" && !/^(?=.*[A-Za-z])(?=.*\d).{8,72}$/.test(password)) {
+    return { error: "La contraseña debe tener entre 8 y 72 caracteres, una letra y un número." };
+  }
 
   const admin = createAdminClient();
 
@@ -143,13 +176,36 @@ export async function createTeamUser(
 
   // Invitación por correo: el usuario define su propia contraseña en /bienvenida.
   // clinic_id forzado al del admin: nunca se confía en el formulario.
-  const invite = await inviteClinicUser(admin, {
-    email,
-    fullName: full_name,
-    clinicId: profile.clinicId,
-    role: role as Role,
-  });
-  if (!invite.ok) return { error: invite.error };
+  if (creationMode === "direct") {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name },
+    });
+    if (createError || !created.user) {
+      return { error: createError?.message ?? "No se pudo crear el usuario." };
+    }
+
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: created.user.id,
+      clinic_id: profile.clinicId,
+      role: role as Role,
+      full_name,
+    });
+    if (profileError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      return { error: `No se pudo crear el perfil: ${profileError.message}` };
+    }
+  } else {
+    const invite = await inviteClinicUser(admin, {
+      email,
+      fullName: full_name,
+      clinicId: profile.clinicId,
+      role: role as Role,
+    });
+    if (!invite.ok) return { error: invite.error };
+  }
 
   revalidatePath("/ajustes");
   return { ok: true };
