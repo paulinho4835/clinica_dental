@@ -17,6 +17,17 @@ export type ActionState = { error?: string; ok?: boolean };
 
 const DEFAULT_DURATION_MIN = 30;
 
+function appointmentFinanceErrorMessage(error: { message?: string } | null): string {
+  const message = error?.message ?? "";
+  if (message.includes("appointment_quote_required") || message.includes("cotización")) {
+    return "La cotización es obligatoria cuando registras un adelanto.";
+  }
+  if (message.includes("appointment_deposit_exceeds_quote") || message.includes("mayor que la cotización")) {
+    return "El adelanto no puede ser mayor que la cotización.";
+  }
+  return "No se pudo registrar la cita y el adelanto. No se guardó ningún cobro.";
+}
+
 async function sha256(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -176,7 +187,7 @@ export async function createAppointment(
     ? (created as Record<string, unknown>).appointmentId
     : null;
   if (error || typeof appointmentId !== "string") {
-    return { error: "No se pudo registrar la cita y el adelanto. No se guardó ningún cobro." };
+    return { error: appointmentFinanceErrorMessage(error) };
   }
   const appt = { id: appointmentId };
 
