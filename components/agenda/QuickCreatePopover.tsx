@@ -52,6 +52,7 @@ export function QuickCreatePopover({
   availability?: AvailabilityBlock[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const idempotencyKey = useRef(crypto.randomUUID());
   const [state, formAction, pending] = useActionState(createAppointment, initial);
 
   const [selected, setSelected] = useState<PatientOption | null>(null);
@@ -146,6 +147,7 @@ export function QuickCreatePopover({
       className="overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl ring-1 ring-slate-100"
     >
       <form action={formAction} className="space-y-2.5">
+        <input type="hidden" name="idempotency_key" value={idempotencyKey.current} />
         <input type="hidden" name="starts_at" value={startsAt} />
         <input type="hidden" name="ends_at" value={endsAt} />
         <input type="hidden" name="dentist_id" value={dentistId} />

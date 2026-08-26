@@ -17,6 +17,12 @@ export type ActionState = { error?: string; ok?: boolean };
 
 const DEFAULT_DURATION_MIN = 30;
 
+async function sha256(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 const ApptSchema = z
   .object({
     patient_id: z.string().uuid("Paciente inválido").optional().nullable(),
@@ -38,6 +44,21 @@ const ApptSchema = z
   .refine((d) => !!d.patient_id || !!d.patient_name, {
     message: "Indica un paciente: elige uno registrado o escribe el nombre.",
     path: ["patient_id"],
+  })
+  .superRefine((d, ctx) => {
+    if (d.deposit > 0 && d.consult_price <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La cotización es obligatoria cuando registras un adelanto.",
+        path: ["consult_price"],
+      });
+    } else if (d.deposit > d.consult_price) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El adelanto no puede ser mayor que la cotización.",
+        path: ["deposit"],
+      });
+    }
   });
 
 // Resuelve el odontólogo de una cita. Si llega `dentistId`, se valida que el
@@ -128,25 +149,36 @@ export async function createAppointment(
       return { error: "Ese doctor ya tiene una cita en ese horario. Marca sobre-cupo si es a propósito." };
   }
 
-  const { data: appt, error } = await supabase
-    .from("appointments")
-    .insert({
-      clinic_id: profile.clinicId,
-      patient_id: parsed.data.patient_id ?? null,
-      patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
-      dentist_name: dentistName,
-      dentist_id: dentistId,
-      starts_at: starts.toISOString(),
-      ends_at: ends.toISOString(),
-      reason: parsed.data.reason,
-      overbooked: parsed.data.overbooked,
-      consult_price: parsed.data.consult_price,
-      deposit: parsed.data.deposit,
-      deposit_method: parsed.data.deposit > 0 ? parsed.data.deposit_method ?? "cash" : null,
-    })
-    .select("id")
-    .single();
-  if (error || !appt) return { error: error?.message ?? "No se pudo agendar." };
+  const appointmentInput = {
+    patient_id: parsed.data.patient_id ?? null,
+    patient_name: parsed.data.patient_id ? null : parsed.data.patient_name,
+    dentist_name: dentistName,
+    dentist_id: dentistId,
+    starts_at: starts.toISOString(),
+    ends_at: ends.toISOString(),
+    reason: parsed.data.reason,
+    overbooked: parsed.data.overbooked,
+    consult_price: parsed.data.consult_price,
+    deposit: parsed.data.deposit,
+    deposit_method: parsed.data.deposit > 0 ? parsed.data.deposit_method ?? "cash" : null,
+  };
+  const idempotencyKey = String(formData.get("idempotency_key") || crypto.randomUUID());
+  const requestHash = await sha256(appointmentInput);
+  const { data: created, error } = await supabase.rpc(
+    "create_appointment_with_finance_atomic",
+    {
+      p_input: appointmentInput,
+      p_idempotency_key: idempotencyKey,
+      p_request_hash: requestHash,
+    },
+  );
+  const appointmentId = created && typeof created === "object"
+    ? (created as Record<string, unknown>).appointmentId
+    : null;
+  if (error || typeof appointmentId !== "string") {
+    return { error: "No se pudo registrar la cita y el adelanto. No se guardó ningún cobro." };
+  }
+  const appt = { id: appointmentId };
 
   // Recordatorios automáticos: solo si el addon está activo y hay paciente registrado.
   if (parsed.data.patient_id) {
@@ -323,7 +355,8 @@ export async function setAppointmentStatus(id: string, status: string): Promise<
 
   // Al marcar la cita como atendida, los datos financieros migran al historial.
   if (status === "finished") {
-    await migrateAppointmentFinance(id, profile);
+    const finance = await migrateAppointmentFinance(id);
+    if (finance.error) return finance;
   }
   if (status === "cancelled") {
     await syncAppointmentToGoogle(id, "cancel");
@@ -429,114 +462,30 @@ export async function linkAppointmentPatient(
     .single();
   if (error || !appt) return { error: error?.message ?? "No se pudo vincular." };
 
-  if (appt.status === "finished") {
-    await migrateAppointmentFinance(appointmentId, profile);
-  }
+  const finance = await migrateAppointmentFinance(appointmentId);
+  if (finance.error) return finance;
 
   revalidatePath("/agenda");
   revalidatePath(`/pacientes/${patientId}`);
   return { ok: true };
 }
 
-type Profile = NonNullable<Awaited<ReturnType<typeof getProfile>>>;
-
 // Migra la cotización y el adelanto de una cita al historial del paciente:
 //   • cotización  -> treatment_item (trabajo del plan)  -> suma a "Total tratamiento"
 //   • adelanto    -> payments (kind 'payment')           -> suma a "Total pagado"
 // El trigger payment_to_ledger recalcula el saldo de cuenta. Idempotente vía
 // la bandera finance_migrated.
-async function migrateAppointmentFinance(appointmentId: string, profile: Profile): Promise<void> {
+async function migrateAppointmentFinance(appointmentId: string): Promise<ActionState> {
   const supabase = await createClient();
-
-  const { data: appt } = await supabase
-    .from("appointments")
-    .select("patient_id, reason, consult_price, deposit, deposit_method, finance_migrated")
-    .eq("id", appointmentId)
-    .single();
-
-  if (!appt || !appt.patient_id || appt.finance_migrated) return;
-  const price = Number(appt.consult_price ?? 0);
-  const deposit = Number(appt.deposit ?? 0);
-  if (price <= 0 && deposit <= 0) return;
-  let treatmentItemId: string | undefined;
-
-  // 1) Cotización -> trabajo en el plan (crea plan + fase si no existen).
-  if (price > 0 || deposit > 0) {
-    let planId: string | undefined;
-    const { data: plan } = await supabase
-      .from("treatment_plans")
-      .select("id")
-      .eq("patient_id", appt.patient_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    planId = plan?.id;
-    if (!planId) {
-      const { data: newPlan } = await supabase
-        .from("treatment_plans")
-        .insert({
-          clinic_id: profile.clinicId,
-          patient_id: appt.patient_id,
-          status: "active",
-          created_by: profile.userId,
-        })
-        .select("id")
-        .single();
-      planId = newPlan?.id;
-    }
-
-    let phaseId: string | undefined;
-    if (planId) {
-      const { data: phase } = await supabase
-        .from("treatment_phases")
-        .select("id")
-        .eq("plan_id", planId)
-        .order("phase_no", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      phaseId = phase?.id;
-      if (!phaseId) {
-        const { data: newPhase } = await supabase
-          .from("treatment_phases")
-          .insert({ clinic_id: profile.clinicId, plan_id: planId, phase_no: 1, title: "General" })
-          .select("id")
-          .single();
-        phaseId = newPhase?.id;
-      }
-    }
-
-    if (phaseId) {
-      const { data: treatmentItem } = await supabase.from("treatment_items").insert({
-        clinic_id: profile.clinicId,
-        phase_id: phaseId,
-        custom_name: appt.reason?.trim() || "Consulta / cotización inicial",
-        price: price > 0 ? price : deposit,
-        status: price > 0 ? "done" : "active",
-        done_at: price > 0 ? new Date().toISOString() : null,
-      }).select("id").single();
-      treatmentItemId = treatmentItem?.id as string | undefined;
-    }
+  const { data, error } = await supabase.rpc("migrate_appointment_finance_atomic", {
+    p_appointment_id: appointmentId,
+  });
+  if (error || !data || typeof data !== "object") {
+    return { error: "La cita cambió, pero el adelanto no pudo vincularse. Reintenta desde la cita." };
   }
-
-  // 2) Adelanto -> pago real del paciente.
-  if (deposit > 0) {
-    if (!treatmentItemId) return;
-    const { error: paymentError } = await supabase.from("payments").insert({
-      clinic_id: profile.clinicId,
-      patient_id: appt.patient_id,
-      amount: deposit,
-      method: appt.deposit_method ?? "cash",
-      kind: "payment",
-      treatment_item_id: treatmentItemId,
-    });
-    if (paymentError) return;
-  }
-
-  // 3) Marca como migrado para no duplicar.
-  await supabase.from("appointments").update({ finance_migrated: true }).eq("id", appointmentId);
-
-  revalidatePath(`/pacientes/${appt.patient_id}`);
-
+  const patientId = (data as Record<string, unknown>).patientId;
+  if (typeof patientId === "string") revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true };
 }
 
 const FREE_SLOTS_ROLES = new Set(["admin", "recepcionista"]);

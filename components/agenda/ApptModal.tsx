@@ -56,6 +56,7 @@ export function ApptModal({
   currency: string;
 }) {
   const isEditing = !!appt;
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [state, formAction, pending] = useActionState(
     isEditing ? updateAppointment : createAppointment,
     initial,
@@ -158,6 +159,7 @@ export function ApptModal({
       subtitle={<span className="capitalize text-clinic">{header}</span>}
     >
       <form action={formAction} className="space-y-3">
+        {!isEditing && <input type="hidden" name="idempotency_key" value={idempotencyKey} />}
         {/* En edición viaja el id de la cita a actualizar. */}
         {isEditing && <input type="hidden" name="appointment_id" value={appt!.id} />}
 
@@ -303,6 +305,7 @@ export function ApptModal({
                 type="number"
                 step="0.01"
                 min="0"
+                required={depositN > 0}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="0.00"
@@ -323,6 +326,16 @@ export function ApptModal({
               />
             </label>
           </div>
+          {depositN > 0 && priceN <= 0 && (
+            <p className="mt-2 text-xs text-red-600">
+              La cotización es obligatoria para registrar un adelanto.
+            </p>
+          )}
+          {depositN > priceN && priceN > 0 && (
+            <p className="mt-2 text-xs text-red-600">
+              El adelanto no puede ser mayor que la cotización.
+            </p>
+          )}
           {depositN > 0 && (
             <label className="mt-2 block text-sm">
               <span className="mb-1 block text-slate-600">Método de pago</span>
@@ -362,7 +375,7 @@ export function ApptModal({
         <div className="flex items-center gap-2 pt-1">
           <button
             type="submit"
-            disabled={pending || canceling || !patientOk || !validRange}
+            disabled={pending || canceling || !patientOk || !validRange || (depositN > 0 && (priceN <= 0 || depositN > priceN))}
             className="rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending ? "Guardando…" : isEditing ? "Actualizar cambios" : "Agendar"}
