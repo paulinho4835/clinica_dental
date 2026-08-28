@@ -6,21 +6,46 @@ const SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const CALENDAR_EVENTS_API =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
-function redirectUri(): string {
-  const site = env.NEXT_PUBLIC_SITE_URL ?? "https://clinica-dental-one-vert.vercel.app";
-  return `${site}/api/google-calendar/callback`;
+interface GoogleOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
 }
 
-function oauthClient(): OAuth2Client {
-  return new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri());
+function oauthConfig(): GoogleOAuthConfig {
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const clientSecret = env.GOOGLE_CLIENT_SECRET;
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL;
+
+  if (!clientId || !clientSecret || !siteUrl) {
+    throw new Error(
+      "Google Calendar OAuth no está configurado: faltan GOOGLE_CLIENT_ID, " +
+        "GOOGLE_CLIENT_SECRET o NEXT_PUBLIC_SITE_URL.",
+    );
+  }
+
+  const site = new URL(siteUrl);
+  const redirectUri = new URL("/api/google-calendar/callback", site).toString();
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+function oauthClient(config: GoogleOAuthConfig = oauthConfig()): OAuth2Client {
+  return new OAuth2Client({
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    redirectUri: config.redirectUri,
+  });
 }
 
 // `state` es un token anti-CSRF (ver app/api/google-calendar/connect/route.ts),
 // no lleva datos del usuario.
 export function getGoogleAuthUrl(state: string): string {
-  return oauthClient().generateAuthUrl({
+  const config = oauthConfig();
+  return oauthClient(config).generateAuthUrl({
     access_type: "offline", // necesario para recibir refresh_token
     prompt: "consent",      // fuerza refresh_token también en reconexiones
+    redirect_uri: config.redirectUri,
     scope: [SCOPE],
     state,
   });
