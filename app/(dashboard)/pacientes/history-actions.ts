@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, isReceptionistLike } from "@/lib/rbac";
 import { computeCommission } from "@/lib/commission";
+import { findHistoricalWorkForPayment } from "@/lib/historical-payment-link";
 
 export type ActionState = { error?: string; ok?: boolean; warning?: string };
 
@@ -265,7 +266,7 @@ export async function updatePatientPayment(
 
   const { data: payment, error: readErr } = await supabase
     .from("payments")
-    .select("id, patient_id, doctor_id, amount, method, note, received_at, patients(full_name)")
+    .select("id, patient_id, doctor_id, treatment_item_id, amount, method, note, received_at, created_at, patients(full_name)")
     .eq("id", paymentId)
     .eq("clinic_id", profile.clinicId)
     .maybeSingle();
@@ -279,15 +280,13 @@ export async function updatePatientPayment(
     received_at: payment.received_at,
   };
 
-  const { data: linkedWork, error: workReadErr } = await supabase
+  const { data: currentLinkedWork, error: workReadErr } = await supabase
     .from("doctor_works")
     .select("id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct")
     .eq("payment_id", paymentId)
     .eq("clinic_id", profile.clinicId)
     .maybeSingle();
   if (workReadErr) return { error: workReadErr.message };
-  before.lab_work = (linkedWork?.lab_work as string | null) ?? null;
-  before.lab_cost = Number(linkedWork?.lab_cost ?? 0);
 
   const after: PaymentSnapshot = {
     amount: d.amount,
@@ -301,6 +300,65 @@ export async function updatePatientPayment(
     lab_cost: d.lab_cost,
   };
 
+  type LinkedWork = {
+    id: string;
+    lab_work: string | null;
+    lab_cost: number | string | null;
+    commission_pct: number | string | null;
+    commission_paid_amount: number | string | null;
+    lab_commission_pct: number | string | null;
+  };
+
+  let linkedWork = currentLinkedWork as LinkedWork | null;
+  let historicalWorkNeedsLink = false;
+
+  // Los pagos anteriores a payment_id pueden tener paciente, doctor y
+  // tratamiento correctos, pero carecer del enlace directo con doctor_works.
+  // Solo recuperamos ese enlace ante una coincidencia historica unica.
+  if (
+    !linkedWork &&
+    (after.lab_work || (after.lab_cost ?? 0) > 0) &&
+    payment.doctor_id &&
+    payment.treatment_item_id
+  ) {
+    const createdAt = Date.parse(payment.created_at);
+    if (Number.isFinite(createdAt)) {
+      const windowStart = new Date(createdAt - 10 * 60 * 1000).toISOString();
+      const windowEnd = new Date(createdAt + 10 * 60 * 1000).toISOString();
+      const { data: orphanWorks, error: orphanError } = await supabase
+        .from("doctor_works")
+        .select(
+          "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description",
+        )
+        .eq("clinic_id", profile.clinicId)
+        .eq("patient_id", payment.patient_id)
+        .eq("doctor_id", payment.doctor_id)
+        .eq("treatment_item_id", payment.treatment_item_id)
+        .is("payment_id", null)
+        .gte("created_at", windowStart)
+        .lte("created_at", windowEnd)
+        .limit(20);
+      if (orphanError) return { error: orphanError.message };
+
+      const recovered = findHistoricalWorkForPayment(
+        {
+          amount: Number(payment.amount),
+          method: payment.method,
+          note: payment.note,
+          createdAt: payment.created_at,
+        },
+        orphanWorks ?? [],
+      );
+      if (recovered) {
+        linkedWork = recovered as LinkedWork;
+        historicalWorkNeedsLink = true;
+      }
+    }
+  }
+
+  before.lab_work = linkedWork?.lab_work ?? null;
+  before.lab_cost = Number(linkedWork?.lab_cost ?? 0);
+
   const changed =
     after.amount !== before.amount ||
     after.method !== before.method ||
@@ -311,7 +369,10 @@ export async function updatePatientPayment(
 
   if (labChanged && !linkedWork && (after.lab_work || (after.lab_cost ?? 0) > 0)) {
     return {
-      error: "Este pago no tiene un trabajo de doctor vinculado; no se modificó ningún dato. Revísalo en Auditoría.",
+      error:
+        !payment.doctor_id || !payment.treatment_item_id
+          ? "Este pago histórico no tiene doctor y tratamiento vinculados; no se puede recalcular su comisión. No se modificó ningún dato."
+          : "No se pudo identificar de forma segura un único trabajo histórico para este pago. No se modificó ningún dato; revísalo en Auditoría.",
     };
   }
 
@@ -329,6 +390,26 @@ export async function updatePatientPayment(
     if (alreadyPaid > netDoctorCommission + labCommission + 0.005) {
       return {
         error: "No se puede añadir ese costo: dejaría la comisión por debajo de lo ya pagado al doctor. Revisa primero Pagos a personal.",
+      };
+    }
+  }
+
+  // Persistir primero el enlace recuperado. La condicion payment_id IS NULL
+  // evita que dos ediciones simultaneas reclamen el mismo trabajo historico.
+  if (historicalWorkNeedsLink && linkedWork) {
+    const { data: relinkedWork, error: relinkError } = await supabase
+      .from("doctor_works")
+      .update({ payment_id: paymentId })
+      .eq("id", linkedWork.id)
+      .eq("clinic_id", profile.clinicId)
+      .is("payment_id", null)
+      .select("id")
+      .maybeSingle();
+    if (relinkError) return { error: relinkError.message };
+    if (!relinkedWork) {
+      return {
+        error:
+          "El trabajo histórico cambió mientras se editaba el pago. No se modificó ningún monto; vuelve a intentarlo.",
       };
     }
   }
