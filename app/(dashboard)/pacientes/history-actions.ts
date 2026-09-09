@@ -324,12 +324,11 @@ export async function updatePatientPayment(
     const { data: orphanWorks, error: orphanError } = await supabase
       .from("doctor_works")
       .select(
-        "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description",
+        "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description, treatment_item_id",
       )
       .eq("clinic_id", profile.clinicId)
       .eq("patient_id", payment.patient_id)
       .eq("doctor_id", payment.doctor_id)
-      .eq("treatment_item_id", payment.treatment_item_id)
       .is("payment_id", null)
       .limit(100);
     if (orphanError) return { error: orphanError.message };
@@ -339,6 +338,7 @@ export async function updatePatientPayment(
         amount: Number(payment.amount),
         method: payment.method,
         note: payment.note,
+        treatmentItemId: payment.treatment_item_id,
         // received_at is a business date and cannot safely identify the
         // insertion moment of old rows; ambiguity is rejected by the helper.
         createdAt: null,

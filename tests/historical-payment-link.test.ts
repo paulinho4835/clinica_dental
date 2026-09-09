@@ -5,6 +5,7 @@ const payment = {
   amount: 1600,
   method: "cash",
   note: "Puente metal ivocrom 9 coronas",
+  treatmentItemId: "treatment-1",
   createdAt: "2026-08-27T22:35:10.000Z",
 };
 
@@ -15,6 +16,7 @@ function candidate(id: string, createdAt: string) {
     amount_paid: 1600,
     payment_method: "cash",
     description: "Puente metal ivocrom 9 coronas",
+    treatment_item_id: "treatment-1",
     created_at: createdAt,
   };
 }
@@ -49,5 +51,17 @@ describe("findHistoricalWorkForPayment", () => {
       amount_paid: 1000,
     };
     expect(findHistoricalWorkForPayment(payment, [wrong])).toBeNull();
+  });
+
+  it("recupera un trabajo legado aunque le falte el item de tratamiento", () => {
+    const legacy = {
+      ...candidate("work-legacy", "2026-08-27T22:35:10.100Z"),
+      treatment_item_id: null,
+      cost: 3600,
+    };
+
+    expect(findHistoricalWorkForPayment({ ...payment, createdAt: null }, [legacy])?.id).toBe(
+      "work-legacy",
+    );
   });
 });
