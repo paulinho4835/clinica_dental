@@ -266,7 +266,7 @@ export async function updatePatientPayment(
 
   const { data: payment, error: readErr } = await supabase
     .from("payments")
-    .select("id, patient_id, doctor_id, treatment_item_id, amount, method, note, received_at, created_at, patients(full_name)")
+    .select("id, patient_id, doctor_id, treatment_item_id, amount, method, note, received_at, patients(full_name)")
     .eq("id", paymentId)
     .eq("clinic_id", profile.clinicId)
     .maybeSingle();
@@ -321,38 +321,33 @@ export async function updatePatientPayment(
     payment.doctor_id &&
     payment.treatment_item_id
   ) {
-    const createdAt = Date.parse(payment.created_at);
-    if (Number.isFinite(createdAt)) {
-      const windowStart = new Date(createdAt - 10 * 60 * 1000).toISOString();
-      const windowEnd = new Date(createdAt + 10 * 60 * 1000).toISOString();
-      const { data: orphanWorks, error: orphanError } = await supabase
-        .from("doctor_works")
-        .select(
-          "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description",
-        )
-        .eq("clinic_id", profile.clinicId)
-        .eq("patient_id", payment.patient_id)
-        .eq("doctor_id", payment.doctor_id)
-        .eq("treatment_item_id", payment.treatment_item_id)
-        .is("payment_id", null)
-        .gte("created_at", windowStart)
-        .lte("created_at", windowEnd)
-        .limit(20);
-      if (orphanError) return { error: orphanError.message };
+    const { data: orphanWorks, error: orphanError } = await supabase
+      .from("doctor_works")
+      .select(
+        "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description",
+      )
+      .eq("clinic_id", profile.clinicId)
+      .eq("patient_id", payment.patient_id)
+      .eq("doctor_id", payment.doctor_id)
+      .eq("treatment_item_id", payment.treatment_item_id)
+      .is("payment_id", null)
+      .limit(100);
+    if (orphanError) return { error: orphanError.message };
 
-      const recovered = findHistoricalWorkForPayment(
-        {
-          amount: Number(payment.amount),
-          method: payment.method,
-          note: payment.note,
-          createdAt: payment.created_at,
-        },
-        orphanWorks ?? [],
-      );
-      if (recovered) {
-        linkedWork = recovered as LinkedWork;
-        historicalWorkNeedsLink = true;
-      }
+    const recovered = findHistoricalWorkForPayment(
+      {
+        amount: Number(payment.amount),
+        method: payment.method,
+        note: payment.note,
+        // received_at is a business date and cannot safely identify the
+        // insertion moment of old rows; ambiguity is rejected by the helper.
+        createdAt: null,
+      },
+      orphanWorks ?? [],
+    );
+    if (recovered) {
+      linkedWork = recovered as LinkedWork;
+      historicalWorkNeedsLink = true;
     }
   }
 

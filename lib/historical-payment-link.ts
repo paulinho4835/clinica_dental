@@ -2,7 +2,9 @@ export type HistoricalPaymentFingerprint = {
   amount: number;
   method: string;
   note: string | null;
-  createdAt: string;
+  // Payments only have received_at, which is the business date and not a
+  // reliable insertion timestamp for historical rows.
+  createdAt?: string | null;
 };
 
 export type HistoricalWorkCandidate = {
@@ -34,18 +36,20 @@ export function findHistoricalWorkForPayment<T extends HistoricalWorkCandidate>(
   payment: HistoricalPaymentFingerprint,
   candidates: T[],
 ): T | null {
-  const paymentCreatedAt = Date.parse(payment.createdAt);
+  const paymentCreatedAt = payment.createdAt ? Date.parse(payment.createdAt) : NaN;
   const paymentAmount = moneyInCents(payment.amount);
-  if (!Number.isFinite(paymentCreatedAt) || paymentAmount === null) return null;
+  if (paymentAmount === null) return null;
 
   const matches = candidates
     .map((candidate) => ({
       candidate,
-      distance: Math.abs(Date.parse(candidate.created_at) - paymentCreatedAt),
+      distance: Number.isFinite(paymentCreatedAt)
+        ? Math.abs(Date.parse(candidate.created_at) - paymentCreatedAt)
+        : 0,
     }))
     .filter(({ candidate, distance }) =>
-      Number.isFinite(distance) &&
-      distance <= MAX_CREATION_DISTANCE_MS &&
+        Number.isFinite(distance) &&
+        (!Number.isFinite(paymentCreatedAt) || distance <= MAX_CREATION_DISTANCE_MS) &&
       moneyInCents(candidate.cost) === paymentAmount &&
       moneyInCents(candidate.amount_paid) === paymentAmount &&
       candidate.payment_method === payment.method &&
