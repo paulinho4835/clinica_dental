@@ -458,6 +458,7 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
               className={inputCls}
             />
           </label>
+          {/* Corrección post-deploy: edición de técnico ligada al trabajo del pago. */}
           <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
             <p className="mb-2 text-xs font-medium text-slate-600">Técnico / laboratorio (opcional)</p>
             <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
