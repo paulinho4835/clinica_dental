@@ -22,6 +22,12 @@ type WorkRow = UnpaidWork & {
   remaining: number;
 };
 
+type DisplayRow = {
+  row: WorkRow;
+  /** Se muestra antes de la primera fila de cada paciente en la vista agrupada. */
+  patientGroup?: { name: string; count: number };
+};
+
 const METHOD_LABEL: Record<string, string> = {
   cash: "Efectivo",
   qr: "QR",
@@ -99,6 +105,9 @@ export function StaffPaymentForm({
   // real de un adelanto parcial — así un scroll de mouse o un tipeo accidental
   // no puede cambiar cuánto se le paga a un doctor.
   const [editingWorks, setEditingWorks] = useState<Set<string>>(new Set());
+  // Es solo una preferencia de presentación: no modifica trabajos, comisiones
+  // ni la selección que se enviará al registrar el pago.
+  const [groupByPatient, setGroupByPatient] = useState(false);
   const [fetching, startFetch] = useTransition();
   // Evita repreguntar: tras confirmar, disparamos el submit real y esta bandera
   // deja pasar ese segundo evento sin volver a mostrar el diálogo.
@@ -162,6 +171,35 @@ export function StaffPaymentForm({
         : patientRows.filter((r) => r.performed_at.startsWith(selectedMonth)),
     [patientRows, selectedMonth],
   );
+
+  // La fuente llega ordenada por fecha. En la vista agrupada reordenamos los
+  // bloques por nombre de paciente y conservamos ese orden de fecha dentro de
+  // cada bloque, para que el cuaderno se pueda contrastar fila por fila.
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    if (!groupByPatient) return visibleRows.map((row) => ({ row }));
+
+    const groups = new Map<string, { name: string; rows: WorkRow[] }>();
+    for (const row of visibleRows) {
+      const name = row.patient_name?.trim() || "Paciente sin nombre";
+      const key = name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("es");
+      const group = groups.get(key);
+      if (group) group.rows.push(row);
+      else groups.set(key, { name, rows: [row] });
+    }
+
+    return [...groups.values()]
+      .sort((a, b) => a.name.localeCompare(b.name, "es"))
+      .flatMap((group) =>
+        group.rows.map((row, index) => ({
+          row,
+          patientGroup:
+            index === 0 ? { name: group.name, count: group.rows.length } : undefined,
+        })),
+      );
+  }, [groupByPatient, visibleRows]);
 
   // Comisión pendiente que el filtro de mes dejó fuera. Se avisa siempre: con un
   // mes elegido, esconder deuda de otros meses sin decirlo es cómo una comisión
@@ -352,6 +390,35 @@ export function StaffPaymentForm({
             </span>
             {unpaidWorks.length > 0 && (
               <div className="flex items-center gap-3">
+                <div
+                  className="flex rounded-md border border-slate-200 bg-white p-0.5 text-xs"
+                  aria-label="Orden de trabajos"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setGroupByPatient(false)}
+                    aria-pressed={!groupByPatient}
+                    className={`rounded px-2 py-1 transition ${
+                      !groupByPatient
+                        ? "bg-clinic text-white"
+                        : "text-slate-500 hover:text-clinic"
+                    }`}
+                  >
+                    Por fecha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGroupByPatient(true)}
+                    aria-pressed={groupByPatient}
+                    className={`rounded px-2 py-1 transition ${
+                      groupByPatient
+                        ? "bg-clinic text-white"
+                        : "text-slate-500 hover:text-clinic"
+                    }`}
+                  >
+                    Por paciente
+                  </button>
+                </div>
                 <button type="button" onClick={selectAll} className="text-xs text-clinic hover:underline">
                   Seleccionar todos
                 </button>
@@ -390,7 +457,7 @@ export function StaffPaymentForm({
               todos los datos apilados. ── */}
           {!fetching && visibleRows.length > 0 && (
             <div className="space-y-2 sm:hidden">
-              {visibleRows.map((r) => {
+              {displayRows.map(({ row: r, patientGroup }) => {
                 const checked = workAmounts.has(r.id);
                 const editing = editingWorks.has(r.id);
                 const rawAmount = workAmounts.get(r.id) ?? "";
@@ -402,12 +469,20 @@ export function StaffPaymentForm({
                     amountNum > r.remaining + 0.005);
                 const payable = r.remaining > 0;
                 return (
-                  <div
-                    key={r.id}
-                    className={`rounded-lg border p-3 text-sm transition ${
+                  <div key={r.id}>
+                    {patientGroup && (
+                      <div className="flex items-center justify-between px-1 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 first:pt-0">
+                        <span>{patientGroup.name}</span>
+                        <span className="font-normal normal-case text-slate-400">
+                          {patientGroup.count} trabajo{patientGroup.count !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      className={`rounded-lg border p-3 text-sm transition ${
                       checked ? "border-clinic/30 bg-clinic/5" : "border-slate-200 bg-white"
                     }`}
-                  >
+                    >
                     <div className="flex items-start gap-2">
                       <input
                         type="checkbox"
@@ -427,8 +502,14 @@ export function StaffPaymentForm({
                           </span>
                         </div>
                         <div className="mt-0.5 text-xs text-slate-500">
-                          {r.patient_name ?? "—"}
-                          {r.collected_by_name && ` · cobró ${r.collected_by_name}`}
+                          {groupByPatient
+                            ? (r.collected_by_name
+                              ? `Cobró ${r.collected_by_name}`
+                              : "")
+                            : <>
+                                {r.patient_name ?? "—"}
+                                {r.collected_by_name && ` · cobró ${r.collected_by_name}`}
+                              </>}
                         </div>
                         {r.lab_work && (
                           <span className="mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
@@ -558,6 +639,7 @@ export function StaffPaymentForm({
                           )}
                       </div>
                     )}
+                    </div>
                   </div>
                 );
               })}
@@ -585,7 +667,7 @@ export function StaffPaymentForm({
                   <span>Método</span>
                   <span className="text-right">Abonar</span>
                 </div>
-                {visibleRows.map((r) => {
+                {displayRows.map(({ row: r, patientGroup }) => {
                   const checked = workAmounts.has(r.id);
                   const editing = editingWorks.has(r.id);
                   const rawAmount = workAmounts.get(r.id) ?? "";
@@ -597,12 +679,20 @@ export function StaffPaymentForm({
                       amountNum > r.remaining + 0.005);
                   const payable = r.remaining > 0;
                   return (
-                    <div
-                      key={r.id}
-                      className={`${GRID} border-b border-slate-100 px-3 py-2.5 text-sm last:border-0 transition ${
+                    <div key={r.id}>
+                      {patientGroup && (
+                        <div className="flex items-center justify-between border-y border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <span>{patientGroup.name}</span>
+                          <span className="font-normal normal-case text-slate-400">
+                            {patientGroup.count} trabajo{patientGroup.count !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        className={`${GRID} border-b border-slate-100 px-3 py-2.5 text-sm last:border-0 transition ${
                         checked ? "bg-clinic/5" : "hover:bg-slate-50/70"
                       }`}
-                    >
+                      >
                       <input
                         type="checkbox"
                         checked={checked}
@@ -616,7 +706,9 @@ export function StaffPaymentForm({
                         <div className="text-slate-300">{fmtBoliviaTime(r.created_at)}</div>
                       </div>
                       <span className="truncate font-medium text-slate-700">
-                        {r.patient_name ?? "—"}
+                        {groupByPatient
+                          ? <span className="text-slate-300">—</span>
+                          : (r.patient_name ?? "—")}
                       </span>
                       <span className="truncate text-slate-500">
                         {r.collected_by_name ?? <span className="text-slate-300">—</span>}
@@ -746,6 +838,7 @@ export function StaffPaymentForm({
                               {money(Math.round((r.remaining - amountNum) * 100) / 100, currency)}
                             </span>
                           )}
+                      </div>
                       </div>
                     </div>
                   );
