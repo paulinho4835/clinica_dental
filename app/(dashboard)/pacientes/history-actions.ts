@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, isReceptionistLike } from "@/lib/rbac";
+import { computeCommission } from "@/lib/commission";
 
 export type ActionState = { error?: string; ok?: boolean; warning?: string };
 
@@ -121,6 +122,8 @@ type PaymentSnapshot = {
   method: string;
   note: string | null;
   received_at: string;
+  lab_work?: string | null;
+  lab_cost?: number;
 };
 
 // Deja constancia en audit_log (tabla solo-insert: RLS bloquea update/delete).
@@ -230,6 +233,8 @@ const PaymentUpdateSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida")
     .optional()
     .nullable(),
+  lab_work: z.string().trim().max(200).optional().nullable(),
+  lab_cost: z.coerce.number().min(0).default(0),
 });
 
 // Corrige un pago mal registrado (monto, método, concepto o fecha).
@@ -242,6 +247,8 @@ export async function updatePatientPayment(
     method: string;
     note?: string | null;
     received_date?: string | null;
+    lab_work?: string | null;
+    lab_cost?: number | string;
   },
 ): Promise<ActionState> {
   const profile = await getProfile();
@@ -272,6 +279,16 @@ export async function updatePatientPayment(
     received_at: payment.received_at,
   };
 
+  const { data: linkedWork, error: workReadErr } = await supabase
+    .from("doctor_works")
+    .select("id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct")
+    .eq("payment_id", paymentId)
+    .eq("clinic_id", profile.clinicId)
+    .maybeSingle();
+  if (workReadErr) return { error: workReadErr.message };
+  before.lab_work = (linkedWork?.lab_work as string | null) ?? null;
+  before.lab_cost = Number(linkedWork?.lab_cost ?? 0);
+
   const after: PaymentSnapshot = {
     amount: d.amount,
     method: d.method,
@@ -280,6 +297,8 @@ export async function updatePatientPayment(
     received_at: d.received_date
       ? `${d.received_date}T12:00:00Z`
       : payment.received_at,
+    lab_work: d.lab_work?.trim() || null,
+    lab_cost: d.lab_cost,
   };
 
   const changed =
@@ -287,7 +306,32 @@ export async function updatePatientPayment(
     after.method !== before.method ||
     after.note !== before.note ||
     after.received_at !== before.received_at;
-  if (!changed) return { ok: true };
+  const labChanged = after.lab_work !== before.lab_work || after.lab_cost !== before.lab_cost;
+  if (!changed && !labChanged) return { ok: true };
+
+  if (labChanged && !linkedWork && (after.lab_work || (after.lab_cost ?? 0) > 0)) {
+    return {
+      error: "Este pago no tiene un trabajo de doctor vinculado; no se modificó ningún dato. Revísalo en Auditoría.",
+    };
+  }
+
+  if (linkedWork) {
+    const pct = Number(linkedWork.commission_pct ?? 0);
+    const labPct = Number(linkedWork.lab_commission_pct ?? 0);
+    const netDoctorCommission = computeCommission({
+      amountPaid: after.amount,
+      cost: after.amount,
+      labCost: after.lab_cost ?? 0,
+      pct,
+    });
+    const labCommission = Math.round((after.lab_cost ?? 0) * labPct) / 100;
+    const alreadyPaid = Number(linkedWork.commission_paid_amount ?? 0);
+    if (alreadyPaid > netDoctorCommission + labCommission + 0.005) {
+      return {
+        error: "No se puede añadir ese costo: dejaría la comisión por debajo de lo ya pagado al doctor. Revisa primero Pagos a personal.",
+      };
+    }
+  }
 
   const { error: updErr } = await supabase
     .from("payments")
@@ -310,6 +354,10 @@ export async function updatePatientPayment(
       cost: after.amount,
       amount_paid: after.amount,
       payment_method: after.method,
+      lab_work: after.lab_work,
+      lab_cost: after.lab_cost,
+      // Este campo alimenta fórmula de comisión proporcional para pagos ligados.
+      treatment_lab_cost: after.lab_cost,
     })
     .eq("payment_id", paymentId)
     .eq("clinic_id", profile.clinicId);

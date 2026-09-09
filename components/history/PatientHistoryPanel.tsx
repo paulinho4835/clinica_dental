@@ -26,6 +26,8 @@ export type PaymentRow = {
   receivedAt: string; // ISO
   doctorName?: string | null;
   collectedByName?: string | null;
+  labWork?: string | null;
+  labCost?: number;
 };
 
 export type WorkDebtRow = {
@@ -361,6 +363,8 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
   const [method, setMethod] = useState(payment.method);
   const [note, setNote] = useState(payment.note ?? "");
   const [date, setDate] = useState(originalDate);
+  const [labWork, setLabWork] = useState(payment.labWork ?? "");
+  const [labCost, setLabCost] = useState(String(payment.labCost ?? 0));
   const router = useRouter();
 
   function reset() {
@@ -368,6 +372,8 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
     setMethod(payment.method);
     setNote(payment.note ?? "");
     setDate(originalDate);
+    setLabWork(payment.labWork ?? "");
+    setLabCost(String(payment.labCost ?? 0));
   }
 
   function save() {
@@ -379,6 +385,8 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
         // Solo mandar la fecha si el admin la cambió: así no se pierde la
         // hora original del pago cuando la fecha quedó igual.
         received_date: date !== originalDate ? date : null,
+        lab_work: labWork || null,
+        lab_cost: labCost,
       });
       if (res.error) {
         toast(res.error, "error");
@@ -450,6 +458,34 @@ function EditPaymentRowButton({ payment }: { payment: PaymentRow }) {
               className={inputCls}
             />
           </label>
+          <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
+            <p className="mb-2 text-xs font-medium text-slate-600">Técnico / laboratorio (opcional)</p>
+            <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
+              <label className="text-xs">
+                <span className="mb-1 block text-slate-500">Trabajo o técnico</span>
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={labWork}
+                  onChange={(e) => setLabWork(e.target.value)}
+                  placeholder="ej. Laboratorio dental"
+                  className={inputCls}
+                />
+              </label>
+              <label className="text-xs">
+                <span className="mb-1 block text-slate-500">Costo (Bs)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={labCost}
+                  onChange={(e) => setLabCost(e.target.value)}
+                  className={inputCls}
+                />
+              </label>
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-400">Recalcula comisión doctor descontando laboratorio.</p>
+          </div>
           <label className="block text-xs">
             <span className="mb-1 block text-slate-500">Concepto</span>
             <input

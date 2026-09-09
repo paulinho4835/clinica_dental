@@ -104,14 +104,14 @@ export default async function CuentasPacientesPage({
         supabase
           .from("payments")
           .select(
-            "id, amount, method, note, received_at, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:clinic_receptionists!payments_collected_by_id_fkey(name)",
+            "id, amount, method, note, received_at, doctor_id, doctor:profiles!payments_doctor_id_fkey(full_name), collected_by:clinic_receptionists!payments_collected_by_id_fkey(name)",
           )
           .eq("patient_id", selectedId)
           .order("received_at", { ascending: false }),
         supabase
           .from("doctor_works")
           .select(
-            "id, description, cost, performed_at, treatment_item_id, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
+            "id, description, cost, performed_at, treatment_item_id, payment_id, lab_work, lab_cost, doctor:profiles!doctor_works_doctor_id_fkey(full_name)",
           )
           .eq("patient_id", selectedId)
           .order("performed_at", { ascending: false }),
@@ -131,6 +131,9 @@ export default async function CuentasPacientesPage({
           ((p.doctor as { full_name?: string } | null)?.full_name) ?? null,
         collectedByName:
           ((p.collected_by as { name?: string } | null)?.name) ?? null,
+        labWork:
+          ((works ?? []).find((w) => w.payment_id === p.id)?.lab_work as string | null) ?? null,
+        labCost: Number((works ?? []).find((w) => w.payment_id === p.id)?.lab_cost ?? 0),
       }));
 
       workRows = (works ?? []).map((w) => ({
