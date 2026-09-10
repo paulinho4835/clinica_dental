@@ -282,7 +282,7 @@ export async function updatePatientPayment(
 
   const { data: currentLinkedWork, error: workReadErr } = await supabase
     .from("doctor_works")
-    .select("id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct")
+    .select("id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, treatment_item_id, treatment_lab_cost, cost, amount_paid")
     .eq("payment_id", paymentId)
     .eq("clinic_id", profile.clinicId)
     .maybeSingle();
@@ -307,6 +307,10 @@ export async function updatePatientPayment(
     commission_pct: number | string | null;
     commission_paid_amount: number | string | null;
     lab_commission_pct: number | string | null;
+    treatment_item_id: string | null;
+    treatment_lab_cost: number | string | null;
+    cost: number | string | null;
+    amount_paid: number | string | null;
   };
 
   let linkedWork = currentLinkedWork as LinkedWork | null;
@@ -324,7 +328,7 @@ export async function updatePatientPayment(
     const { data: orphanWorks, error: orphanError } = await supabase
       .from("doctor_works")
       .select(
-        "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, created_at, cost, amount_paid, payment_method, description, treatment_item_id",
+        "id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, treatment_lab_cost, created_at, cost, amount_paid, payment_method, description, treatment_item_id",
       )
       .eq("clinic_id", profile.clinicId)
       .eq("patient_id", payment.patient_id)
@@ -344,11 +348,17 @@ export async function updatePatientPayment(
         createdAt: null,
       },
       orphanWorks ?? [],
-    );
-    if (recovered) {
-      linkedWork = recovered as LinkedWork;
-      historicalWorkNeedsLink = true;
-    }
+      );
+      if (recovered) {
+        linkedWork = {
+          ...(recovered as LinkedWork),
+          // Algunos trabajos antiguos no guardaron el item del plan; el pago
+          // ya lo validó contra este paciente, así que podemos completarlo.
+          treatment_item_id:
+            (recovered as LinkedWork).treatment_item_id ?? payment.treatment_item_id,
+        };
+        historicalWorkNeedsLink = true;
+      }
   }
 
   before.lab_work = linkedWork?.lab_work ?? null;
@@ -371,12 +381,67 @@ export async function updatePatientPayment(
     };
   }
 
+  let treatmentCost: number | null = null;
+  let treatmentWorks: LinkedWork[] = linkedWork ? [linkedWork] : [];
+  if (linkedWork?.treatment_item_id) {
+    const [{ data: item, error: itemError }, { data: works, error: worksError }] =
+      await Promise.all([
+        supabase
+          .from("treatment_items")
+          .select("price")
+          .eq("id", linkedWork.treatment_item_id)
+          .eq("clinic_id", profile.clinicId)
+          .maybeSingle(),
+        supabase
+          .from("doctor_works")
+          .select("id, lab_work, lab_cost, commission_pct, commission_paid_amount, lab_commission_pct, treatment_item_id, treatment_lab_cost, cost, amount_paid")
+          .eq("clinic_id", profile.clinicId)
+          .eq("patient_id", payment.patient_id)
+          .eq("doctor_id", payment.doctor_id)
+          .eq("treatment_item_id", linkedWork.treatment_item_id),
+      ]);
+    if (itemError) return { error: itemError.message };
+    if (worksError) return { error: worksError.message };
+    const planPrice = Number(item?.price);
+    if (Number.isFinite(planPrice) && planPrice > 0) treatmentCost = planPrice;
+    treatmentWorks = (works ?? []) as LinkedWork[];
+    if (!treatmentWorks.some((work) => work.id === linkedWork?.id)) {
+      treatmentWorks.push(linkedWork);
+    }
+  }
+
+  const inheritedTreatmentLabCost = treatmentWorks.reduce(
+    (max, work) => Math.max(max, Number(work.treatment_lab_cost ?? 0), Number(work.lab_cost ?? 0)),
+    0,
+  );
+  const treatmentLabCost = labChanged ? Number(after.lab_cost ?? 0) : inheritedTreatmentLabCost;
+
+  if (linkedWork) {
+    for (const work of treatmentWorks) {
+      const isCurrent = work.id === linkedWork.id;
+      const netDoctorCommission = computeCommission({
+        amountPaid: isCurrent ? after.amount : Number(work.amount_paid ?? 0),
+        cost: treatmentCost ?? (isCurrent ? Number(work.cost ?? after.amount) : Number(work.cost ?? 0)),
+        labCost: treatmentLabCost,
+        pct: Number(work.commission_pct ?? 0),
+      });
+      const labCommission = Math.round(
+        (isCurrent ? Number(after.lab_cost ?? 0) : Number(work.lab_cost ?? 0)) * Number(work.lab_commission_pct ?? 0),
+      ) / 100;
+      if (Number(work.commission_paid_amount ?? 0) > netDoctorCommission + labCommission + 0.005) {
+        return {
+          error: "No se puede añadir ese costo: dejaría una comisión por debajo de lo ya pagado al doctor. Revisa primero Pagos a personal.",
+        };
+      }
+    }
+  }
+
   if (linkedWork) {
     const pct = Number(linkedWork.commission_pct ?? 0);
     const labPct = Number(linkedWork.lab_commission_pct ?? 0);
     const netDoctorCommission = computeCommission({
       amountPaid: after.amount,
-      cost: after.amount,
+      cost: treatmentCost ?? Number(linkedWork.cost ?? after.amount),
       labCost: after.lab_cost ?? 0,
       pct,
     });
@@ -394,7 +459,7 @@ export async function updatePatientPayment(
   if (historicalWorkNeedsLink && linkedWork) {
     const { data: relinkedWork, error: relinkError } = await supabase
       .from("doctor_works")
-      .update({ payment_id: paymentId })
+      .update({ payment_id: paymentId, treatment_item_id: linkedWork.treatment_item_id })
       .eq("id", linkedWork.id)
       .eq("clinic_id", profile.clinicId)
       .is("payment_id", null)
@@ -427,17 +492,30 @@ export async function updatePatientPayment(
     .from("doctor_works")
     .update({
       description: after.note ?? "Pago desde ficha de paciente",
-      cost: after.amount,
+      cost: treatmentCost ?? Number(linkedWork?.cost ?? after.amount),
       amount_paid: after.amount,
       payment_method: after.method,
       lab_work: after.lab_work,
       lab_cost: after.lab_cost,
       // Este campo alimenta fórmula de comisión proporcional para pagos ligados.
-      treatment_lab_cost: after.lab_cost,
+      treatment_lab_cost: treatmentLabCost,
     })
-    .eq("payment_id", paymentId)
+    .eq("id", linkedWork?.id ?? "")
     .eq("clinic_id", profile.clinicId);
   if (workError) return { error: workError.message };
+
+  // Todas las cuotas del mismo item comparten el precio total y el costo de
+  // laboratorio usado para calcular la comisión proporcional.
+  if (linkedWork?.treatment_item_id && treatmentCost !== null) {
+    const { error: peersError } = await supabase
+      .from("doctor_works")
+      .update({ cost: treatmentCost, treatment_lab_cost: treatmentLabCost })
+      .eq("clinic_id", profile.clinicId)
+      .eq("patient_id", payment.patient_id)
+      .eq("doctor_id", payment.doctor_id)
+      .eq("treatment_item_id", linkedWork.treatment_item_id);
+    if (peersError) return { error: peersError.message };
+  }
 
   // Mantener el crédito del ledger alineado con el nuevo monto.
   if (after.amount !== before.amount) {
