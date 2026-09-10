@@ -75,12 +75,3 @@ begin
   return v_payment_id;
 end;
 $$;
-
-revoke all on function public.create_payment_with_work(
-  uuid, numeric, public.payment_method, public.payment_kind, timestamptz,
-  uuid, numeric, text, uuid, uuid
-) from public;
-grant execute on function public.create_payment_with_work(
-  uuid, numeric, public.payment_method, public.payment_kind, timestamptz,
-  uuid, numeric, text, uuid, uuid
-) to authenticated, service_role;
