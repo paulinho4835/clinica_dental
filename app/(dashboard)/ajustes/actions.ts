@@ -371,8 +371,13 @@ export async function removeTeamUser(formData: FormData): Promise<ActionState> {
   if (target.role === "admin")
     return { error: "No puedes eliminar a otro administrador." };
 
-  // Borra la cuenta auth; el perfil cae por ON DELETE CASCADE.
-  const { error } = await admin.auth.admin.deleteUser(userId);
+  // Desactivar conserva historial, comisiones, citas y pagos del doctor.
+  // Borrar auth rompe FKs y elimina trazabilidad.
+  const { error } = await admin
+    .from("profiles")
+    .update({ active: false })
+    .eq("id", userId)
+    .eq("clinic_id", profile.clinicId);
   if (error) return { error: error.message };
 
   revalidatePath("/ajustes");

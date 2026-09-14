@@ -91,7 +91,7 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
   }
 
   function remove() {
-    if (!confirm(`¿Eliminar la cuenta de ${member.full_name}? Esta acción no se puede deshacer.`))
+    if (!confirm(`¿Desactivar la cuenta de ${member.full_name}? Se ocultará del equipo y podrá reactivarse después.`))
       return;
     start(async () => {
       const fd = new FormData();
@@ -136,7 +136,7 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
                 onClick={remove}
                 className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
               >
-                Eliminar
+                Desactivar
               </button>
             </>
           )}
