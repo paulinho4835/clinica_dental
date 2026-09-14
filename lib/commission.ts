@@ -28,8 +28,7 @@ export function netRate(cost: number, labCost: number): number {
 /** Comisión en Bs, redondeada a 2 decimales (espejo de la columna generada). */
 export function computeCommission({ amountPaid, cost, labCost, pct }: CommissionInput): number {
   const a = Number(amountPaid) || 0;
-  const c = Number(cost) || 0;
   const lab = Number(labCost) || 0;
   const p = Number(pct) || 0;
-  return Math.round(a * netRate(c, lab) * p) / 100;
+  return Math.round(Math.max(a - lab, 0) * p) / 100;
 }

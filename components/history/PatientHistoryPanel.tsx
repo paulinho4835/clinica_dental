@@ -654,6 +654,8 @@ function PaymentForm({
 
   const amountN = Number(amount) || 0;
   const pctN = Number(pct) || 0;
+  // Este formulario no registra laboratorio. Si se olvido, se agrega luego
+  // editando este pago; preview no descuenta lab automaticamente.
   const commission = Math.round(amountN * pctN) / 100;
 
   const hasRecepcionistas = recepcionistas && recepcionistas.length > 0;

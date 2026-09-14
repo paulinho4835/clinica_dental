@@ -30,6 +30,7 @@ export type DirectPlanItemRow = {
   price: number;
   paidAmount: number;
   labCost: number;
+  labAppliedAmount?: number;
   doctorId: string | null;
   doctorName: string | null;
   defaultCommissionPct: number;

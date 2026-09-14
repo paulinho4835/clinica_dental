@@ -7,6 +7,7 @@ export type PlanItemRow = {
   price: number;
   paidAmount: number;
   labCost: number;
+  labAppliedAmount?: number;
   doctorId: string | null;
   doctorName: string | null;
   defaultCommissionPct: number;
@@ -35,10 +36,9 @@ export async function fetchPatientPlanItems(
     // Buscar el lab_cost registrado para cada ítem del plan (primera sesión con lab)
     supabase
       .from("doctor_works")
-      .select("treatment_item_id, lab_cost")
+      .select("treatment_item_id, lab_cost, treatment_lab_cost, commission_lab_applied")
       .eq("patient_id", patientId)
-      .not("treatment_item_id", "is", null)
-      .gt("lab_cost", 0),
+      .not("treatment_item_id", "is", null),
   ]);
 
   // Mapa itemId → total pagado
@@ -50,11 +50,15 @@ export async function fetchPatientPlanItems(
 
   // Mapa itemId → lab_cost del tratamiento (solo necesitamos uno, cualquier sesión)
   const labCostByItem = new Map<string, number>();
+  const labAppliedByItem = new Map<string, number>();
   for (const row of labRows ?? []) {
     const key = row.treatment_item_id as string;
-    if (!labCostByItem.has(key)) {
-      labCostByItem.set(key, Number(row.lab_cost));
-    }
+    labCostByItem.set(key, Math.max(
+      labCostByItem.get(key) ?? 0,
+      Number(row.treatment_lab_cost ?? 0),
+      Number(row.lab_cost ?? 0),
+    ));
+    labAppliedByItem.set(key, (labAppliedByItem.get(key) ?? 0) + Number(row.commission_lab_applied ?? 0));
   }
 
   return (plans ?? [])
@@ -69,6 +73,7 @@ export async function fetchPatientPlanItems(
         price: Number(it.price),
         paidAmount: paidByItem.get(it.id as string) ?? 0,
         labCost: labCostByItem.get(it.id as string) ?? 0,
+        labAppliedAmount: labAppliedByItem.get(it.id as string) ?? 0,
         doctorId: (it.doctor_id as string | null) ?? null,
         doctorName: ((it.doctor as { full_name?: string } | null)?.full_name) ?? null,
         defaultCommissionPct: Number(proc?.default_commission_pct ?? 0),

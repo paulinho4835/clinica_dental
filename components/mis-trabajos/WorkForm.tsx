@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import { createDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
-import { computeCommission, netRate as netRateFn } from "@/lib/commission";
+import { computeCommission } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -96,14 +96,15 @@ export function WorkForm({
   const planItemLabCostN = selectedPlanItem?.labCost ?? 0;
   // Si el plan item ya tiene lab registrado en DB, usar ese; si no, usar el campo manual.
   const treatmentLabCostN = planItemLabCostN > 0 ? planItemLabCostN : labCostN;
+  const pendingLabCostN = Math.max(treatmentLabCostN - (selectedPlanItem?.labAppliedAmount ?? 0), 0);
+  const commissionLabAppliedN = Math.min(pendingLabCostN, amountPaidN);
 
   // Comisión proporcional: cada cuota aporta su fracción de la ganancia neta.
   // Usa la misma fórmula que la columna generada en la DB (lib/commission).
-  const netRate = netRateFn(costN, treatmentLabCostN);
   const commission = computeCommission({
     amountPaid: amountPaidN,
     cost: costN,
-    labCost: treatmentLabCostN,
+    labCost: commissionLabAppliedN,
     pct: pctN,
   });
 
@@ -498,7 +499,7 @@ export function WorkForm({
 
             {selectedPlanItemId && planItemLabCostN > 0 ? (
               <div className="block text-sm">
-                <FieldLabel className={boldLabel}>Costo laboratorio (Bs)</FieldLabel>
+                <FieldLabel className={boldLabel}>Costo laboratorio total (Bs)</FieldLabel>
                 <div className={`${fieldInputClass} bg-slate-50 text-slate-500 flex items-center gap-2`}>
                   <span className="tabular-nums font-medium text-slate-700">{money(planItemLabCostN, currency)}</span>
                   <span className="text-xs text-slate-400">(ya registrado)</span>
@@ -508,7 +509,7 @@ export function WorkForm({
               </div>
             ) : (
               <label className="block text-sm">
-                <FieldLabel className={boldLabel}>Costo laboratorio (Bs)</FieldLabel>
+                <FieldLabel className={boldLabel}>Costo laboratorio total (Bs)</FieldLabel>
                 <input
                   name="lab_cost"
                   type="number"
@@ -631,8 +632,8 @@ export function WorkForm({
               <div className="flex items-center justify-between rounded-md bg-clinic/5 px-3 py-2.5 text-sm ring-1 ring-clinic/20">
                 <span className="text-slate-500">
                   {pctN > 0 && costN > 0 ? (
-                    treatmentLabCostN > 0
-                      ? <span>{pctN}% × {Math.round(netRate * 100)}% neto</span>
+                    commissionLabAppliedN > 0
+                      ? <span>{pctN}% de {money(Math.max(amountPaidN - commissionLabAppliedN, 0), currency)} neto</span>
                       : <span>{pctN}% de {money(amountPaidN, currency)}</span>
                   ) : "Comisión"}
                 </span>

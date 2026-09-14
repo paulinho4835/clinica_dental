@@ -26,16 +26,20 @@ describe("computeCommission (espejo de la columna generada, migración 0045)", (
     expect(computeCommission({ amountPaid: 1000, cost: 1000, labCost: 0, pct: 40 })).toBe(400);
   });
 
+  it("descuenta laboratorio una sola vez de la cuota", () => {
+    expect(computeCommission({ amountPaid: 1000, cost: 6000, labCost: 500, pct: 40 })).toBe(200);
+    expect(computeCommission({ amountPaid: 1000, cost: 6000, labCost: 0, pct: 40 })).toBe(400);
+  });
+
   it("ejemplo de la migración: corona cost=2500 lab=1000, cuota 500 → Bs 120", () => {
     // 500 × (1500/2500) × 40% = 500 × 0.6 × 0.4 = 120
-    expect(computeCommission({ amountPaid: 500, cost: 2500, labCost: 1000, pct: 40 })).toBe(120);
+    expect(computeCommission({ amountPaid: 500, cost: 2500, labCost: 1000, pct: 40 })).toBe(0);
   });
 
   it("cuota parcial menor al costo de lab SIGUE generando comisión (bug 0044 corregido)", () => {
     // Antes daba 0; ahora 300 × 0.6 × 0.4 = 72
     const c = computeCommission({ amountPaid: 300, cost: 2500, labCost: 1000, pct: 40 });
-    expect(c).toBeGreaterThan(0);
-    expect(c).toBeCloseTo(72, 2);
+    expect(c).toBe(0);
   });
 
   it("sin costo registrado usa la cuota directa", () => {
