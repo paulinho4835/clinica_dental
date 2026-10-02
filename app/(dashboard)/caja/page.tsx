@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { canSeeNav } from "@/lib/rbac";
 import { requireNavAccess } from "@/lib/guard";
 import { getProfile } from "@/lib/auth";
 import { getClinicFeatures, getClinicCurrency } from "@/lib/superadmin";
@@ -11,12 +13,11 @@ import {
   type MonthlyPoint,
 } from "@/components/dashboard/RevenueChart";
 import { TopTreatmentsChart, type Treatment } from "@/components/dashboard/TopTreatmentsChart";
-import { TopDoctorsChart, type DoctorStat } from "@/components/dashboard/TopDoctorsChart";
-import { PatientsChart, type DailyPoint as PatDaily, type MonthlyPoint as PatMonthly } from "@/components/dashboard/PatientsChart";
-import { ReferralSourceChart, type ReferralSourcePoint } from "@/components/dashboard/ReferralSourceChart";
-import { REFERRAL_SOURCE_LABEL } from "@/lib/schemas/patient-intake";
+import { TopDoctorsChart } from "@/components/dashboard/TopDoctorsChart";
+import { PatientsChart } from "@/components/dashboard/PatientsChart";
+import { ReferralSourceChart } from "@/components/dashboard/ReferralSourceChart";
+import { mapPatientActivity, MONTHS } from "@/lib/dashboard/patientActivity";
 
-const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -29,7 +30,8 @@ export default async function FinanceDashboardPage() {
     getClinicCurrency(),
   ]);
 
-  const [by, bm, bd] = boliviaTodayISO().split("-").map(Number);
+  const todayISO = boliviaTodayISO();
+  const [by, bm, bd] = todayISO.split("-").map(Number);
   const now = new Date(by, bm - 1, bd);
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -46,10 +48,9 @@ export default async function FinanceDashboardPage() {
   const sunLast = new Date(monThis);
   sunLast.setDate(monThis.getDate() - 1);
 
-  const queryStart = monThis < firstThisMonth ? monThis : firstThisMonth;
-  const dataStart = new Date(Math.min(yearStart.getTime(), firstPrevMonth.getTime(), queryStart.getTime()));
-
-  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: apptsRaw }, { data: worksRaw }, { data: debtRaw }, { count: newPatCount }, { data: referralRaw }] = await Promise.all([
+  // Actividad de pacientes, doctores, ausentismo y origen: agregados en SQL
+  // (0125). Traer las filas crudas del año cortaba en 1000 filas sin aviso.
+  const [{ data: dailyRaw }, { data: monthlyRaw }, { data: topRaw }, { data: activityRaw }, { data: debtRaw }] = await Promise.all([
     supabase.rpc("dash_revenue_by_day", {
       p_from: firstPrevMonth.toISOString(),
       p_to: tomorrow.toISOString(),
@@ -60,23 +61,8 @@ export default async function FinanceDashboardPage() {
       p_to: tomorrow.toISOString(),
       p_limit: 8,
     }),
-    supabase
-      .from("appointments")
-      .select("dentist_name, patient_id, starts_at, status")
-      .gte("starts_at", dataStart.toISOString())
-      .lt("starts_at", tomorrow.toISOString()),
-    supabase
-      .from("doctor_works")
-      .select("patient_id, commission_amount, performed_at, doctor:profiles!doctor_works_doctor_id_fkey(full_name)")
-      .gte("performed_at", dataStart.toISOString().split("T")[0]),
+    supabase.rpc("dash_patient_activity", { p_today: todayISO }),
     supabase.rpc("dash_debt_summary"),
-    supabase
-      .from("patients")
-      .select("id", { count: "exact" })
-      .gte("created_at", firstThisMonth.toISOString()),
-    supabase
-      .from("patients")
-      .select("referral_source, referral_source_other"),
   ]);
 
   const dayMap = new Map<string, number>();
@@ -127,89 +113,20 @@ export default async function FinanceDashboardPage() {
     revenue: Number(r.revenue),
   }));
 
-  const doctorStats = new Map<string, { patients: Set<string>; commission: number }>();
-  const patientsToday = new Set<string>();
-  const patientsThisWeek = new Set<string>();
-  const patientsThisMonth = new Set<string>();
-  const dailyPatMap = new Map<string, Set<string>>();
-  const monthlyPatMap = new Map<number, Set<string>>();
-
-  const trackPatient = (dateIso: string, pid: string | null) => {
-    const id = pid ?? Math.random().toString();
-    const d = new Date(dateIso);
-    const dayK = keyOf(d);
-    const moK = d.getMonth() + 1;
-
-    if (!dailyPatMap.has(dayK)) dailyPatMap.set(dayK, new Set());
-    dailyPatMap.get(dayK)!.add(id);
-
-    if (d.getFullYear() === year) {
-      if (!monthlyPatMap.has(moK)) monthlyPatMap.set(moK, new Set());
-      monthlyPatMap.get(moK)!.add(id);
-    }
-
-    if (d >= now && d < tomorrow) patientsToday.add(id);
-    if (d >= monThis && d < tomorrow) patientsThisWeek.add(id);
-    if (d >= firstThisMonth && d < tomorrow) patientsThisMonth.add(id);
-    return id;
-  };
-
-  let monthApptsTotal = 0;
-  let monthApptsNoShow = 0;
-
-  for (const a of apptsRaw ?? []) {
-    const isThisMonth = new Date(a.starts_at) >= firstThisMonth;
-    if (isThisMonth) {
-      monthApptsTotal++;
-      if (a.status === "no_show") monthApptsNoShow++;
-    }
-
-    if (a.status === "finished") {
-      const id = trackPatient(a.starts_at, a.patient_id);
-      if (!a.dentist_name) continue;
-      let s = doctorStats.get(a.dentist_name);
-      if (!s) { s = { patients: new Set(), commission: 0 }; doctorStats.set(a.dentist_name, s); }
-      if (isThisMonth) s.patients.add(id);
-    }
-  }
-
-  let totalMonthCommissions = 0;
-  for (const w of worksRaw ?? []) {
-    const id = trackPatient(w.performed_at + "T12:00:00Z", w.patient_id);
-    const name = (w.doctor as { full_name?: string } | null)?.full_name;
-    if (!name) continue;
-    const comm = Number(w.commission_amount);
-
-    if (new Date(w.performed_at + "T12:00:00Z") >= firstThisMonth) {
-      totalMonthCommissions += comm;
-      let s = doctorStats.get(name);
-      if (!s) { s = { patients: new Set(), commission: 0 }; doctorStats.set(name, s); }
-      s.commission += comm;
-      s.patients.add(id);
-    }
-  }
-
-  const topDoctors: DoctorStat[] = Array.from(doctorStats.entries())
-    .map(([name, stat]) => ({ name, patientsCount: stat.patients.size, commission: stat.commission }))
-    .sort((a, b) => b.patientsCount - a.patientsCount);
-
-  const patDaily: PatDaily[] = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const k = keyOf(d);
-    patDaily.push({ label: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`, count: dailyPatMap.get(k)?.size ?? 0 });
-  }
-
-  const patMonthly: PatMonthly[] = MONTHS.map((name, idx) => {
-    return { name, count: monthlyPatMap.get(idx + 1)?.size ?? 0 };
-  });
-
-  const patPeak = patMonthly.reduce<PatMonthly | null>(
-    (best, m) => (m.count > (best?.count ?? 0) ? m : best),
-    null,
-  );
-  const patPeakMonth = patPeak && patPeak.count > 0 ? patPeak.name : null;
+  const {
+    patDaily,
+    patMonthly,
+    patPeakMonth,
+    patientsToday,
+    patientsThisWeek,
+    patientsThisMonth,
+    topDoctors,
+    totalMonthCommissions,
+    monthApptsTotal,
+    monthApptsNoShow,
+    newPatients,
+    referralData,
+  } = mapPatientActivity(activityRaw, todayISO);
 
   const debtSummary = (debtRaw?.[0] ?? null) as
     | { total_debt: number; debt_patients: number }
@@ -217,16 +134,6 @@ export default async function FinanceDashboardPage() {
   const totalDebt = Number(debtSummary?.total_debt ?? 0);
   const debtPatients = Number(debtSummary?.debt_patients ?? 0);
   const noShowRate = monthApptsTotal > 0 ? (monthApptsNoShow / monthApptsTotal) * 100 : 0;
-
-  const referralCounts = new Map<string, number>();
-  for (const p of (referralRaw ?? []) as { referral_source: string | null }[]) {
-    const source = (p.referral_source ?? "").trim();
-    const label = source === "" ? "Sin especificar" : REFERRAL_SOURCE_LABEL[source] ?? "Sin especificar";
-    referralCounts.set(label, (referralCounts.get(label) ?? 0) + 1);
-  }
-  const referralData: ReferralSourcePoint[] = Array.from(referralCounts.entries())
-    .map(([label, cnt]) => ({ label, cnt }))
-    .sort((a, b) => b.cnt - a.cnt);
 
   // Desempeño del Asistente Virtual (agente de IA por WhatsApp). Se mide por la
   // columna appointments.source = 'agente' (citas que agendó) y
@@ -246,13 +153,28 @@ export default async function FinanceDashboardPage() {
 
   if (features.agente_ia && profile?.clinicId) {
     const clinicId = profile.clinicId;
-    const todayISO = boliviaTodayISO();
     const bDayStart = new Date(`${todayISO}T00:00:00-04:00`).toISOString();
     const bMonthStart = new Date(
       `${todayISO.slice(0, 7)}-01T00:00:00-04:00`,
     ).toISOString();
 
-    const [bookedTodayRes, bookedMonthRes, bookedTotalRes, intakeRes] =
+    // Conteos con head:true (sin traer filas): contar filas en JS cortaba en
+    // 1000 sin aviso, igual que los KPIs de arriba.
+    const agentIntakes = () =>
+      supabase
+        .from("anamnesis_invitations")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", clinicId)
+        .eq("source", "agente");
+
+    const [
+      bookedTodayRes,
+      bookedMonthRes,
+      bookedTotalRes,
+      intakesTotalRes,
+      intakesApprovedRes,
+      intakesPendingRes,
+    ] =
       await Promise.all([
         supabase
           .from("appointments")
@@ -271,33 +193,25 @@ export default async function FinanceDashboardPage() {
           .select("id", { count: "exact", head: true })
           .eq("clinic_id", clinicId)
           .eq("source", "agente"),
-        supabase
-          .from("anamnesis_invitations")
-          .select("reviewed_at, review_action")
-          .eq("clinic_id", clinicId)
-          .eq("source", "agente"),
+        agentIntakes(),
+        agentIntakes().eq("review_action", "applied"),
+        agentIntakes().is("reviewed_at", null),
       ]);
-
-    const intakes = (intakeRes.data ?? []) as {
-      reviewed_at: string | null;
-      review_action: string | null;
-    }[];
 
     agentStats = {
       bookedToday: bookedTodayRes.count ?? 0,
       bookedMonth: bookedMonthRes.count ?? 0,
       bookedTotal: bookedTotalRes.count ?? 0,
-      intakesTotal: intakes.length,
-      intakesApproved: intakes.filter((i) => i.review_action === "applied")
-        .length,
-      intakesPending: intakes.filter((i) => !i.reviewed_at).length,
+      intakesTotal: intakesTotalRes.count ?? 0,
+      intakesApproved: intakesApprovedRes.count ?? 0,
+      intakesPending: intakesPendingRes.count ?? 0,
     };
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard"
+        title="Reportes"
         subtitle="Demanda de servicios e ingresos en el tiempo."
       />
 
@@ -311,6 +225,11 @@ export default async function FinanceDashboardPage() {
           subtitle={`${debtPatients} pacientes con deuda pendiente`}
           alert={totalDebt > 0}
           icon="💸"
+          href={
+            features.cuentas && canSeeNav(profile?.role, "cuentas") && debtPatients > 0
+              ? "/cuentas?f=saldo"
+              : undefined
+          }
         />
         <InsightCard
           title="Tasa de Ausentismo (Mes)"
@@ -321,7 +240,7 @@ export default async function FinanceDashboardPage() {
         />
         <InsightCard
           title="Crecimiento de Cartera"
-          value={`+${newPatCount ?? 0}`}
+          value={`+${newPatients}`}
           subtitle="Pacientes nuevos registrados este mes"
           alert={false}
           icon="🚀"
@@ -347,9 +266,9 @@ export default async function FinanceDashboardPage() {
       <h2 className="mt-10 mb-4 text-lg font-semibold">Volumen y Operativa Médica</h2>
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <KpiCard label="Pacientes hoy" value={patientsToday.size} isCurrency={false} currency={currency} />
-          <KpiCard label="Pacientes esta semana" value={patientsThisWeek.size} isCurrency={false} currency={currency} />
-          <KpiCard label="Pacientes este mes" value={patientsThisMonth.size} isCurrency={false} currency={currency} />
+          <KpiCard label="Pacientes hoy" value={patientsToday} isCurrency={false} currency={currency} />
+          <KpiCard label="Pacientes esta semana" value={patientsThisWeek} isCurrency={false} currency={currency} />
+          <KpiCard label="Pacientes este mes" value={patientsThisMonth} isCurrency={false} currency={currency} />
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <PatientsChart daily={patDaily} monthly={patMonthly} peakMonth={patPeakMonth} />
@@ -409,15 +328,18 @@ function InsightCard({
   subtitle,
   alert,
   icon,
+  href,
 }: {
   title: string;
   value: string;
   subtitle: string;
   alert: boolean;
   icon: string;
+  /** Si se indica, la tarjeta lleva al detalle (p. ej. la lista de deudores). */
+  href?: string;
 }) {
-  return (
-    <div className={`rounded-lg p-5 shadow-sm ring-1 flex items-start gap-4 transition-all ${alert ? "bg-red-50/50 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/30" : "bg-white ring-slate-200"}`}>
+  const card = (
+    <div className={`rounded-lg p-5 shadow-sm ring-1 flex items-start gap-4 transition-all ${alert ? "bg-red-50/50 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/30" : "bg-white ring-slate-200"} ${href ? "hover:shadow-md" : ""}`}>
       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${alert ? "bg-red-100 dark:bg-red-500/20" : "bg-slate-100"}`}>
         {icon}
       </div>
@@ -425,7 +347,13 @@ function InsightCard({
         <p className={`text-sm font-medium ${alert ? "text-red-800 dark:text-red-300" : "text-slate-600"}`}>{title}</p>
         <p className={`mt-0.5 text-2xl font-bold tracking-tight ${alert ? "text-red-900 dark:text-red-200" : "text-slate-800"}`}>{value}</p>
         <p className={`mt-1 text-xs ${alert ? "text-red-600 dark:text-red-400" : "text-slate-500"}`}>{subtitle}</p>
+        {href && (
+          <p className={`mt-2 text-xs font-medium ${alert ? "text-red-700 dark:text-red-300" : "text-clinic"}`}>
+            Ver quiénes deben →
+          </p>
+        )}
       </div>
     </div>
   );
+  return href ? <Link href={href} className="block">{card}</Link> : card;
 }

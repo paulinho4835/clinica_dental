@@ -20,7 +20,7 @@ describe("AgendaShell con navegación cliente", () => {
     const onNavigate = vi.fn();
     render(
       <AgendaShell
-        patients={[]}
+        searchPatients={async () => []}
         appts={[]}
         date="2026-06-10"
         view="month"
@@ -44,7 +44,7 @@ describe("AgendaShell con navegación cliente", () => {
     const onNavigate = vi.fn();
     render(
       <AgendaShell
-        patients={[]}
+        searchPatients={async () => []}
         appts={[]}
         date="2026-06-10"
         view="month"

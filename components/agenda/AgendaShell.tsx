@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus, CalendarClock } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Send, MessageCircle, Printer, Stethoscope, Plus, CalendarClock, CalendarPlus } from "lucide-react";
 import { STEP_MIN, OPEN_HOUR, CLOSE_HOUR, boliviaMinutesOfDay } from "@/lib/agenda";
 import { boliviaTodayISO, boliviaDateISO } from "@/lib/format";
-import { type PatientOption } from "./PatientPicker";
+import { type PatientOption, type PatientSearch } from "./PatientPicker";
+import { matchesPatientSearch } from "@/lib/patientSearchTerms";
 import { SearchBar } from "./SearchBar";
 import { MonthView } from "./MonthView";
 import { DayView } from "./DayView";
@@ -62,7 +64,8 @@ const ALL_DOCTORS = "__all__";
 const AI_DENTIST = "Asistente Virtual";
 
 export function AgendaShell({
-  patients,
+  searchPatients,
+  presetPatient = null,
   appts,
   date,
   view,
@@ -78,7 +81,10 @@ export function AgendaShell({
   currency,
   onNavigate,
 }: {
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
+  /** Paciente con el que se llegó desde su ficha ("Agendar cita"): queda
+      preelegido en cada cita nueva hasta que se quite. */
+  presetPatient?: PatientOption | null;
   appts: MonthAppt[];
   date: string;
   view: AgendaView;
@@ -103,6 +109,7 @@ export function AgendaShell({
   );
   const previousDateRef = useRef(date);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [preset, setPreset] = useState<PatientOption | null>(presetPatient);
   const [linkAppt, setLinkAppt] = useState<MonthAppt | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
@@ -235,13 +242,12 @@ export function AgendaShell({
   }
 
   function runSearch(raw: string) {
-    const q = raw.trim().toLowerCase();
     setSearchMsg(null);
     setHighlightId(null);
-    if (!q) return;
+    if (!raw.trim()) return;
+    // Sin acentos y por palabras, igual que el resto de buscadores.
     const matches = (a: MonthAppt) =>
-      apptName(a).toLowerCase().includes(q) ||
-      (apptCI(a) ?? "").toLowerCase().includes(q);
+      matchesPatientSearch(`${apptName(a)} ${apptCI(a) ?? ""}`, raw);
     const hit = appts.find(matches);
     if (!hit) {
       setSearchMsg(`Sin citas para "${raw.trim()}" en este mes.`);
@@ -382,6 +388,27 @@ export function AgendaShell({
   return (
     <DoctorColorContext.Provider value={doctorColor}>
     <div className="space-y-4">
+      {preset && canWrite && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-clinic/30 bg-clinic/5 px-4 py-2.5 text-sm">
+          <CalendarPlus className="h-4 w-4 shrink-0 text-clinic" />
+          <span className="text-slate-700">
+            Agendando cita para <strong>{preset.full_name}</strong>. Elige un horario en la agenda.
+          </span>
+          <div className="ml-auto flex items-center gap-4">
+            <Link href={`/pacientes/${preset.id}`} className="font-medium text-clinic hover:underline">
+              ← Volver a la ficha
+            </Link>
+            <button
+              type="button"
+              onClick={() => setPreset(null)}
+              className="text-slate-500 hover:text-slate-700"
+            >
+              Quitar
+            </button>
+          </div>
+        </div>
+      )}
+
       <SearchBar onSearch={runSearch} message={searchMsg} />
 
       {/* Barra de controles: Toggle de vista | Dropdown doctor | Navegación */}
@@ -559,7 +586,8 @@ export function AgendaShell({
                 appts={visibleByDay.get(selectedDay) ?? []}
                 canWrite={canWrite}
                 highlightId={highlightId}
-                patients={patients}
+                searchPatients={searchPatients}
+                presetPatient={preset}
                 doctors={doctors}
                 forcedColumns={forcedCols}
                 availability={availability}
@@ -577,7 +605,8 @@ export function AgendaShell({
           appts={visibleByDay.get(date) ?? []}
           canWrite={canWrite}
           highlightId={highlightId}
-          patients={patients}
+          searchPatients={searchPatients}
+          presetPatient={preset}
           doctors={doctors}
           forcedColumns={forcedCols}
           availability={availability}
@@ -592,7 +621,8 @@ export function AgendaShell({
           date={date}
           byDay={visibleByDay}
           canWrite={canWrite}
-          patients={patients}
+          searchPatients={searchPatients}
+          presetPatient={preset}
           doctors={doctors}
           availability={availability}
           selectedDoctor={activeDoctor === ALL_DOCTORS ? null : activeDoctor}
@@ -615,7 +645,8 @@ export function AgendaShell({
       {/* Modales compartidos por todas las vistas */}
       {modal && (
         <ApptModal
-          patients={patients}
+          searchPatients={searchPatients}
+          initialPatient={modal.appt ? null : preset}
           doctors={doctors}
           start={modal.start}
           end={modal.end}
@@ -629,7 +660,7 @@ export function AgendaShell({
       )}
       {linkAppt && (
         <LinkPatientModal
-          patients={patients}
+          searchPatients={searchPatients}
           appt={linkAppt}
           onClose={() => setLinkAppt(null)}
         />

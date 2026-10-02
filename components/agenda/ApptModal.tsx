@@ -7,7 +7,8 @@ import {
   cancelAppointment,
   type ActionState,
 } from "@/app/(dashboard)/agenda/actions";
-import { PatientPicker, type PatientOption } from "./PatientPicker";
+import { PatientPicker, type PatientOption, type PatientSearch } from "./PatientPicker";
+import { patientOptionFromAppt } from "@/lib/agenda/patientSearch";
 import { money } from "@/lib/format";
 import { Modal } from "@/components/ui/Modal";
 import { confirm } from "@/lib/confirm";
@@ -29,7 +30,8 @@ const initial: ActionState = {};
 
 // ─── Modal de creación / edición de cita ─────────────────────────────────────
 export function ApptModal({
-  patients,
+  searchPatients,
+  initialPatient = null,
   doctors,
   start,
   end,
@@ -40,7 +42,9 @@ export function ApptModal({
   availability,
   currency,
 }: {
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
+  /** Paciente ya elegido para una cita nueva (p. ej. al llegar desde su ficha). */
+  initialPatient?: PatientOption | null;
   doctors: DoctorOption[];
   start: Date;
   end: Date;
@@ -62,14 +66,15 @@ export function ApptModal({
     initial,
   );
 
-  // Precarga: paciente registrado ligado a la cita (si lo hay).
-  const preselected = useMemo(
-    () => (appt?.patient_id ? patients.find((p) => p.id === appt.patient_id) ?? null : null),
-    [appt, patients],
-  );
+  // Precarga: paciente registrado ligado a la cita (si lo hay), con los datos
+  // que trae la propia cita — antes se buscaba en la lista precargada y no
+  // aparecía si el paciente quedaba fuera de las primeras 1000 filas.
+  const preselected = useMemo(() => patientOptionFromAppt(appt), [appt]);
 
+  // Si viene del popover rápido, manda lo que ahí se eligió (aunque se haya
+  // quitado el paciente); si no, el preelegido desde la ficha.
   const [selected, setSelected] = useState<PatientOption | null>(
-    preselected ?? prefill?.patient ?? null,
+    preselected ?? (prefill ? prefill.patient : initialPatient),
   );
   const [mode, setMode] = useState<"registered" | "new">(() => {
     if (appt) return isQuickConsult(appt) ? "new" : "registered";
@@ -220,7 +225,7 @@ export function ApptModal({
 
         {mode === "registered" ? (
           <PatientPicker
-            patients={patients}
+            searchPatients={searchPatients}
             selected={selected}
             onSelect={setSelected}
             autoFocus={!isEditing}

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAuthUser, getSessionRow } from "@/lib/auth";
-import { FEATURES, normalizeFeatures } from "@/lib/features";
+import { normalizeFeatures } from "@/lib/features";
+import { navItemsFor } from "@/lib/nav";
 import { isPlatformAdmin } from "@/lib/superadmin";
-import { canSeeNav, ROLE_LABEL } from "@/lib/rbac";
+import { ROLE_LABEL } from "@/lib/rbac";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmHost } from "@/components/ui/ConfirmHost";
@@ -93,15 +94,9 @@ export default async function DashboardLayout({
   const features = normalizeFeatures(clinic?.features);
   const role = profile?.role;
 
-  const nav =
-    superadmin && !isPreview
-      ? []
-      : // "Inicio" es ahora un addon (opt-in): aparece arriba del menú solo si la
-        // clínica lo tiene activo, igual que los demás módulos (va primero en FEATURES).
-        FEATURES.filter((f) => features[f.key] && canSeeNav(role, f.key)).map((f) => ({
-          href: f.href,
-          label: f.label,
-        }));
+  // "Inicio" es un addon (opt-in): aparece arriba del menú solo si la clínica
+  // lo tiene activo, igual que los demás módulos.
+  const nav = superadmin && !isPreview ? [] : navItemsFor(features, role);
 
   const initials =
     !superadmin && profile?.fullName

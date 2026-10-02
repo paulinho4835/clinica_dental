@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { money, getInitials, normalizeSearch, boliviaTodayISO } from "@/lib/format";
+import { money, getInitials, normalizeSearch, boliviaTodayISO, fmtIsoDate } from "@/lib/format";
 
 describe("money (formato de moneda configurable)", () => {
   it("formatea con dos decimales usando el símbolo dado", () => {
@@ -90,5 +90,21 @@ describe("boliviaTodayISO", () => {
       day: "2-digit",
     }).format(new Date());
     expect(boliviaTodayISO()).toBe(expected);
+  });
+});
+
+describe("fmtIsoDate (fecha de calendario sin hora)", () => {
+  it("muestra AAAA-MM-DD como DD/MM/AAAA", () => {
+    expect(fmtIsoDate("1990-05-12")).toBe("12/05/1990");
+  });
+
+  it("acepta timestamps y usa solo la parte de la fecha", () => {
+    expect(fmtIsoDate("2026-10-01T00:00:00")).toBe("01/10/2026");
+  });
+
+  it("devuelve vacío sin fecha y deja intacto un formato desconocido", () => {
+    expect(fmtIsoDate(null)).toBe("");
+    expect(fmtIsoDate("")).toBe("");
+    expect(fmtIsoDate("12/05/1990")).toBe("12/05/1990");
   });
 });

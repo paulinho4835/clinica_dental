@@ -10,6 +10,7 @@ import { computeCommission } from "@/lib/commission";
 import { fieldInputClass, FieldLabel } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { matchesPatientSearch } from "@/lib/patientSearchTerms";
 import {
   loadPatientFinancialSummary,
   type DirectPlanItemRow as PlanItemRow,
@@ -109,16 +110,11 @@ export function WorkForm({
   });
 
   // Buscar pacientes por query.
+  // Sin acentos y por palabras, igual que el resto de buscadores.
   const filtered =
     query.length >= 1
       ? patients
-          .filter((p) => {
-            const q = query.toLowerCase();
-            return (
-              p.full_name.toLowerCase().includes(q) ||
-              (p.national_id ?? "").toLowerCase().includes(q)
-            );
-          })
+          .filter((p) => matchesPatientSearch(`${p.full_name} ${p.national_id ?? ""}`, query))
           .slice(0, 8)
       : [];
 

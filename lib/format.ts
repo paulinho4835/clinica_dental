@@ -29,6 +29,15 @@ export function calcAge(dob: string | null | undefined): number | null {
   return age;
 }
 
+// Fecha de calendario (columna date, "AAAA-MM-DD") como "DD/MM/AAAA". Pura
+// manipulación de texto: no pasa por Date, así no se corre un día por la zona
+// horaria. Si el valor no tiene forma ISO se devuelve tal cual.
+export function fmtIsoDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : value;
+}
+
 // Normaliza texto para búsqueda: minúsculas y sin acentos ("María" -> "maria").
 export function normalizeSearch(s: string): string {
   return s

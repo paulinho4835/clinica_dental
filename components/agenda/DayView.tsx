@@ -54,7 +54,7 @@ function nowFraction(day: string): number | null {
 
 import { ApptPopover, type PopoverAppt } from "./ApptPopover";
 import { QuickCreatePopover, type QuickDraft } from "./QuickCreatePopover";
-import { type PatientOption } from "./PatientPicker";
+import { type PatientOption, type PatientSearch } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 
 // Franja elegida que aún no es una cita: se dibuja como bloque tentativo y
@@ -73,7 +73,8 @@ export function DayView({
   appts,
   canWrite,
   highlightId,
-  patients,
+  searchPatients,
+  presetPatient = null,
   doctors,
   onPick,
   onEdit,
@@ -86,7 +87,9 @@ export function DayView({
   appts: MonthAppt[];
   canWrite: boolean;
   highlightId: string | null;
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
+  /** Paciente preelegido para las citas nuevas (viene de "Agendar cita"). */
+  presetPatient?: PatientOption | null;
   doctors: DoctorOption[];
   /** Escala al modal completo (botón "Más opciones" del popover rápido). */
   onPick: (start: Date, end: Date, dentist?: string, draft?: QuickDraft) => void;
@@ -559,7 +562,8 @@ export function DayView({
       {/* Creación rápida sobre la franja elegida */}
       {draft && canWrite && (
         <QuickCreatePopover
-          patients={patients}
+          searchPatients={searchPatients}
+          initialPatient={presetPatient}
           doctors={doctors}
           start={draft.start}
           end={draft.end}

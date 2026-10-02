@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Home,
@@ -28,8 +28,9 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { ButtonLink } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/cn";
+import { NAV_SECTION_MIN_ITEMS, type NavItem } from "@/lib/nav";
 
-export type NavItem = { href: string; label: string; badge?: number };
+export type { NavItem };
 
 const ICONS: Record<string, LucideIcon> = {
   "/inicio": Home,
@@ -75,19 +76,27 @@ export function Sidebar({
     setOpen(false);
   }, [pathname]);
 
-  // Bloquea scroll del body cuando el drawer está abierto en móvil.
+  // Bloquea scroll del body cuando el drawer está abierto en móvil, y lo
+  // cierra con Escape.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
+  const showSections = nav.length >= NAV_SECTION_MIN_ITEMS;
+
   const content = (
     <div className="flex h-full flex-col p-4">
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex shrink-0 items-center gap-3">
         {initials && (
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clinic text-sm font-bold text-white">
             {initials}
@@ -101,28 +110,36 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="space-y-1">
-        {nav.map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={navIcon(item.href)}
-            badge={item.badge}
-            onNavigate={() => setOpen(false)}
-          />
+      {/* El menú hace scroll propio: con muchos módulos, en pantallas bajas
+          (laptops de 768px) Ajustes y Cerrar sesión quedaban fuera de vista. */}
+      <nav className="-mx-1 min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
+        {nav.map((item, i) => (
+          <Fragment key={item.href}>
+            {showSections && item.section && item.section !== nav[i - 1]?.section && (
+              <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                {item.section}
+              </p>
+            )}
+            <NavLink
+              href={item.href}
+              label={item.label}
+              icon={navIcon(item.href)}
+              badge={item.badge}
+              onNavigate={() => setOpen(false)}
+            />
+          </Fragment>
         ))}
       </nav>
 
       {superadmin && (
-        <div className="mt-6 border-t border-slate-200 pt-4">
+        <div className="mt-6 shrink-0 border-t border-slate-200 pt-4">
           <ButtonLink href="/superadmin" variant="dark" className="w-full">
             <Shield className="h-4 w-4" /> Superadmin
           </ButtonLink>
         </div>
       )}
 
-      <div className="mt-auto space-y-1 border-t border-slate-200 pt-4">
+      <div className="mt-4 shrink-0 space-y-1 border-t border-slate-200 pt-4">
         <ThemeToggle />
         <SignOutButton />
       </div>

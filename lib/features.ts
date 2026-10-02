@@ -59,7 +59,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: "pagos", label: "Pagos a personal", href: "/pagos", optIn: true },
   { key: "tratamientos", label: "Tratamientos", href: "/tratamientos" },
   { key: "inventario", label: "Inventario", href: "/inventario" },
-  { key: "caja", label: "Dashboard", href: "/caja" },
+  { key: "caja", label: "Reportes", href: "/caja" },
   { key: "cuentas", label: "Cuentas de pacientes", href: "/cuentas" },
   { key: "auditoria", label: "Auditoría", href: "/auditoria" },
   { key: "bloqueo_horario", label: "Bloqueo por horario", href: "/ajustes", optIn: true },

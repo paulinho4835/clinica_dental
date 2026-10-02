@@ -15,14 +15,34 @@ import {
 import { fetchPatientPlanItems, type PlanItemRow } from "@/lib/treatments/planItems";
 import { calculateTreatmentTotal } from "@/lib/patientAccount";
 import { getClinicCurrency } from "@/lib/superadmin";
+import { applyPatientSearch } from "@/lib/patientSearchTerms";
+import { money, boliviaDateISO, fmtIsoDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+
+// Cuántos deudores se listan (los de mayor saldo). El total de arriba siempre
+// suma a todos.
+const DEBTORS_LIMIT = 100;
+
+type DebtorRow = {
+  patient_id: string;
+  full_name: string;
+  national_id: string | null;
+  phone: string | null;
+  balance: number;
+  last_payment_at: string | null;
+  provisional: boolean;
+};
 
 export default async function CuentasPacientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; p?: string }>;
+  searchParams: Promise<{ q?: string; p?: string; f?: string }>;
 }) {
   await requireNavAccess("cuentas");
-  const { q = "", p: selectedId } = await searchParams;
+  const { q = "", p: selectedId, f } = await searchParams;
+  // "Con saldo": cuentas por cobrar ordenadas por monto (patient_balances,
+  // 0127, misma fórmula que la ficha). Una búsqueda mira siempre a todos.
+  const showDebtors = f === "saldo" && !q.trim();
 
   const supabase = await createClient();
   const profile = await getProfile();
@@ -31,22 +51,38 @@ export default async function CuentasPacientesPage({
   // Editar/eliminar pagos: acciones sensibles reservadas a administradores.
   const canManagePayments = profile?.role === "admin";
 
-  // Lista de pacientes (búsqueda opcional). Aislamiento por clínica explícito
-  // (defensa en profundidad) además de la RLS.
-  let patientsQuery = supabase
-    .from("patients")
-    .select("id, full_name, phone, national_id")
-    .eq("clinic_id", profile!.clinicId)
-    .order("full_name")
-    .limit(60);
+  let patients: { id: string; full_name: string; phone: string | null; national_id: string | null }[] = [];
+  let debtors: DebtorRow[] = [];
+  let debtTotal = 0;
+  let debtCount = 0;
 
-  if (q.trim()) {
-    patientsQuery = patientsQuery.or(
-      `full_name.ilike.%${q.trim()}%,national_id.ilike.%${q.trim()}%,phone.ilike.%${q.trim()}%`,
-    );
+  if (showDebtors) {
+    const [{ data: rows }, { data: summary }] = await Promise.all([
+      supabase.rpc("patient_balances").limit(DEBTORS_LIMIT),
+      supabase.rpc("dash_debt_summary"),
+    ]);
+    debtors = ((rows ?? []) as DebtorRow[]).map((r) => ({ ...r, balance: Number(r.balance) }));
+    const s = (summary?.[0] ?? null) as { total_debt: number; debt_patients: number } | null;
+    debtTotal = Number(s?.total_debt ?? 0);
+    debtCount = Number(s?.debt_patients ?? 0);
+  } else {
+    // Lista de pacientes (búsqueda opcional). Aislamiento por clínica explícito
+    // (defensa en profundidad) además de la RLS.
+    let patientsQuery = supabase
+      .from("patients")
+      .select("id, full_name, phone, national_id")
+      .eq("clinic_id", profile!.clinicId)
+      .order("full_name")
+      .limit(60);
+
+    // Sin acentos, por palabras y por teléfono. Antes el texto iba crudo dentro
+    // de .or(): una coma ("Pérez, Juan") rompía la consulta y la lista salía vacía.
+    if (q.trim()) {
+      patientsQuery = applyPatientSearch(patientsQuery, q, { phone: true });
+    }
+
+    patients = (await patientsQuery).data ?? [];
   }
-
-  const { data: patients } = await patientsQuery;
 
   // Detalle financiero del paciente seleccionado.
   let selectedPatient: { id: string; full_name: string } | null = null;
@@ -152,7 +188,17 @@ export default async function CuentasPacientesPage({
     }
   }
 
-  const qParam = q.trim() ? `q=${encodeURIComponent(q.trim())}&` : "";
+  // Parámetros de la lista que se conservan al elegir un paciente.
+  const qParam = showDebtors
+    ? "f=saldo&"
+    : q.trim()
+      ? `q=${encodeURIComponent(q.trim())}&`
+      : "";
+  const toggleClass = (active: boolean) =>
+    cn(
+      "flex-1 rounded-md px-3 py-1.5 text-center transition",
+      active ? "bg-white font-semibold text-clinic shadow-sm" : "text-slate-500 hover:text-slate-700",
+    );
 
   return (
     <div className="space-y-6">
@@ -166,6 +212,15 @@ export default async function CuentasPacientesPage({
             selectedPatient ? "hidden md:block" : ""
           }`}
         >
+          <div className="flex rounded-lg bg-slate-100 p-0.5 text-sm">
+            <Link href="/cuentas" className={toggleClass(!showDebtors)}>
+              Todos
+            </Link>
+            <Link href="/cuentas?f=saldo" className={toggleClass(showDebtors)}>
+              Con saldo
+            </Link>
+          </div>
+
           <form method="get">
             <input
               name="q"
@@ -176,6 +231,59 @@ export default async function CuentasPacientesPage({
             />
           </form>
 
+          {showDebtors && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 ring-1 ring-red-200 dark:bg-red-500/10 dark:ring-red-500/30">
+              <div className="text-xs font-medium text-red-700 dark:text-red-300">Por cobrar</div>
+              <div className="text-xl font-bold tabular-nums text-red-800 dark:text-red-200">
+                {money(debtTotal, currency)}
+              </div>
+              <div className="text-xs text-red-700 dark:text-red-300">
+                {debtCount} paciente{debtCount !== 1 ? "s" : ""} con saldo pendiente
+                {debtCount > debtors.length && ` · se muestran los ${debtors.length} de mayor saldo`}
+              </div>
+            </div>
+          )}
+
+          {showDebtors ? (
+            <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+              {debtors.length === 0 ? (
+                <EmptyState
+                  icon={<Users className="h-6 w-6" />}
+                  title="Nadie tiene saldo pendiente"
+                  description="Todos los pacientes con plan de tratamiento están al día."
+                />
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {debtors.map((d) => (
+                    <Link
+                      key={d.patient_id}
+                      href={`/cuentas?${qParam}p=${d.patient_id}`}
+                      className={`flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-slate-50 ${
+                        selectedId === d.patient_id ? "border-l-2 border-clinic bg-clinic/5" : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-slate-800">{d.full_name}</div>
+                        <div className="mt-0.5 text-xs text-slate-400">
+                          {d.last_payment_at
+                            ? `Último pago: ${fmtIsoDate(boliviaDateISO(new Date(d.last_payment_at)))}`
+                            : "Sin pagos"}
+                          {d.provisional && (
+                            <span title="Tiene trabajos históricos sin ítem del plan; el saldo puede cambiar al regularizarlos.">
+                              {" · provisional"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-sm font-semibold tabular-nums text-red-600 dark:text-red-400">
+                        {money(d.balance, currency)}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
             {(patients ?? []).length === 0 ? (
               <EmptyState
@@ -214,6 +322,7 @@ export default async function CuentasPacientesPage({
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Panel derecho: detalle de cuenta. En móvil solo se muestra cuando

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { AgendaShell, type AgendaView } from "./AgendaShell";
 import { RealtimeAppointments, type AppointmentRealtimePayload } from "./RealtimeAppointments";
 import type { DoctorOption, MonthAppt } from "./apptHelpers";
-import type { PatientOption } from "./PatientPicker";
+import { createPatientSearch, type PatientOption } from "@/lib/agenda/patientSearch";
 import { mapAvailabilityRow, type AvailabilityBlock } from "@/lib/availability";
 import {
   applyAppointmentChange,
@@ -24,10 +24,9 @@ const isDate = (value: string | null): value is string =>
 
 function appointmentFromRealtime(
   raw: Record<string, unknown>,
-  patients: PatientOption[],
+  patient: PatientOption | null,
 ): MonthAppt {
   const patientId = (raw.patient_id as string | null) ?? null;
-  const patient = patientId ? patients.find((item) => item.id === patientId) : null;
   return {
     id: raw.id as string,
     starts_at: raw.starts_at as string,
@@ -54,6 +53,7 @@ export function AgendaClient({
   role,
   myName,
   canWrite,
+  presetPatientId = null,
   canViewAll,
   platformAdminIds,
   recordatoriosEnabled,
@@ -69,6 +69,8 @@ export function AgendaClient({
   role: string;
   myName: string;
   canWrite: boolean;
+  /** Paciente con el que se llegó desde su ficha ("Agendar cita"). */
+  presetPatientId?: string | null;
   canViewAll: boolean;
   platformAdminIds: string[];
   recordatoriosEnabled: boolean;
@@ -78,10 +80,25 @@ export function AgendaClient({
   currency: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const isDoctor = role === "odontologo_general" || role === "especialista";
+  // Los pacientes se buscan en el servidor al escribir (no se precargan: con
+  // más de 1000 la lista llegaba cortada). Memoizado: el buscador relanza la
+  // consulta si cambia la identidad de esta función.
+  const searchPatients = useMemo(
+    () =>
+      createPatientSearch(
+        supabase,
+        isDoctor ? { doctor: { dentistName: myName, doctorId: userId } } : {},
+      ),
+    [isDoctor, myName, supabase, userId],
+  );
+  // Pacientes conocidos por las citas ya cargadas (join patients): sirven para
+  // nombrar al paciente de una cita que llega por Realtime sin otra consulta.
+  const knownPatients = useRef(new Map<string, PatientOption>());
   const [date, setDate] = useState(initialDate);
   const [view, setView] = useState(initialView);
-  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+  const [presetPatient, setPresetPatient] = useState<PatientOption | null>(null);
   const [appts, setAppts] = useState<MonthAppt[]>([]);
   const [availability, setAvailability] = useState<AvailabilityBlock[]>([]);
   const [referencesLoading, setReferencesLoading] = useState(true);
@@ -95,18 +112,6 @@ export function AgendaClient({
   useEffect(() => {
     let active = true;
     async function loadReferences() {
-      const isDoctor = role === "odontologo_general" || role === "especialista";
-      const patientRequest = isDoctor
-        ? supabase.rpc("visible_patients_for_doctor", {
-            p_clinic_id: clinicId,
-            p_dentist_name: myName,
-            p_doctor_id: userId,
-          })
-        : supabase
-            .from("patients")
-            .select("id, full_name, national_id")
-            .eq("clinic_id", clinicId)
-            .order("full_name");
       const doctorRequest = canViewAll
         ? supabase
             .from("profiles")
@@ -125,12 +130,22 @@ export function AgendaClient({
               error: result.error,
             }));
 
-      const [patientResult, doctorResult] = await Promise.all([patientRequest, doctorRequest]);
+      // Se resuelve junto a la carga inicial: la agenda se monta ya con el
+      // paciente preelegido. Si no existe o no es visible, se ignora.
+      const presetRequest = presetPatientId
+        ? supabase
+            .from("patients")
+            .select("id, full_name, national_id")
+            .eq("id", presetPatientId)
+            .maybeSingle()
+        : Promise.resolve({ data: null });
+
+      const [doctorResult, presetResult] = await Promise.all([doctorRequest, presetRequest]);
       if (!active) return;
-      if (patientResult.error || doctorResult.error) {
-        setError(patientResult.error?.message ?? doctorResult.error?.message ?? "No se pudo cargar la agenda.");
+      setPresetPatient((presetResult.data as PatientOption | null) ?? null);
+      if (doctorResult.error) {
+        setError(doctorResult.error.message ?? "No se pudo cargar la agenda.");
       } else {
-        setPatients((patientResult.data ?? []) as PatientOption[]);
         setDoctors(
           ((doctorResult.data ?? []) as DoctorOption[]).filter(
             (doctor) => !platformAdminIds.includes(doctor.id),
@@ -144,7 +159,7 @@ export function AgendaClient({
     return () => {
       active = false;
     };
-  }, [canViewAll, clinicId, myName, platformAdminIds, role, supabase, userId]);
+  }, [canViewAll, clinicId, myName, platformAdminIds, presetPatientId, supabase, userId]);
 
   const loadRange = useCallback(
     async (requestedRange: AgendaRange, force = false) => {
@@ -198,6 +213,15 @@ export function AgendaClient({
         ),
       };
       cache.current.set(key, data);
+      for (const appt of data.appts) {
+        if (appt.patient_id && appt.patients?.full_name) {
+          knownPatients.current.set(appt.patient_id, {
+            id: appt.patient_id,
+            full_name: appt.patients.full_name,
+            national_id: appt.patients.national_id ?? null,
+          });
+        }
+      }
       setAppts(data.appts);
       setAvailability(data.availability);
       setError(null);
@@ -228,21 +252,31 @@ export function AgendaClient({
         return;
       }
 
+      const patientId = (raw.patient_id as string | null | undefined) ?? null;
+      const patient = patientId ? knownPatients.current.get(patientId) ?? null : null;
       setAppts((current) => {
         const change =
           payload.eventType === "DELETE"
             ? ({ eventType: "DELETE", id } as const)
             : ({
                 eventType: payload.eventType,
-                appointment: appointmentFromRealtime(raw, patients),
+                appointment: appointmentFromRealtime(raw, patient),
               } as const);
         const next = applyAppointmentChange(current, change, range);
         const cached = cache.current.get(rangeKey);
         if (cached) cache.current.set(rangeKey, { ...cached, appts: next });
         return next;
       });
+      // Paciente que aún no está en pantalla: se recarga el rango para traer
+      // su nombre (la RPC de la agenda ya hace el join con patients).
+      const startsAt = new Date(raw.starts_at as string).getTime();
+      const inRange =
+        startsAt >= new Date(range.start).getTime() && startsAt < new Date(range.end).getTime();
+      if (payload.eventType !== "DELETE" && patientId && !patient && inRange) {
+        void loadRange(range, true);
+      }
     },
-    [canViewAll, myName, patients, range, rangeKey],
+    [canViewAll, loadRange, myName, range, rangeKey],
   );
 
   const navigate = useCallback((nextDate: string, nextView: AgendaView) => {
@@ -289,7 +323,8 @@ export function AgendaClient({
         </div>
       )}
       <AgendaShell
-        patients={patients}
+        searchPatients={searchPatients}
+        presetPatient={presetPatient}
         appts={appts}
         date={date}
         view={view}

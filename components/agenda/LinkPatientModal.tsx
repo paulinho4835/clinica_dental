@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { linkAppointmentPatient } from "@/app/(dashboard)/agenda/actions";
 import { submitPatient } from "@/lib/clinic-direct-operations";
 import { requestAgendaRefresh } from "@/lib/agenda/client-events";
-import { PatientPicker, type PatientOption } from "./PatientPicker";
+import { PatientPicker, type PatientOption, type PatientSearch } from "./PatientPicker";
 import { Modal } from "@/components/ui/Modal";
 import { type MonthAppt } from "./apptHelpers";
 
@@ -12,11 +12,11 @@ import { type MonthAppt } from "./apptHelpers";
 // Asocia la cita (y su dinero) a un expediente. Si la cita ya fue atendida,
 // el server migra cotización + adelanto al historial en el acto.
 export function LinkPatientModal({
-  patients,
+  searchPatients,
   appt,
   onClose,
 }: {
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
   appt: MonthAppt;
   onClose: () => void;
 }) {
@@ -108,7 +108,7 @@ export function LinkPatientModal({
         </div>
 
         {tab === "existing" ? (
-          <PatientPicker patients={patients} selected={selected} onSelect={setSelected} autoFocus />
+          <PatientPicker searchPatients={searchPatients} selected={selected} onSelect={setSelected} autoFocus />
         ) : (
           <div className="space-y-2">
             <label className="block text-sm">

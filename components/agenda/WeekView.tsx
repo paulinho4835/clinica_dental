@@ -21,7 +21,7 @@ import {
 } from "@/lib/agenda/dragDrop";
 import { ApptPopover, type PopoverAppt } from "./ApptPopover";
 import { QuickCreatePopover, type QuickDraft } from "./QuickCreatePopover";
-import { type PatientOption } from "./PatientPicker";
+import { type PatientOption, type PatientSearch } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 import { rescheduleAppointment } from "@/app/(dashboard)/agenda/actions";
 import { confirm } from "@/lib/confirm";
@@ -54,7 +54,8 @@ export function WeekView({
   date,
   byDay,
   canWrite,
-  patients,
+  searchPatients,
+  presetPatient = null,
   doctors,
   onOpenDay,
   onPick,
@@ -67,7 +68,9 @@ export function WeekView({
   date: string;
   byDay: Map<string, MonthAppt[]>;
   canWrite: boolean;
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
+  /** Paciente preelegido para las citas nuevas (viene de "Agendar cita"). */
+  presetPatient?: PatientOption | null;
   doctors: DoctorOption[];
   onOpenDay: (day: string) => void;
   /** Escala al modal completo ("Más opciones" del popover rápido). */
@@ -382,7 +385,8 @@ export function WeekView({
       {/* Creación rápida sobre la franja elegida */}
       {draft && canWrite && (
         <QuickCreatePopover
-          patients={patients}
+          searchPatients={searchPatients}
+          initialPatient={presetPatient}
           doctors={doctors}
           start={draft.start}
           end={draft.end}

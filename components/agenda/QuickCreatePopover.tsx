@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createAppointment, type ActionState } from "@/app/(dashboard)/agenda/actions";
-import { PatientPicker, type PatientOption } from "./PatientPicker";
+import { PatientPicker, type PatientOption, type PatientSearch } from "./PatientPicker";
 import { type DoctorOption } from "./apptHelpers";
 import { mins } from "@/lib/agenda";
 import { findAvailabilityConflict, type AvailabilityBlock } from "@/lib/availability";
@@ -30,7 +30,8 @@ export type QuickDraft = {
 // franja clickeada, con lo mínimo para agendar. Para cobro / sobre-cupo se
 // escala al modal completo con "Más opciones" sin perder lo ya escrito.
 export function QuickCreatePopover({
-  patients,
+  searchPatients,
+  initialPatient = null,
   doctors,
   start,
   end,
@@ -40,7 +41,9 @@ export function QuickCreatePopover({
   onClose,
   availability,
 }: {
-  patients: PatientOption[];
+  searchPatients: PatientSearch;
+  /** Paciente ya elegido al abrir (p. ej. al llegar desde su ficha). */
+  initialPatient?: PatientOption | null;
   doctors: DoctorOption[];
   start: Date;
   end: Date;
@@ -55,7 +58,7 @@ export function QuickCreatePopover({
   const idempotencyKey = useRef(crypto.randomUUID());
   const [state, formAction, pending] = useActionState(createAppointment, initial);
 
-  const [selected, setSelected] = useState<PatientOption | null>(null);
+  const [selected, setSelected] = useState<PatientOption | null>(initialPatient);
   const [mode, setMode] = useState<"registered" | "new">("registered");
   const [patientName, setPatientName] = useState("");
   const [reason, setReason] = useState("");
@@ -212,7 +215,7 @@ export function QuickCreatePopover({
 
         {mode === "registered" ? (
           <PatientPicker
-            patients={patients}
+            searchPatients={searchPatients}
             selected={selected}
             onSelect={setSelected}
             autoFocus

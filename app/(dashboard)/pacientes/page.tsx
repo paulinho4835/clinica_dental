@@ -12,7 +12,8 @@ import { RealtimeIntakes } from "@/components/patients/RealtimeIntakes";
 import { parseAnamnesis } from "@/lib/schemas/anamnesis";
 import { parseIntake } from "@/lib/schemas/patient-intake";
 import { requireFeature } from "@/lib/guard";
-import { getInitials, normalizeSearch } from "@/lib/format";
+import { getInitials } from "@/lib/format";
+import { applyPatientSearch, patientSearchTerms, patientPhoneDigits } from "@/lib/patientSearchTerms";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AlertTriangle } from "lucide-react";
 import { usageLevel } from "@/lib/storageLimits";
@@ -45,6 +46,11 @@ export default async function PatientsPage({
     profile?.role === "odontologo_general" || profile?.role === "especialista";
 
   const q = (await searchParams).q?.trim() ?? "";
+  // Búsqueda sin acentos y por palabras (misma regla en todos los buscadores).
+  // Los doctores no buscan por teléfono: no ven ese dato.
+  const searchByPhone = !isDoctor;
+  const hasSearch =
+    patientSearchTerms(q).length > 0 || (searchByPhone && patientPhoneDigits(q) !== null);
 
   // Conteo real de pacientes de la clínica (count: exact, head: true — cuenta
   // filas sin traerlas, mucho más barato que un select completo). Se necesita
@@ -54,7 +60,7 @@ export default async function PatientsPage({
   const isAdmin = profile?.role === "admin" && profile.clinicId;
   let totalPatients: number | null = null;
   let patientLimitAlert: { count: number; max: number; level: "warn" | "danger" } | null = null;
-  if (!q || isAdmin) {
+  if (!hasSearch || isAdmin) {
     const [{ count }, clinicRes] = await Promise.all([
       supabase.from("patients").select("id", { count: "exact", head: true }),
       isAdmin
@@ -82,14 +88,14 @@ export default async function PatientsPage({
     .select("id, full_name, national_id, phone, medical_alerts")
     .order("full_name");
 
-  if (q) {
-    query = query.ilike("search_text", `%${normalizeSearch(q)}%`);
+  if (hasSearch) {
+    query = applyPatientSearch(query, q, { phone: searchByPhone });
   } else {
     query = query.limit(PATIENTS_PAGE_LIMIT);
   }
 
   const { data: patients } = await query;
-  const truncated = !q && totalPatients !== null && totalPatients > PATIENTS_PAGE_LIMIT;
+  const truncated = !hasSearch && totalPatients !== null && totalPatients > PATIENTS_PAGE_LIMIT;
 
   // Registros entrantes (auto-registro de pacientes nuevos vía WhatsApp).
   // Solo admin, recepción y colega: el panel muestra teléfonos y envía el
@@ -191,7 +197,7 @@ export default async function PatientsPage({
         </>
       )}
 
-      <PatientSearch initial={q} />
+      <PatientSearch initial={q} byPhone={searchByPhone} />
       {truncated && (
         <p className="text-xs text-slate-400">
           Mostrando los primeros {PATIENTS_PAGE_LIMIT} pacientes (orden alfabético). Usa el buscador para encontrar a alguien más.

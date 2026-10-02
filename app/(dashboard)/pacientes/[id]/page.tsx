@@ -11,7 +11,8 @@ import { DeletePatientButton } from "@/components/patients/DeletePatientButton";
 import type { TeethMap } from "@/lib/odontogram/types";
 import { PEDIATRIC_QUADRANTS, PEDIATRIC_QUADRANT_NUMBERS } from "@/lib/odontogram/pediatricTypes";
 import { savePediatricOdontogram } from "@/app/(dashboard)/pacientes/pediatric-odontogram-actions";
-import { money, calcAge } from "@/lib/format";
+import { money, calcAge, fmtIsoDate, boliviaDateISO, BOLIVIA_TZ } from "@/lib/format";
+import { CalendarPlus } from "lucide-react";
 import { getClinicCurrency } from "@/lib/superadmin";
 import Link from "next/link";
 import { normalizeFeatures } from "@/lib/features";
@@ -31,10 +32,14 @@ import type { IntakeAnswerSnapshot } from "@/lib/intakeQuestions";
 
 export default async function PatientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  // Pestaña abierta (?tab=): al volver o recargar se abre la misma.
+  const { tab } = await searchParams;
   const supabase = await createClient();
 
   const { data: patient } = await supabase
@@ -82,7 +87,7 @@ export default async function PatientPage({
   // y Documentos se piden bajo demanda (ver components/patients/lazy-tabs) —
   // antes se calculaban siempre las 4 pestañas aunque el usuario solo mirara
   // una, pagando ese costo de CPU/queries en cada visita a la ficha.
-  const [{ data: rawOdoEvents }, { data: clinicRow }] = await Promise.all([
+  const [{ data: rawOdoEvents }, { data: clinicRow }, { data: nextAppt }] = await Promise.all([
     supabase
       .from("odontogram_events")
       .select("id, tooth_fdi, surface, prev_state, new_state, created_at, actor:profiles(id, full_name)")
@@ -93,6 +98,16 @@ export default async function PatientPage({
       .select("features, name")
       .eq("id", patient.clinic_id)
       .single(),
+    // Próxima cita pendiente, para el encabezado.
+    supabase
+      .from("appointments")
+      .select("starts_at, dentist_name")
+      .eq("patient_id", id)
+      .gte("starts_at", new Date().toISOString())
+      .in("status", ["scheduled", "confirmed"])
+      .order("starts_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // Aplana el join de actor a actor_name para el componente de historial.
@@ -115,6 +130,22 @@ export default async function PatientPage({
   });
 
   const features = normalizeFeatures(clinicRow?.features);
+  // "Agendar cita": abre la agenda con este paciente preelegido.
+  const canSchedule =
+    features.agenda &&
+    can(profile?.role, "appointments:write") &&
+    canSeeNav(profile?.role, "agenda");
+  const nextApptLabel = nextAppt
+    ? new Date(nextAppt.starts_at).toLocaleString("es-BO", {
+        timeZone: BOLIVIA_TZ,
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    : null;
 
   // Saldo del encabezado: solo lo calculan admin/recepción/colega (canBilling);
   // los doctores lo ven acotado a lo suyo dentro de la pestaña "Cuenta"
@@ -339,14 +370,22 @@ export default async function PatientPage({
   return (
     <div className="space-y-6">
       <header>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <h1 className="flex flex-wrap items-baseline gap-x-2 text-2xl font-bold">
             {patient.full_name}
             {calcAge(patient.dob) !== null && (
               <span className="text-2xl font-bold text-slate-400">{calcAge(patient.dob)} años</span>
             )}
           </h1>
-          <div className="flex items-start gap-2">
+          <div className="flex flex-wrap items-start gap-2">
+            {canSchedule && (
+              <Link
+                href={`/agenda?view=day&paciente=${patient.id}`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-clinic px-3 py-2 text-sm font-medium text-white hover:bg-clinic-fg"
+              >
+                <CalendarPlus className="h-4 w-4" /> Agendar cita
+              </Link>
+            )}
             {canEditClinical && (
               <Link
                 href={`/pacientes/${patient.id}/expediente`}
@@ -379,7 +418,7 @@ export default async function PatientPage({
         </div>
         <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
           {patient.national_id && <span>CI: {patient.national_id}</span>}
-          {patient.dob && <span>Nac.: {patient.dob}</span>}
+          {patient.dob && <span>Nac.: {fmtIsoDate(patient.dob)}</span>}
           {patient.phone && !hidePhone && <span>Tel.: {patient.phone}</span>}
           {patient.referral_source && (
             <span>
@@ -392,6 +431,18 @@ export default async function PatientPage({
           )}
           {canBilling && <span>Saldo: {money(totalQuoted - totalPaid, currency)}</span>}
         </div>
+        {nextAppt && nextApptLabel && (
+          <div className="mt-2 text-sm text-slate-600">
+            Próxima cita:{" "}
+            <Link
+              href={`/agenda?date=${boliviaDateISO(new Date(nextAppt.starts_at))}&view=day`}
+              className="font-medium text-clinic hover:underline"
+            >
+              {nextApptLabel}
+              {nextAppt.dentist_name ? ` · ${nextAppt.dentist_name}` : ""}
+            </Link>
+          </div>
+        )}
         {patient.medical_alerts?.length > 0 && (
           <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
             ⚠ Alertas médicas: {patient.medical_alerts.join(", ")}
@@ -402,7 +453,7 @@ export default async function PatientPage({
         )}
       </header>
 
-      <SettingsTabs tabs={tabs} />
+      <SettingsTabs tabs={tabs} defaultTab={tab} urlParam="tab" />
     </div>
   );
 }
