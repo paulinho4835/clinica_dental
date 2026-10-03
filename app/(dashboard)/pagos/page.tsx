@@ -116,7 +116,7 @@ export default async function PagosPage({
   const platformAdminIds = await getPlatformAdminIds();
   let empQuery = supabase
     .from("profiles")
-    .select("id, full_name, role")
+    .select("id, full_name, role, active")
     .eq("clinic_id", profile!.clinicId)
     .order("full_name");
   if (platformAdminIds.length > 0) {
@@ -170,6 +170,19 @@ export default async function PagosPage({
       kind: "receptionist" as const,
     })),
   ];
+
+  // Usuarios desactivados: se conservan en `payees` para poder abrir su
+  // historial por enlace directo y liquidarles lo pendiente, pero la lista
+  // solo los muestra si aún se les debe comisión (o si están seleccionados).
+  const inactiveIds = new Set(
+    (employees ?? []).filter((e) => e.active === false).map((e) => e.id as string),
+  );
+  const listedPayees = payees.filter(
+    (pp) =>
+      !inactiveIds.has(pp.id) ||
+      (pendingByDoctor.get(pp.id) ?? 0) > 0 ||
+      pp.key === selectedKey,
+  );
 
   // Persona inexistente o de otra clínica → no está en payees → placeholder.
   const selectedPayee = payees.find((pp) => pp.key === selectedKey) ?? null;
@@ -399,7 +412,7 @@ export default async function PagosPage({
           </form>
 
           <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-            {payees.length === 0 ? (
+            {listedPayees.length === 0 ? (
               <EmptyState
                 icon={<Users className="h-6 w-6" />}
                 title={q ? `Sin resultados para “${q}”` : "Aún no hay personal"}
@@ -411,7 +424,7 @@ export default async function PagosPage({
               />
             ) : (
               <div className="divide-y divide-slate-100">
-                {payees.map((pp) => {
+                {listedPayees.map((pp) => {
                   const pending =
                     pp.kind === "profile" && COMMISSION_ROLES.has(pp.role)
                       ? (pendingByDoctor.get(pp.id) ?? 0)
@@ -433,6 +446,7 @@ export default async function PagosPage({
                           </div>
                           <div className="text-xs text-slate-400">
                             {ROLE_LABEL[pp.role] ?? pp.role}
+                            {inactiveIds.has(pp.id) && " · Inactivo"}
                           </div>
                         </div>
                         {pending > 0 && (
@@ -521,6 +535,7 @@ export default async function PagosPage({
                   <h2 className="text-lg font-semibold">{selectedPayee.full_name}</h2>
                   <p className="text-xs text-slate-400">
                     {ROLE_LABEL[selectedPayee.role] ?? selectedPayee.role}
+                    {inactiveIds.has(selectedPayee.id) && " · Cuenta desactivada"}
                   </p>
                 </div>
                 <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
