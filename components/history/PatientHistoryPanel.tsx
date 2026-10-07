@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useTransition, useState } from "react";
+import { useCallback, useEffect, useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import {
@@ -17,6 +17,7 @@ import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
 import type { PlanItemRow } from "@/lib/treatments/planItems";
 import { submitPatientPayment } from "@/lib/clinic-direct-operations";
+import { BankQrCheckout, useBankQrAvailable, type PaidQr } from "@/app/(dashboard)/cobro-qr/BankQrCheckout";
 
 export type PaymentRow = {
   id: string;
@@ -663,28 +664,31 @@ function PaymentForm({
   // Fecha de hoy en formato YYYY-MM-DD para el default del input date
   const today = new Date().toLocaleDateString("en-CA"); // en-CA da YYYY-MM-DD
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    setError("");
+  // Cobro QR dinámico (addon premium): si la clínica lo tiene conectado, el pago con QR lo confirma el
+  // banco. El formulario queda oculto (no desmontado) para no perder lo escrito si se anula el QR.
+  const bankQr = useBankQrAvailable();
+  const [qrCheckout, setQrCheckout] = useState<FormData | null>(null);
+  const onQrCancelled = useCallback(() => setQrCheckout(null), []);
+
+  /** Registra el pago; devuelve el mensaje de error, o null si quedó registrado. */
+  async function register(formData: FormData, qrNote = ""): Promise<string | null> {
     idempotencyKeyRef.current ??= crypto.randomUUID();
-    startSubmission(async () => {
-      try {
-        await submitPatientPayment({
-          idempotencyKey: idempotencyKeyRef.current!,
-          input: {
-            patient_id: patientId,
-            amount: amountN,
-            method: String(formData.get("method")) as "cash" | "qr" | "card",
-            doctor_id: doctorId || null,
-            commission_pct: pctN,
-            note: String(formData.get("note") ?? "") || null,
-            collected_by_id: collectedById || null,
-            received_at: String(formData.get("received_at") ?? "") || null,
-            treatment_item_id: itemId,
-          },
-        });
-        idempotencyKeyRef.current = null;
+    try {
+      await submitPatientPayment({
+        idempotencyKey: idempotencyKeyRef.current!,
+        input: {
+          patient_id: patientId,
+          amount: amountN,
+          method: String(formData.get("method")) as "cash" | "qr" | "card",
+          doctor_id: doctorId || null,
+          commission_pct: pctN,
+          note: [String(formData.get("note") ?? ""), qrNote].filter(Boolean).join(" · ") || null,
+          collected_by_id: collectedById || null,
+          received_at: String(formData.get("received_at") ?? "") || null,
+          treatment_item_id: itemId,
+        },
+      });
+      idempotencyKeyRef.current = null;
       formRef.current?.reset();
       setAmount("");
       setPct("");
@@ -692,19 +696,44 @@ function PaymentForm({
       setCollectedById("");
       setItemId("");
       setLockedDoctor(false);
+      setQrCheckout(null);
       router.refresh();
-      } catch (submissionError) {
-        setError(submissionError instanceof Error ? submissionError.message : "No se pudo registrar el pago");
-      }
+      return null;
+    } catch (submissionError) {
+      return submissionError instanceof Error ? submissionError.message : "No se pudo registrar el pago";
+    }
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setError("");
+    if (String(formData.get("method")) === "qr" && bankQr && amountN > 0) {
+      setQrCheckout(formData);
+      return;
+    }
+    startSubmission(async () => {
+      const problem = await register(formData);
+      if (problem) setError(problem);
     });
   }
 
+  const onQrPaid = (payment: PaidQr) =>
+    register(qrCheckout!, `QR banco${payment.bankTransactionId ? ` ${payment.bankTransactionId}` : ""}${payment.payerName ? ` · ${payment.payerName}` : ""}`);
+
   return (
+    <>
+    {qrCheckout && (
+      <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <h3 className="mb-3 text-sm font-semibold text-slate-800">Cobro con QR · {currency} {amountN.toFixed(2)}</h3>
+        <BankQrCheckout amount={amountN} patientId={patientId} description="Pago de tratamiento" onCancelled={onQrCancelled} onPaid={onQrPaid} />
+      </div>
+    )}
     <form
       ref={formRef}
       onSubmit={submit}
       onChangeCapture={() => { idempotencyKeyRef.current = null; }}
-      className="space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200"
+      className={`space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200${qrCheckout ? " hidden" : ""}`}
     >
       <input type="hidden" name="patient_id" value={patientId} />
       <div className="flex flex-wrap items-end gap-2">
@@ -902,5 +931,6 @@ function PaymentForm({
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </form>
+    </>
   );
 }

@@ -37,7 +37,8 @@ export type FeatureKey =
   | "odontograma_pediatrico"
   | "odontogram_dictado_voz"
   | "preguntas_registro"
-  | "google_calendar";
+  | "google_calendar"
+  | "cobro_qr";
 
 export interface FeatureMeta {
   key: FeatureKey;
@@ -116,6 +117,9 @@ export const FEATURES: FeatureMeta[] = [
   // por defecto mientras la app OAuth está en modo prueba (pendiente de
   // verificación de Google) — activar solo en clínicas de prueba controladas.
   { key: "google_calendar", label: "Google Calendar (sync de citas)", href: "/ajustes", optIn: true },
+  // Addon premium: cobro con el QR dinámico del banco (Banco Económico): monto exacto y pago
+  // confirmado solo. Lo enciende únicamente el superadmin (un trigger de la DB lo protege).
+  { key: "cobro_qr", label: "Cobro QR dinámico (Banco Económico)", href: "/ajustes", optIn: true },
   { key: "ajustes", label: "Ajustes", href: "/ajustes", core: true },
 ];
 
@@ -128,7 +132,7 @@ export const ADDON_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   { label: "💬 Comunicación", keys: ["whatsapp_manual", "wa_masivo", "campanas", "aviso_doctores", "recordatorios"] },
   { label: "🤖 Agente de IA", keys: ["agente_ia", "agente_ia_t2", "agente_ia_t3", "agente_ia_info"] },
   { label: "🦷 Ficha clínica y documentos", keys: ["recetas", "recibos_pago", "consentimientos", "fotos", "fotos_contador", "periodontograma", "odontograma_pediatrico", "odontogram_dictado_voz", "preguntas_registro"] },
-  { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones", "google_calendar"] },
+  { label: "⚙️ Administración", keys: ["inicio", "pagos", "bloqueo_horario", "perfil", "disponibilidad", "calificaciones", "google_calendar", "cobro_qr"] },
 ];
 
 // Tope de fotos POR CLÍNICA (no por paciente). El addon "fotos" enciende el

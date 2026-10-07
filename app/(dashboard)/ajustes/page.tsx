@@ -23,6 +23,7 @@ import {
   type ReceptionistaRow,
 } from "@/components/ajustes/ReceptionistasPanel";
 import { LogoUploader } from "@/components/ajustes/LogoUploader";
+import { BankQrCard } from "@/components/ajustes/BankQrCard";
 import { AgentInfoPanel, type AgentInfoRow } from "@/components/ajustes/AgentInfoPanel";
 import { isR2Configured, presignDownload } from "@/lib/r2";
 import { IntakeQuestionsPanel } from "@/components/ajustes/IntakeQuestionsPanel";
@@ -399,6 +400,8 @@ export default async function SettingsPage() {
           <ProfessionalColorsPanel professionals={professionalColors} />
         </section>
       )}
+
+      {isClinicAdmin && <BankQrCard />}
 
       {isClinicAdmin && profile && (
         <section>
