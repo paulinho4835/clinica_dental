@@ -8,6 +8,8 @@
  */
 
 export const BANECO_CERTIFICATION_URL = "https://apimktdesa.baneco.com.bo/ApiGateway";
+/** Confirmada el 2026-10-07 al verificar credenciales reales; `BANECO_PRODUCTION_URL` la reemplaza si el banco la cambia. */
+export const BANECO_PRODUCTION_URL = "https://apimkt.baneco.com.bo/ApiGateway";
 
 export class BankError extends Error {
   constructor(

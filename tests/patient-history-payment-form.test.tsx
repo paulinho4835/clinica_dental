@@ -15,6 +15,13 @@ vi.mock("@/app/(dashboard)/pacientes/history-actions", () => ({
 vi.mock("@/app/(dashboard)/pacientes/treatment-actions", () => ({
   setWorkDone: vi.fn(),
 }));
+// Sin el addon del cobro QR del banco: el formulario usa el QR de siempre.
+vi.mock("@/app/(dashboard)/cobro-qr/actions", () => ({
+  getBankQrState: vi.fn().mockResolvedValue({ ok: true, data: { available: false, configured: false } }),
+  generateBankQr: vi.fn(),
+  checkBankQr: vi.fn(),
+  cancelBankQr: vi.fn(),
+}));
 
 import { PatientHistoryPanel } from "@/components/history/PatientHistoryPanel";
 

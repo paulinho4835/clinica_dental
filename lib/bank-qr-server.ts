@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BANECO_CERTIFICATION_URL, BankError, bankAmount, createBanecoClient, qrDueDate, tokenExpiresAt, type BanecoClient } from "@/lib/baneco";
+import { BANECO_CERTIFICATION_URL, BANECO_PRODUCTION_URL, BankError, bankAmount, createBanecoClient, qrDueDate, tokenExpiresAt, type BanecoClient } from "@/lib/baneco";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -51,9 +51,7 @@ const PAYMENT_FIELDS =
 
 function baseUrl(environment: string) {
   if (environment === "production") {
-    const url = process.env.BANECO_PRODUCTION_URL;
-    if (!url) throw new UserError("Falta configurar la URL de producción del banco (BANECO_PRODUCTION_URL).");
-    return url;
+    return process.env.BANECO_PRODUCTION_URL ?? BANECO_PRODUCTION_URL;
   }
   return process.env.BANECO_CERTIFICATION_URL ?? BANECO_CERTIFICATION_URL;
 }
