@@ -58,7 +58,7 @@ export function BankQrCard() {
 
   return <section aria-labelledby="bank-qr-title" className="rounded-xl border border-slate-200 bg-white p-6">
     <div className="flex items-start gap-3">
-      <div className="rounded-xl bg-leaf p-3 text-clinic"><QrCode size={20} /></div>
+      <div className="rounded-xl bg-slate-100 p-3 text-clinic"><QrCode size={20} /></div>
       <div>
         <h2 className="font-black" id="bank-qr-title">Cobro QR dinámico {state && !state.available && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">Premium</span>}</h2>
         <p className="text-sm text-slate-500">
