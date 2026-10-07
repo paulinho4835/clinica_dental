@@ -670,7 +670,21 @@ function PaymentForm({
   const [qrCheckout, setQrCheckout] = useState<FormData | null>(null);
   const onQrCancelled = useCallback(() => setQrCheckout(null), []);
 
-  /** Registra el pago; devuelve el mensaje de error, o null si quedó registrado. */
+  function resetForm() {
+    formRef.current?.reset();
+    setAmount("");
+    setPct("");
+    setDoctorId("");
+    setCollectedById("");
+    setItemId("");
+    setLockedDoctor(false);
+    setQrCheckout(null);
+  }
+
+  /**
+   * Registra el pago; devuelve el mensaje de error, o null si quedó registrado. Con QR del banco el formulario
+   * no se limpia aquí: el aviso de pago exitoso (con la barra del tratamiento ya actualizada) espera a «Listo».
+   */
   async function register(formData: FormData, qrNote = ""): Promise<string | null> {
     idempotencyKeyRef.current ??= crypto.randomUUID();
     try {
@@ -689,14 +703,7 @@ function PaymentForm({
         },
       });
       idempotencyKeyRef.current = null;
-      formRef.current?.reset();
-      setAmount("");
-      setPct("");
-      setDoctorId("");
-      setCollectedById("");
-      setItemId("");
-      setLockedDoctor(false);
-      setQrCheckout(null);
+      if (!qrNote) resetForm();
       router.refresh();
       return null;
     } catch (submissionError) {
@@ -738,7 +745,7 @@ function PaymentForm({
             <TreatmentProgressBar paid={qrItem.paidAmount} total={qrItem.price} size="md" currency={currency} />
           </div>
         )}
-        <BankQrCheckout amount={amountN} patientId={patientId} description={qrDescription} onCancelled={onQrCancelled} onPaid={onQrPaid} />
+        <BankQrCheckout amount={amountN} patientId={patientId} description={qrDescription} onCancelled={onQrCancelled} onPaid={onQrPaid} onDone={resetForm} />
       </div>
     )}
     <form

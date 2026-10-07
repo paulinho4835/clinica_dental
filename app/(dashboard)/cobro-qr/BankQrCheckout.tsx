@@ -55,12 +55,14 @@ function playPaidSound() {
  * Genera el QR del banco por el monto exacto, espera el pago y, al confirmarse, avisa con `onPaid` para que
  * quien lo usa registre el cobro. Si `onPaid` devuelve un mensaje, el pago llegó pero el registro falló.
  */
-export function BankQrCheckout({ amount, patientId, description, onPaid, onCancelled }: {
+export function BankQrCheckout({ amount, patientId, description, onPaid, onCancelled, onDone }: {
   amount: number;
   patientId?: string | null;
   description: string;
   onPaid: (payment: PaidQr) => Promise<string | null>;
   onCancelled: () => void;
+  /** Con esto, el aviso de pago exitoso queda en pantalla hasta que se pulse «Listo». */
+  onDone?: () => void;
 }) {
   const [qr, setQr] = useState<Qr | null>(null);
   const [paid, setPaid] = useState<PaidQr | null>(null);
@@ -69,6 +71,7 @@ export function BankQrCheckout({ amount, patientId, description, onPaid, onCance
   const [error, setError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registeredOk, setRegisteredOk] = useState(false);
   const started = useRef(false);
   const startedAt = useRef(0);
   const current = useRef<string | null>(null);
@@ -101,6 +104,7 @@ export function BankQrCheckout({ amount, patientId, description, onPaid, onCance
       const problem = await onPaid(payment);
       setRegistering(false);
       if (problem) setRegisterError(problem);
+      else setRegisteredOk(true);
     },
     [onPaid],
   );
@@ -192,6 +196,10 @@ export function BankQrCheckout({ amount, patientId, description, onPaid, onCance
       {registerError && <>
         <p className="mt-3 text-sm text-red-600" role="alert">El pago se recibió, pero no se pudo registrar: {registerError}</p>
         <button className="inline-flex items-center justify-center rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg disabled:opacity-50 mt-3" disabled={registering} onClick={() => void register(paid)} type="button">Reintentar registrar el pago</button>
+      </>}
+      {registeredOk && onDone && <>
+        <p className="mt-3 text-sm text-green-600">El pago quedó registrado.</p>
+        <button className="inline-flex items-center justify-center rounded-md bg-clinic px-4 py-2 text-sm font-medium text-white hover:bg-clinic-fg mt-3" onClick={onDone} type="button">Listo</button>
       </>}
     </div>;
   }
