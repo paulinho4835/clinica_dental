@@ -718,6 +718,10 @@ function PaymentForm({
     });
   }
 
+  // El QR lleva el nombre del tratamiento: lo ve el paciente en su banco y queda en el extracto.
+  const qrItem = planItems.find((p) => p.id === itemId);
+  const qrDescription = qrItem ? `Pago ${qrItem.name}` : "Pago de tratamiento";
+
   const onQrPaid = (payment: PaidQr) =>
     register(qrCheckout!, `QR banco${payment.bankTransactionId ? ` ${payment.bankTransactionId}` : ""}${payment.payerName ? ` · ${payment.payerName}` : ""}`);
 
@@ -725,8 +729,16 @@ function PaymentForm({
     <>
     {qrCheckout && (
       <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Cobro con QR · {currency} {amountN.toFixed(2)}</h3>
-        <BankQrCheckout amount={amountN} patientId={patientId} description="Pago de tratamiento" onCancelled={onQrCancelled} onPaid={onQrPaid} />
+        <h3 className="text-sm font-semibold text-slate-800">Cobro con QR · {currency} {amountN.toFixed(2)}</h3>
+        {qrItem && (
+          <div className="mb-3 mt-2 space-y-1">
+            <p className="text-sm text-slate-600">
+              Tratamiento: <span className="font-medium text-slate-800">{qrItem.name}</span>
+            </p>
+            <TreatmentProgressBar paid={qrItem.paidAmount} total={qrItem.price} size="md" currency={currency} />
+          </div>
+        )}
+        <BankQrCheckout amount={amountN} patientId={patientId} description={qrDescription} onCancelled={onQrCancelled} onPaid={onQrPaid} />
       </div>
     )}
     <form
