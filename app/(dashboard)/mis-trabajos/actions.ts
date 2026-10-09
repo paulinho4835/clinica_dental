@@ -20,6 +20,7 @@ const WorkSchema = z.object({
     .max(100, "El % no puede pasar de 100."),
   amount_paid: z.coerce.number().min(0, "El cobro no puede ser negativo."),
   payment_method: z.enum(["cash", "qr", "card"]).optional().nullable(),
+  qr_payment_id: z.string().uuid().optional().nullable(),
   // Informativo: si al paciente se le entregó factura (no afecta montos).
   invoiced: z.enum(["true", "false"]).default("false"),
   issue_receipt: z.enum(["true", "false"]).default("false"),
@@ -54,6 +55,7 @@ export async function createDoctorWork(
     commission_pct: formData.get("commission_pct") || 0,
     amount_paid: formData.get("amount_paid") || 0,
     payment_method: formData.get("payment_method") || null,
+    qr_payment_id: formData.get("qr_payment_id") || null,
     invoiced: formData.get("invoiced") || "false",
     issue_receipt: formData.get("issue_receipt") === "on" ? "true" : "false",
     performed_at: formData.get("performed_at"),
@@ -116,6 +118,26 @@ export async function createDoctorWork(
   }
 
   const paymentMethod = d.amount_paid > 0 ? (d.payment_method ?? "cash") : null;
+  let qrPaymentNote: string | null = null;
+  if (paymentMethod === "qr" && d.qr_payment_id) {
+    const admin = createAdminClient();
+    const { data: qrPayment, error: qrError } = await admin
+      .from("qr_payments")
+      .select("status,clinic_id,patient_id,amount,bank_transaction_id")
+      .eq("id", d.qr_payment_id)
+      .eq("clinic_id", profile.clinicId)
+      .maybeSingle();
+    if (qrError) return { error: qrError.message };
+    if (!qrPayment || qrPayment.status !== "paid") {
+      return { error: "El pago QR todavía no está confirmado por el banco." };
+    }
+    const qrAmount = Math.round(Number(qrPayment.amount) * 100) / 100;
+    const paidAmount = Math.round(d.amount_paid * 100) / 100;
+    if (qrPayment.patient_id !== d.patient_id || qrAmount !== paidAmount) {
+      return { error: "El QR pagado no coincide con el paciente o el monto del trabajo." };
+    }
+    qrPaymentNote = qrPayment.bank_transaction_id ? `QR banco ${qrPayment.bank_transaction_id}` : "QR banco";
+  }
   let payment: { id: string } | null = null;
   let receiptId: string | undefined;
   let payError: { message: string } | null = null;
@@ -184,7 +206,7 @@ export async function createDoctorWork(
       kind: "payment",
       doctor_id: actualDoctorId,
       commission_pct: d.commission_pct,
-      note: d.description,
+      note: [d.description, qrPaymentNote].filter(Boolean).join(" · "),
       collected_by_id: resolvedCollectedById,
       treatment_item_id: d.treatment_item_id ?? null,
     }).select("id").single());

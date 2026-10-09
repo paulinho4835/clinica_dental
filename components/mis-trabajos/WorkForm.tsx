@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { createDoctorWork, type ActionState } from "@/app/(dashboard)/mis-trabajos/actions";
+import { BankQrCheckout, useBankQrAvailable, type PaidQr } from "@/app/(dashboard)/cobro-qr/BankQrCheckout";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
 import { computeCommission } from "@/lib/commission";
@@ -86,6 +87,10 @@ export function WorkForm({
 
   const [amountPaid, setAmountPaid] = useState("");
   const amountPaidN = Number(amountPaid) || 0;
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [qrCheckout, setQrCheckout] = useState<FormData | null>(null);
+  const [qrReceiptId, setQrReceiptId] = useState<string | undefined>();
+  const bankQr = useBankQrAvailable();
 
   // Si al paciente se le entregó factura (informativo, no afecta montos).
   const [invoiced, setInvoiced] = useState("false");
@@ -154,10 +159,44 @@ export function WorkForm({
     setPct("");
     setLabCost("");
     setAmountPaid("");
+    setPaymentMethod("");
+    setQrCheckout(null);
     setInvoiced("false");
     setIssueReceipt(false);
     setBalance(null);
     setOpen(false);
+  }
+
+  function openQrCheckout() {
+    if (!formRef.current || !canSubmit || paymentMethod !== "qr" || amountPaidN <= 0) return;
+    setQrCheckout(new FormData(formRef.current));
+    setShowConfirm(false);
+  }
+
+  async function registerQrPayment(payment: PaidQr): Promise<string | null> {
+    const data = qrCheckout;
+    if (!data) return "No se encontraron los datos del trabajo.";
+    const existingNotes = String(data.get("notes") ?? "").trim();
+    data.set("qr_payment_id", payment.id);
+    data.set("notes", [existingNotes, payment.bankTransactionId ? `QR banco ${payment.bankTransactionId}` : "QR banco"]
+      .filter(Boolean)
+      .join(" · "));
+
+    const result = await createDoctorWork(initial, data);
+    if (!result.ok) return result.error ?? "No se pudo registrar el trabajo.";
+
+    setQrReceiptId(result.receiptId);
+    toast("Pago QR confirmado y trabajo registrado", "success");
+    resetForm();
+    router.refresh();
+    return null;
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    if (paymentMethod === "qr" && bankQr && amountPaidN > 0) {
+      event.preventDefault();
+      setQrCheckout(new FormData(event.currentTarget));
+    }
   }
 
   function selectPlanItem(item: PlanItemRow) {
@@ -196,6 +235,8 @@ export function WorkForm({
       setPct("");
       setLabCost("");
       setAmountPaid("");
+      setPaymentMethod("");
+      setQrCheckout(null);
       setInvoiced("false");
       setIssueReceipt(false);
       // Refrescar barras de progreso inmediatamente.
@@ -261,7 +302,20 @@ export function WorkForm({
       subtitle="Completa los datos del trabajo realizado y su comisión."
       size="2xl"
     >
-      <form ref={formRef} action={formAction} className="space-y-4">
+      {qrCheckout && (
+        <div className="mb-4 rounded-xl border border-clinic/20 bg-clinic/5 p-4">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-clinic">Cobro QR dinámico</h3>
+          <BankQrCheckout
+            amount={amountPaidN}
+            patientId={selectedId}
+            description={description || "Pago de trabajo"}
+            onCancelled={() => setQrCheckout(null)}
+            onPaid={registerQrPayment}
+            onDone={() => setQrCheckout(null)}
+          />
+        </div>
+      )}
+      <form ref={formRef} action={formAction} onSubmit={submit} className={`space-y-4${qrCheckout ? " hidden" : ""}`}>
 
         {/* ── Paciente ──────────────────────────────────────── */}
         <div className={sectionClass}>
@@ -542,6 +596,8 @@ export function WorkForm({
               <select
                 name="payment_method"
                 disabled={amountPaidN <= 0}
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
                 className={fieldInputClass}
               >
                 <option value="">— ninguno —</option>
@@ -549,6 +605,20 @@ export function WorkForm({
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
+              {paymentMethod === "qr" && amountPaidN > 0 && (
+                bankQr ? (
+                  <button
+                    type="button"
+                    onClick={openQrCheckout}
+                    disabled={!canSubmit || pending}
+                    className="mt-2 w-full rounded-md border border-clinic bg-white px-3 py-2 text-sm font-semibold text-clinic hover:bg-clinic/5 disabled:opacity-50"
+                  >
+                    Generar QR de cobro
+                  </button>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">El QR dinámico del banco no está configurado; el pago se registrará manualmente.</p>
+                )
+              )}
             </label>
 
             {/* Con factura / sin factura (informativo, no afecta montos) */}
@@ -767,9 +837,9 @@ export function WorkForm({
         </div>
       </div>
     )}
-    {state.receiptId && (
+    {(state.receiptId || qrReceiptId) && (
       <a
-        href={`/recibos/${state.receiptId}`}
+        href={`/recibos/${state.receiptId || qrReceiptId}`}
         target="_blank"
         rel="noreferrer"
         className="fixed bottom-4 right-4 z-[70] rounded-md bg-violet-700 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-violet-800"
