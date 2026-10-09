@@ -187,7 +187,6 @@ export function WorkForm({
 
     setQrReceiptId(result.receiptId);
     toast("Pago QR confirmado y trabajo registrado", "success");
-    resetForm();
     router.refresh();
     return null;
   }
@@ -311,7 +310,7 @@ export function WorkForm({
             description={description || "Pago de trabajo"}
             onCancelled={() => setQrCheckout(null)}
             onPaid={registerQrPayment}
-            onDone={() => setQrCheckout(null)}
+            onDone={resetForm}
           />
         </div>
       )}
